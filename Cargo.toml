@@ -1,0 +1,24 @@
+[workspace]
+resolver = "2"
+members = [
+    "registry",
+    "zk",
+    "anvil/abi",
+    "anvil/harness",
+    "anvil/impls/popcount-naive",
+    "anvil/impls/popcount-swar",
+    "anvil/impls/sum-loop",
+    "anvil/impls/sum-closed",
+    "anvil/impls/evm-common",
+    "anvil/impls/evm-ref",
+    "anvil/impls/evm-tos",
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

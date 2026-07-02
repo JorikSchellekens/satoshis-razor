@@ -1,0 +1,8 @@
+target/
+lean/.lake/
+node_modules/
+site/data.json
+registry/data/
+*.wasm
+.DS_Store
+zk/keys/
