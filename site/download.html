@@ -18,9 +18,8 @@
 <div class="pagehead wrap">
   <h2>Get started</h2>
   <p class="lede">One script builds the whole stack — the Lean package, the registry CLI, the benchmark
-  harness, the Groth16 prover — replays the demo walkthrough once to prove every part works on your
-  machine (verifications included), then seeds the live registry and serves this site. Switch datasets any
-  time: <code>./seed.sh</code> for the live registry, <code>./demo.sh</code> for the scripted walkthrough.</p>
+  harness, the Groth16 prover — and puts the tools on your PATH. That is all it does: it writes no
+  dataset and starts no server. Hosting the registry locally is one command afterwards.</p>
 </div>
 
 <section>
@@ -30,13 +29,17 @@
       <div class="codeblock">curl -sSf http://localhost:8420/install.sh | bash
 <span class="c"># or, from a checkout:</span>
 ./install.sh</div>
-      <p>The script checks for <strong>git</strong>, <strong>rust</strong> (via rustup), and <strong>python3</strong>; installs
+      <p>The script checks for <strong>git</strong> and <strong>rust</strong> (via rustup); installs
       <strong>elan</strong> (the Lean toolchain manager) and the <strong>wasm32</strong> compile target if they are missing;
-      builds everything; runs <code>./demo.sh</code>; and serves the site on port 8420 with
-      <code>razor serve</code>, which re-derives <code>data.json</code> from the log on every request - append an
-      event from the CLI and every open page updates within a few seconds.
+      builds everything; and links the three tools into <code>~/.cargo/bin</code>.
       <a href="install.sh">Read the script before you run it</a> — you should not have to trust this page's word
       about what it does.</p>
+
+      <h4>Host the registry locally</h4>
+      <div class="codeblock">./seed.sh     <span class="c"># the live registry: real corpora, real open problems (or ./demo.sh for the walkthrough)</span>
+razor serve   <span class="c"># browse it at http://localhost:8420</span></div>
+      <p><code>razor serve</code> re-derives <code>data.json</code> from the log on every request - append an
+      event from the CLI and every open page updates within a few seconds.</p>
 
       <h4>What you have afterwards</h4>
       <p>Three commands on your PATH (linked into <code>~/.cargo/bin</code>, so a rebuild updates them in

@@ -13,11 +13,11 @@ This repo contains a working implementation of the registry, the funnel, and the
 Anvil - real Lean verification, real fuel-metered benchmarks, no chain.
 
 ```sh
-./install.sh                           # checks toolchain, builds, replays the demo, serves the site
-# or step by step:
+./install.sh                           # checks toolchain, builds, links razor / anvil-harness / zk-prover onto PATH
+# then, to host the registry locally:
 ./seed.sh                              # the live registry: real corpora + real open problems, no fiction
 ./demo.sh                              # OR the scripted walkthrough exercising every mechanism
-target/release/razor serve             # then browse the registry at http://localhost:8420 (live: data.json is re-derived from the log per request)
+razor serve                            # browse it at http://localhost:8420 (live: data.json is re-derived from the log per request)
 ```
 
 Two datasets. `./seed.sh` builds the **live** registry: recognized prior corpora with

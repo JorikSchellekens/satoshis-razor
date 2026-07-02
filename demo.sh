@@ -8,6 +8,8 @@ cd "$(dirname "$0")"
 RAZOR=./target/release/razor
 step() { printf '\n\033[1;36m▸ %s\033[0m\n' "$*"; }
 
+command -v python3 >/dev/null 2>&1 || { echo "python3 is required (decodes the zk prover's output)" >&2; exit 1; }
+
 step "Build everything (Lean package, registry, harness, wasm submissions)"
 (cd lean && lake build 2>&1 | tail -1)
 cargo build --release 2>&1 | tail -1

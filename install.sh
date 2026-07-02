@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# Satoshi's Razor - installer.
+# Satoshi's Razor - tool installer.
 # Checks the toolchain, fetches the repo if needed, builds every component,
-# seeds the live registry, replays the demo once to prove the stack works,
-# and serves the site.
+# and links the binaries onto your PATH. Nothing else: no dataset is written,
+# no server is started.
 #
 #   curl -sSf <host>/install.sh | bash
 #   ./install.sh              # from a checkout
 set -euo pipefail
 
 REPO_URL="${RAZOR_REPO:-https://github.com/jorikschellekens/satoshis-razor}"
-PORT="${RAZOR_PORT:-8420}"
 
 say()  { printf '\033[1;36m▸ %s\033[0m\n' "$*"; }
 die()  { printf '\033[1;31m✕ %s\033[0m\n' "$*" >&2; exit 1; }
@@ -17,7 +16,6 @@ have() { command -v "$1" >/dev/null 2>&1; }
 
 say "checking toolchain"
 have git || die "git is required"
-have python3 || die "python3 is required (serves the site)"
 
 if ! have cargo; then
   die "rust is required - install via https://rustup.rs then re-run"
@@ -47,18 +45,14 @@ cargo build --release
 cargo build --release --target wasm32-unknown-unknown \
   -p popcount-naive -p popcount-swar -p sum-loop -p sum-closed -p evm-ref -p evm-tos
 
-say "replaying the demo walkthrough (real proofs, real benchmarks, real SNARKs)"
-./demo.sh
-
-say "seeding the live registry (real corpora, real open problems)"
-./seed.sh
-
 say "putting razor, anvil-harness, and zk-prover on your PATH"
 BIN="${CARGO_HOME:-$HOME/.cargo}/bin"
 mkdir -p "$BIN"
 for t in razor anvil-harness zk-prover; do ln -sf "$PWD/target/release/$t" "$BIN/$t"; done
 echo "  linked into $BIN (rebuilds update them in place)"
 
-say "done - serving the registry at http://localhost:$PORT"
+say "done"
 echo "  try: razor help"
-razor serve --port "$PORT"
+echo "  to host the registry locally:"
+echo "    ./seed.sh        # build the live dataset (or ./demo.sh for the scripted walkthrough)"
+echo "    razor serve      # browse it at http://localhost:8420"
