@@ -88,7 +88,7 @@ razor zk-submit --id SUB-me-zk --hole ZKH-001 --route ZKR-001 \
       <p>The live registry (<code>./seed.sh</code>) carries real open problems from the Lean community's
       current frontier. Most are still proposals waiting for a formal statement; the Erdos-Straus
       conjecture already has one pinned hole per environment (ES-001 in core Lean, ES-002 in Mathlib's
-      vocabulary), and Fermat's Last Theorem is pinned in core Lean (FLT-000) with two registered splits
+      definitions), and Fermat's Last Theorem is pinned in core Lean (FLT-000) with two registered splits
       whose glue proofs are already admitted. FLT-RED - every exponent at least 3 factors through 4 or an
       odd prime - is self-contained number theory and a genuinely provable first hole on the live board.
       Add your own candidate statement with <code>razor formalize --gloss "..."</code> - the
@@ -125,7 +125,7 @@ razor verify --submission SUB-glue</div>
       Linux) and is killed after a time limit.</p>
 
       <h4>Proofs that use Mathlib</h4>
-      <p>Holes registered with <code>--env mathlib</code> pin statements written in Mathlib's vocabulary
+      <p>Holes registered with <code>--env mathlib</code> pin statements written with Mathlib's definitions
       and are verified in the <code>lean-mathlib/</code> package, which requires Mathlib v4.31.0 (matching
       the pinned toolchain, so the prebuilt cache applies). Fetch it once with
       <code>./mathlib-env.sh</code> - it is several gigabytes. Until then the registry refuses to verify

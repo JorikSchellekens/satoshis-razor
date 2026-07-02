@@ -40,7 +40,7 @@ pub enum Event {
         #[serde(default)]
         proposal: Option<String>,
         /// Verification environment: "core" (default, core Lean only) or
-        /// "mathlib" (statements written in Mathlib's vocabulary, checked in
+        /// "mathlib" (statements written with Mathlib's definitions, checked in
         /// the lean-mathlib package - see mathlib-env.sh).
         #[serde(default)]
         env: Option<String>,

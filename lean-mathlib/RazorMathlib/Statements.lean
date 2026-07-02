@@ -9,8 +9,8 @@ Conventions:
 - Where Mathlib already defines the Prop (as it does for Fermat's Last
   Theorem), the hole pins Mathlib's own name and this file adds nothing:
   a proof written for Mathlib is, verbatim, a proof for the registry.
-- Where Mathlib has no name for the problem, the Prop is defined here in
-  Mathlib's vocabulary, following the statement conventions of
+- Where Mathlib has no name for the problem, the Prop is defined here
+  using Mathlib's definitions, following the statement conventions of
   google-deepmind/formal-conjectures where an entry exists.
 - The umbrella `import Mathlib` is deliberate: statements must not rot when
   Mathlib reorganizes its module tree. Pinning to exact modules is a build
@@ -19,7 +19,7 @@ Conventions:
 
 namespace RazorMathlib
 
-/-- Erdos-Straus, stated over the rationals in Mathlib's vocabulary:
+/-- Erdos-Straus, stated over the rationals with Mathlib's definitions:
 for every integer n >= 2 there are positive integers x, y, z with
 4/n = 1/x + 1/y + 1/z. -/
 def ErdosStrausRat : Prop :=

@@ -106,7 +106,7 @@ $RAZOR corpus --id thousand-plus \
   --stat "theorems catalogued=1,199" \
   --stat "with Lean proofs=224" \
   --stat "without Lean formalization=975" \
-  --note "A community catalogue of notable theorems and their formalization status across proof assistants, maintained as the successor of Freek Wiedijk's 'Formalizing 100 Theorems'. The 975 entries without a Lean formalization are ingested below as proposals: each needs a pinned Mathlib-vocabulary statement before it is a solvable hole, and that formalization work is itself attributed on this log."
+  --note "A community catalogue of notable theorems and their formalization status across proof assistants, maintained as the successor of Freek Wiedijk's 'Formalizing 100 Theorems'. The 975 entries without a Lean formalization are ingested below as proposals: each needs a pinned statement, written with Mathlib's definitions, before it is a solvable hole, and that formalization work is itself attributed on this log."
 
 $RAZOR propose-batch --file ingest/data/thousand-plus.jsonl --author "registry"
 
@@ -116,7 +116,7 @@ step "First real formalization: Erdos-Straus, pinned as a hole"
 # PRP-002 is elementary enough to state formally today. Two candidate
 # statements are registered: a core-Lean form with denominators cleared
 # (compile-checked in lean/Razor/Frontier/ErdosStraus.lean) and a
-# Mathlib-vocabulary form over the rationals (lean-mathlib/). Proving the
+# form over the rationals using Mathlib's definitions (lean-mathlib/). Proving the
 # two equivalent is itself an open convergence task, so for now each is a
 # clump of one and neither is dominant - the registry says exactly how much
 # trust the statement has earned, which today is: certificates only.
@@ -146,14 +146,14 @@ $RAZOR hole --id ES-001 --proposal PRP-002 --statement STM-ES-CORE \
   --lean-type "Razor.Frontier.ErdosStraus"
 
 $RAZOR hole --id ES-002 --proposal PRP-002 --statement STM-ES-RAT --env mathlib \
-  --title "Erdos-Straus (rationals, Mathlib vocabulary)" \
+  --title "Erdos-Straus (rationals, in the Mathlib environment)" \
   --lean-type "RazorMathlib.ErdosStrausRat"
 
 # ─────────────────────────────────────────────────────────────────────
-step "Mathlib vocabulary is the default for new holes"
+step "The Mathlib environment is the default for new holes"
 # ─────────────────────────────────────────────────────────────────────
 # A proof is worth most where it can be built on, and for mathematics that
-# place is Mathlib. New holes should be stated in Mathlib's vocabulary
+# place is Mathlib. New holes should be stated using Mathlib's definitions
 # (razor hole --env mathlib); the core-Lean environment stays for
 # statements that deliberately avoid all dependencies. Where Mathlib
 # already names the Prop - as it does for Fermat's Last Theorem - the hole
@@ -166,7 +166,7 @@ $RAZOR formalize --id STM-ET-MATHLIB --proposal PRP-003 --author "registry" \
   --notes "Mathlib environment (lean-mathlib/RazorMathlib/Statements.lean), stated with Set.ncard and Filter.atTop"
 
 $RAZOR hole --id ET-001 --proposal PRP-003 --statement STM-ET-MATHLIB --env mathlib \
-  --title "Erdos-Turan on additive bases (Mathlib vocabulary)" \
+  --title "Erdos-Turan on additive bases (in the Mathlib environment)" \
   --lean-type "RazorMathlib.ErdosTuranAdditiveBasis"
 
 # ─────────────────────────────────────────────────────────────────────
@@ -183,7 +183,7 @@ step "Fermat's Last Theorem: one statement, two competing splits"
 $RAZOR formalize --id STM-FLT-CORE --proposal PRP-001 --author "registry" \
   --decl Razor.Frontier.FLT \
   --gloss "for every exponent n >= 3 there are no positive natural numbers x, y, z with x^n + y^n = z^n" \
-  --notes "core Lean, no dependencies; see lean/Razor/Frontier/FLT.lean. The FLT project states the theorem in Mathlib vocabulary; proving the two forms equivalent is an open convergence task."
+  --notes "core Lean, no dependencies; see lean/Razor/Frontier/FLT.lean. The FLT project states the theorem using Mathlib's definitions; proving the two forms equivalent is an open convergence task."
 
 $RAZOR certify --statement STM-FLT-CORE --kind instance-check \
   --decl Razor.Frontier.flt_instance_check \
@@ -241,7 +241,7 @@ $RAZOR verify --submission SUB-FLT-GA
 # never editing one.
 $RAZOR split --id SPL-FLT-B --parent FLT-000 --author "registry" \
   --child FLT-3 --child FLT-4 --child FLT-P5 --child FLT-REDF \
-  --note "the FLT project's own top-level plan (blueprint: reduction to n >= 5 and prime); n = 3 and n = 4 are in Mathlib in its vocabulary, so those children could close by convergence with Mathlib statements"
+  --note "the FLT project's own top-level plan (blueprint: reduction to n >= 5 and prime); n = 3 and n = 4 are already proven in Mathlib, so those children could close by convergence with Mathlib statements"
 $RAZOR submit --id SUB-FLT-GB --hole SPL-FLT-B-glue --solver "registry" \
   --decl Razor.Frontier.fltSplitB_glue
 $RAZOR verify --submission SUB-FLT-GB

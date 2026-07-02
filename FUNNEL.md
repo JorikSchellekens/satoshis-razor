@@ -298,7 +298,7 @@ solved:
 - New holes should state what the corpora do not contain; that boundary is the
   frontier.
 - A hole later found to duplicate a corpus result is closed by citation.
-- Statements may be written directly in a corpus's vocabulary: a hole registered
+- Statements may be written directly with a corpus's definitions: a hole registered
   with the Mathlib environment pins a statement whose definitions are Mathlib's
   own, which is itself a fidelity defense - definitions used in thousands of
   existing theorems are much harder to get silently wrong than fresh ones.

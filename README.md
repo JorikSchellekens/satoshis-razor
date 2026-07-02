@@ -6,11 +6,12 @@ Anyone - human or AI - can attempt one, and admission is a kernel check, not a
 referee's opinion. Every event lands on an append-only log, so priority and
 credit are verifiable rather than socially disputed.
 
-Holes are stated in Mathlib's vocabulary by default, and where Mathlib
+Holes are stated using Mathlib's definitions by default, and where Mathlib
 already names the Prop the hole pins Mathlib's own name - the FLT hole pins
 `FermatLastTheorem` itself, so the proof the Imperial FLT project lands in
 Mathlib closes it verbatim. A proof admitted here is a proof the rest of
-formal mathematics can build on, not one stranded in a private dialect.
+formal mathematics can build on, not one stranded in a package nobody
+else imports.
 
 ## Quick start
 
@@ -30,7 +31,7 @@ the statements.
 
 ## What is on the frontier
 
-- Flagship holes in Mathlib vocabulary: Fermat's Last Theorem
+- Flagship holes stated with Mathlib's definitions: Fermat's Last Theorem
   (`FermatLastTheorem`, Mathlib's own Prop), Erdos-Straus, Erdos-Turan on
   additive bases.
 - A sourced backlog ingested from the [1000+ theorems
@@ -80,7 +81,7 @@ the statements.
 | Path | What it is |
 |---|---|
 | `registry/` | the `razor` CLI: event log, verifier, signatures, site server |
-| `lean-mathlib/` | the Mathlib environment - the default vocabulary for new holes |
+| `lean-mathlib/` | the Mathlib environment - the default home for new holes |
 | `lean/` | the dependency-free core environment (glue proofs, demos) |
 | `ingest/` | catalogue ingestion (1000+ theorems snapshot + fetcher) |
 | `zk/` | Groth16 prover/verifier for zero-knowledge routes |
