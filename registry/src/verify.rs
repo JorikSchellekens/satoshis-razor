@@ -142,7 +142,8 @@ fn checker_command(lean_dir: &std::path::Path) -> Command {
                 return c;
             }
         }
-        eprintln!("  warning: no sandbox found (sandbox-exec / bwrap) - checker runs unsandboxed");
+        eprintln!("  {} {}", crate::ui::gold("⚠"),
+            crate::ui::dim("no sandbox found (sandbox-exec / bwrap) - checker runs unsandboxed"));
     }
     let mut c = Command::new("lake");
     c.args(["env", "lean", ".razor-check.lean"]);
