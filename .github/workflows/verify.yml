@@ -1,0 +1,42 @@
+name: verify
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  # The core environment: every pinned core-Lean statement, every glue
+  # proof, and the registry CLI. This is the fast job.
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install elan
+        run: |
+          curl -sSf https://elan.lean-lang.org/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Build the core Lean package
+        run: cd lean && lake build
+      - name: Build the registry CLI
+        run: cargo build --release -p razor-registry
+      - name: Replay the live seed (kernel-checks every glue proof)
+        run: ./seed.sh
+      - name: Audit every signature on the log
+        run: ./target/release/razor verify-log
+
+  # The Mathlib environment: proves that every statement in
+  # lean-mathlib/RazorMathlib elaborates against the pinned Mathlib.
+  # A statement that stops compiling here has rotted and needs a repin.
+  mathlib-statements:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install elan
+        run: |
+          curl -sSf https://elan.lean-lang.org/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Fetch the prebuilt Mathlib cache
+        run: cd lean-mathlib && lake exe cache get
+      - name: Elaborate the pinned Mathlib statements
+        run: cd lean-mathlib && lake build

@@ -77,6 +77,20 @@
 
 <section>
   <div class="wrap">
+    <div class="sec-head"><h3>The backlog</h3><span class="note">catalogued theorems awaiting a formal statement</span></div>
+    <p class="prose">Proposals ingested from sourced catalogues (the 1000+ theorems list) that no one
+    has formalized yet. Each needs a pinned statement in the Mathlib environment before it is a solvable
+    hole - filing that statement is itself attributed work on the log. Every entry links to its source.</p>
+    <div class="controls">
+      <input id="backlog-search" type="search" placeholder="search the backlog" aria-label="search backlog">
+      <span class="note" id="backlog-count"></span>
+    </div>
+    <div id="backlog"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
     <div class="sec-head"><h3>How holes relate</h3><span class="note">replacements and decompositions, drawn from the log</span></div>
     <div class="board">
       <svg id="graph" role="img" aria-label="Graph of connected holes: supersession marks point from a statement to the better wording, and larger problems point to the subproblems they were split into."></svg>
@@ -200,7 +214,12 @@ function renderGraph(S) {
 }
 
 function renderProposals(S) {
-  const props = Object.values(S.proposals || {});
+  const all = Object.values(S.proposals || {});
+  // Proposals with any activity (statements, curation) get full cards;
+  // ingested catalogue entries with none yet form the searchable backlog.
+  const props = all.filter(p => (p.statements || []).length || curationWeight(S, p.id));
+  const backlog = all.filter(p => !((p.statements || []).length || curationWeight(S, p.id)));
+  renderBacklog(backlog);
   $('proposals').innerHTML = props.map(p => {
     const clumps = (p.clumps || []).map(c => {
       const tag = c.dominant ? '<span class="chip solved">✓ dominant</span>'
@@ -234,6 +253,23 @@ function renderProposals(S) {
       <div class="meta"><span>proposed by ${esc(p.author)}</span></div>
     </article>`;
   }).join('') || '<p class="lede">No proposals on the log.</p>';
+}
+
+function renderBacklog(backlog) {
+  const draw = () => {
+    const q = $('backlog-search').value.toLowerCase();
+    const hits = backlog.filter(p =>
+      !q || p.title.toLowerCase().includes(q) || p.id.toLowerCase().includes(q));
+    $('backlog-count').textContent = q
+      ? `${hits.length} of ${backlog.length}`
+      : `${backlog.length} awaiting formalization`;
+    $('backlog').innerHTML = hits.map(p =>
+      `<div class="clump-member">${propLink(p.id)}
+        <a class="cardlink" href="proposal.html?id=${encodeURIComponent(p.id)}">${esc(p.title)}</a></div>`
+    ).join('') || '<p class="lede">Nothing matches.</p>';
+  };
+  $('backlog-search').addEventListener('input', draw);
+  draw();
 }
 
 loadData(S => {

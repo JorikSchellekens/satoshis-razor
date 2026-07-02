@@ -17,7 +17,7 @@ cargo build --release --target wasm32-unknown-unknown \
   -p popcount-naive -p popcount-swar -p sum-loop -p sum-closed -p evm-ref -p evm-tos 2>&1 | tail -1
 
 step "Fresh registry"
-rm -rf registry/data site/data.json lean/Razor/Private
+rm -rf registry/data site/data.json lean/Razor/Private lean/Razor/Submissions
 
 # ─────────────────────────────────────────────────────────────────────
 step "PROLOGUE - Participants claim their handles"
@@ -26,7 +26,7 @@ $RAZOR account new --handle alice --display "Alice" --about "writes formal state
 $RAZOR account new --handle bob --display "Bob" --about "proof search, mostly by hand"
 $RAZOR account new --handle mallory --display "Mallory" --about "reads specifications very literally"
 $RAZOR account new --handle heidi --display "Heidi" --about "solves subgoals"
-$RAZOR account new --handle judy --display "Judy" --about "makes bits go fast"
+$RAZOR account new --handle judy --display "Judy" --about "makes bits go fast" --github judy-razor-demo
 $RAZOR account new --handle leo --display "Leo" --about "interpreter internals"
 $RAZOR account new --handle peggy --display "Peggy" --about "proves things without showing them"
 
@@ -172,6 +172,60 @@ $RAZOR curate --curator heidi --target RZR-106 \
   --note "idempotence is a good first hole for newcomers"
 $RAZOR submit --id SUB-104x --hole RZR-104 --solver mallory --decl Razor.Sorting.merge_sorted
 $RAZOR verify --submission SUB-104x
+
+# ─────────────────────────────────────────────────────────────────────
+step "Statement rot: the wording refactors, the hole survives (repin)"
+# ─────────────────────────────────────────────────────────────────────
+# A pinned statement can rot: a style refactor respells the same Prop.
+# RZR-104's original wording binds its lists implicitly; the refactored
+# wording binds them explicitly. `razor repin` migrates the hole only
+# because the equivalence of the two wordings kernel-checks
+# (Razor.Sorting.merge_sorted_binder_equiv). Mallory's rejection above and
+# every other verdict stay valid: the old wording, the new wording, and
+# the equivalence proof all remain on the log.
+$RAZOR repin --hole RZR-104 --author grace \
+  --lean-type "∀ (l₁ l₂ : List Nat), Razor.Sorting.SortedChain l₁ → Razor.Sorting.SortedChain l₂ → Razor.Sorting.SortedChain (Razor.Sorting.merge l₁ l₂)" \
+  --equiv-decl Razor.Sorting.merge_sorted_binder_equiv \
+  --note "binder-style refactor: implicit list arguments made explicit; same problem, kernel-checked equivalence"
+
+# ─────────────────────────────────────────────────────────────────────
+step "A solve arrives as a single .lean file (no package surgery)"
+# ─────────────────────────────────────────────────────────────────────
+# judy proves RZR-105 in one file on her own machine. `razor submit
+# --file` installs it into the hole's package as a fresh module and
+# builds it; she never touches the package layout.
+JUDY_DIR=$(mktemp -d)
+cat > "$JUDY_DIR/merge_count.lean" <<'LEAN'
+import Razor
+
+namespace Razor.Demo.MergeCount
+
+open Razor.Sorting
+
+theorem merge_count_solution (a : Nat) (l₁ l₂ : List Nat) :
+    count a (merge l₁ l₂) = count a l₁ + count a l₂ := by
+  induction l₁ generalizing l₂ with
+  | nil => simp [merge, count]
+  | cons x xs ih =>
+    induction l₂ with
+    | nil => simp [merge, count]
+    | cons y ys ih₂ =>
+      simp only [merge]
+      split
+      · simp only [count, ih (y :: ys)]
+        omega
+      · simp only [count] at ih₂ ⊢
+        omega
+
+end Razor.Demo.MergeCount
+LEAN
+$RAZOR submit --id SUB-105 --hole RZR-105 --solver judy \
+  --decl Razor.Demo.MergeCount.merge_count_solution \
+  --file "$JUDY_DIR/merge_count.lean"
+$RAZOR verify --submission SUB-105
+
+step "An admitted proof is citable: seq + log hash pin the fact"
+$RAZOR cite SUB-105
 
 # ─────────────────────────────────────────────────────────────────────
 step "ACT III - The Anvil: verified implementations compete on speed"

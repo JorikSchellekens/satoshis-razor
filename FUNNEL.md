@@ -240,6 +240,43 @@ curation - never by anyone closing anything:
 Priority and attribution survive the chain: work done against a superseded wording
 stays on the record, including the trivial proofs that motivated each mark.
 
+## Statement rot and repinning
+
+Superseding covers the case where a wording was *wrong*. A pinned statement can
+also become *stale* while staying right: the library it is written against
+renames a definition, restructures a namespace, or respells the same Prop. This
+is not hypothetical - Mathlib refactors continuously, and a registry that pins
+exact statements without a migration story would slowly fill with holes nobody
+can read or target.
+
+The answer is `razor repin`, and it is held to the same standard as everything
+else: **a hole migrates to a new wording only if a proof that the two wordings
+are equivalent kernel-checks.** The CLI composes the obligation mechanically -
+`new ↔ old` - so there is nothing for the migrator to get subtly wrong, and it
+refuses the event if the equivalence does not check.
+
+What this preserves:
+
+- **Prior admissions stay valid.** A proof admitted against the old wording is
+  still a proof of the new one, because the equivalence is itself a checked
+  theorem. Nothing is re-judged; truth transfers along the proven iff.
+- **The full history stays on the log.** The old wording, the new wording, and
+  the equivalence declaration are all recorded; a reader auditing a five-year-old
+  admission can replay the exact statement it was checked against and walk the
+  equivalence chain forward.
+- **Priority survives churn.** The hole keeps its identity, its bounty pool, its
+  splits, and its submissions across any number of repins.
+
+Repinning handles respellings; it cannot handle a definition that genuinely
+changed meaning (no equivalence exists to prove). That case is a new wording
+under the same proposal - the supersession machinery above - which is exactly
+the distinction the kernel enforces: if you can prove the iff, it is the same
+problem; if you cannot, it is a different one.
+
+The continuous-integration build elaborates every pinned Mathlib statement
+against the pinned Mathlib version, so rot is detected the day it happens, not
+the day a solver hits it.
+
 ## Units: credits
 
 Bounties and payouts are denominated in **credits**, a hypothetical accounting

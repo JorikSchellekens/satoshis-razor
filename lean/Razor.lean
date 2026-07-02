@@ -13,6 +13,7 @@ import Razor.Evm.Spec
 import Razor.Anvil.Popcount
 import Razor.Anvil.Sum
 import Razor.Sorting.Implications
+import Razor.Sorting.Repin
 import Razor.Frontier.ErdosStraus
 import Razor.Frontier.FLT
 import Razor.Zk.Claim

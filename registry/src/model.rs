@@ -64,7 +64,13 @@ pub enum Event {
         note: String,
     },
     /// A claimed solution: `decl` (in the Lean package) allegedly closes `hole`.
-    Submit { id: String, hole: String, solver: String, decl: String },
+    /// `module` is set when the proof arrived as a standalone file that the
+    /// CLI installed into the package (razor submit --file).
+    Submit {
+        id: String, hole: String, solver: String, decl: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        module: Option<String>,
+    },
     /// Private submission, step 1: a hash commitment to a proof file the
     /// solver keeps on their own machine. Establishes priority without
     /// revealing anything; nobody can front-run a hash.
@@ -78,6 +84,23 @@ pub enum Event {
     /// "this statement was trivially provable" is visible without anyone
     /// having to rule on it.
     Verdict { submission: String, admitted: bool, axioms: Vec<String>, detail: String, #[serde(default)] cost_ms: u64 },
+    /// Statement migration: repin a hole's exact statement to a new wording,
+    /// justified by a machine-checked equivalence proof (`equiv_decl` proves
+    /// `new ↔ old` and is kernel-checked by the CLI before this event is
+    /// appended). This is how a hole survives toolchain and library churn:
+    /// the old wording, the new wording, and the equivalence all stay on the
+    /// log, so proofs admitted against either wording remain valid - truth
+    /// transfers along the proven equivalence.
+    Repin {
+        hole: String,
+        author: String,
+        /// The new pinned Lean type.
+        lean_type: String,
+        /// Kernel-checked declaration proving new ↔ old.
+        equiv_decl: String,
+        #[serde(default)]
+        note: String,
+    },
     /// An attributed, weighted opinion that `replacement` states the same
     /// problem better than `hole`. Nothing closes: the hole stays exactly as
     /// provable as before and its proofs still count. Marks are weighted by
@@ -113,7 +136,14 @@ pub enum Event {
     RegisterRig { id: String, owner: String, arch: String, tier: String, note: String },
     /// An account: a handle someone claims from the CLI. `pubkey` is the
     /// hash of a locally held secret; the registry never stores the secret.
-    RegisterAccount { handle: String, display: String, about: String, sigil: String, pubkey: String },
+    /// `github` is an optional bridge to an existing identity: to make it
+    /// checkable by anyone, publish the pubkey from your GitHub account (a
+    /// gist or profile repo containing `razor:<pubkey>`).
+    RegisterAccount {
+        handle: String, display: String, about: String, sigil: String, pubkey: String,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        github: String,
+    },
     /// A zk route: an attachment that makes an existing hole solvable by a
     /// zero-knowledge proof. It pins a Groth16 verifying key and the bridge
     /// tying circuit satisfaction to the hole's pinned statement.
@@ -179,6 +209,7 @@ impl Event {
             Event::Propose { author, .. } => Some(author),
             Event::Formalize { author, .. } => Some(author),
             Event::Split { author, .. } => Some(author),
+            Event::Repin { author, .. } => Some(author),
             Event::Submit { solver, .. } => Some(solver),
             Event::Commit { solver, .. } => Some(solver),
             Event::ZkSubmit { solver, .. } => Some(solver),
@@ -276,6 +307,11 @@ pub struct Hole {
     pub env: Option<String>,
     pub status: String, // open | solved
     pub solved_by: Option<String>,
+    /// Statement migrations, oldest first: (old type, new type, equivalence
+    /// decl). `lean_type` above is always the latest wording; the history
+    /// is kept so proofs admitted against an earlier wording stay auditable.
+    #[serde(default)]
+    pub repins: Vec<(String, String, String)>,
     /// Supersession marks filed against this hole: (by, replacement, note).
     /// Opinions, weighted by the reader; the hole itself never closes.
     pub superseded_by: Vec<(String, String, String)>,
@@ -365,6 +401,8 @@ pub struct Account {
     pub about: String,
     pub sigil: String,
     pub pubkey: String,
+    #[serde(default)]
+    pub github: String,
 }
 
 /// Everything the log knows about one participant, registered or not.
@@ -507,7 +545,7 @@ impl State {
             Event::RegisterHole { id, title, statement, lean_type, allowed_axioms, proposal, env } => {
                 self.holes.insert(id.clone(), Hole {
                     id, title, statement, lean_type, allowed_axioms, proposal, env,
-                    status: "open".into(), solved_by: None, superseded_by: vec![],
+                    status: "open".into(), solved_by: None, repins: vec![], superseded_by: vec![],
                     zk_routes: vec![], zk_submissions: vec![], lean_source: vec![],
                     submissions: vec![], splits: vec![], part_of: vec![],
                     pool: 0,
@@ -516,12 +554,18 @@ impl State {
             Event::Split { id, parent, author, children, glue, note } => {
                 self.splits.push(SplitRec { id, parent, author, children, glue, note });
             }
-            Event::Submit { id, hole, solver, decl } => {
+            Event::Submit { id, hole, solver, decl, module } => {
                 if let Some(h) = self.holes.get_mut(&hole) {
                     h.submissions.push(Submission {
                         id, hole: h.id.clone(), solver, decl, verdict: None,
-                        commitment: None, module: None, revealed: true,
+                        commitment: None, module, revealed: true,
                     });
+                }
+            }
+            Event::Repin { hole, lean_type, equiv_decl, .. } => {
+                if let Some(h) = self.holes.get_mut(&hole) {
+                    let old = std::mem::replace(&mut h.lean_type, lean_type.clone());
+                    h.repins.push((old, lean_type, equiv_decl));
                 }
             }
             Event::Commit { id, hole, solver, commitment } => {
@@ -599,8 +643,8 @@ impl State {
             Event::RegisterRig { id, owner, arch, tier, note } => {
                 self.rigs.insert(id.clone(), Rig { id, owner, arch, tier, note });
             }
-            Event::RegisterAccount { handle, display, about, sigil, pubkey } => {
-                self.accounts.insert(handle.clone(), Account { handle, display, about, sigil, pubkey });
+            Event::RegisterAccount { handle, display, about, sigil, pubkey, github } => {
+                self.accounts.insert(handle.clone(), Account { handle, display, about, sigil, pubkey, github });
             }
             Event::AnvilSubmit { id, challenge, impl_name, solver, proof_decl, refinement_hole } => {
                 if let Some(c) = self.challenges.get_mut(&challenge) {

@@ -49,10 +49,10 @@ fn main() {
             env: opt(&args, "--env"),
         }),
         "split" => cmd_split(&log_path, &args),
-        "submit" => append(&log_path, Event::Submit {
-            id: req(&args, "--id"), hole: req(&args, "--hole"),
-            solver: req(&args, "--solver"), decl: req(&args, "--decl"),
-        }),
+        "submit" => cmd_submit(&root, &log_path, &args),
+        "repin" => cmd_repin(&root, &log_path, &args),
+        "propose-batch" => cmd_propose_batch(&log_path, &args),
+        "cite" => cmd_cite(&log_path, args.get(1).map(String::as_str).unwrap_or("")),
         "supersede" => append(&log_path, Event::Supersede {
             hole: req(&args, "--hole"), by: req(&args, "--by"),
             replacement: req(&args, "--replacement"),
@@ -183,10 +183,12 @@ fn print_help(cmd: &str) {
             ("implies", "prove one statement implies another"),
             ("hole", "pin an exact Lean statement as a solvable hole"),
             ("split", "reduce a hole to children plus a glue hole"),
+            ("repin", "migrate a hole's wording (needs an equivalence proof)"),
             ("supersede", "mark a hole superseded by a better wording"),
+            ("propose-batch", "append proposals from a JSONL file (ingestion)"),
         ]),
         ("solving", &[
-            ("submit", "claim a hole with a proof declaration"),
+            ("submit", "claim a hole with a proof declaration or a .lean file"),
             ("verify", "kernel-check a submission against the pinned type"),
         ]),
         ("value", &[
@@ -215,6 +217,7 @@ fn print_help(cmd: &str) {
         ]),
         ("reading + auditing", &[
             ("status", "the whole registry, folded from the log"),
+            ("cite", "a citation (BibTeX) for a hole or admitted proof"),
             ("log", "the raw event log, one JSON object per line"),
             ("corpus", "recognize an external verified corpus (e.g. Mathlib)"),
             ("export", "write site/data.json for the explorer"),
@@ -245,7 +248,11 @@ fn sigil_of(handle: &str) -> &'static str {
 }
 
 fn ask(prompt: &str, default: Option<&str>) -> String {
-    use std::io::{BufRead, Write};
+    use std::io::{BufRead, IsTerminal, Write};
+    // Scripted callers (demo.sh, CI) get the default instead of a prompt.
+    if !std::io::stdin().is_terminal() {
+        return default.unwrap_or("").to_string();
+    }
     let hint = default.map(|d| format!(" {}", ui::dim(&format!("[{d}]")))).unwrap_or_default();
     print!("{} {prompt}{hint} ", ui::accent("?"));
     std::io::stdout().flush().ok();
@@ -273,6 +280,8 @@ fn cmd_account(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
             };
             let display = opt(args, "--display").unwrap_or_else(|| ask("display name:", Some(&handle)));
             let about = opt(args, "--about").unwrap_or_else(|| ask("one line about you:", Some("")));
+            let github = opt(args, "--github")
+                .unwrap_or_else(|| ask("github username (optional, bridges your existing identity):", Some("")));
             let display = if display.is_empty() { handle.clone() } else { display };
 
             // A real Ed25519 keypair: the signing key stays local, the
@@ -289,23 +298,37 @@ fn cmd_account(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
             let sigil = sigil_of(&handle);
             append(log_path, Event::RegisterAccount {
                 handle: handle.clone(), display: display.clone(), about,
-                sigil: sigil.into(), pubkey,
+                sigil: sigil.into(), pubkey: pubkey.clone(), github: github.clone(),
             });
             let key = keyfile.display().to_string();
-            ui::card(&[
+            let mut lines = vec![
                 (format!("{sigil}  {display} (@{handle})"),
                  format!("{sigil}  {} {}", ui::bold(&display), ui::dim(&format!("(@{handle})")))),
                 ("welcome to the frontier.".into(), "welcome to the frontier.".into()),
                 (format!("key   {key}"), format!("{}   {}", ui::dim("key"), ui::dim(&key))),
                 (format!("next  razor profile {handle}"),
                  format!("{}  razor profile {handle}", ui::dim("next"))),
-            ]);
+            ];
+            if !github.is_empty() {
+                lines.push((format!("link  github.com/{github}"),
+                    format!("{}  github.com/{github}", ui::dim("link"))));
+            }
+            ui::card(&lines);
+            if !github.is_empty() {
+                println!("  {}", ui::dim("to make the github link checkable by anyone, publish this line"));
+                println!("  {}", ui::dim(&format!("from that account (a public gist, or your profile README):")));
+                println!();
+                println!("    razor:{pubkey}");
+                println!();
+            }
         }
         Some("list") => {
             let state = State::fold(load(log_path));
             let w = state.accounts.values().map(|a| a.handle.chars().count()).max().unwrap_or(0);
             for a in state.accounts.values() {
-                println!("  {}  {}  {}  {}",
+                let gh = if a.github.is_empty() { String::new() }
+                    else { format!("  {}", ui::dim(&format!("github.com/{}", a.github))) };
+                println!("  {}  {}  {}  {}{gh}",
                     ui::accent(&a.sigil),
                     ui::cyan(&format!("@{:<w$}", a.handle)),
                     ui::bold(&a.display),
@@ -330,6 +353,12 @@ fn cmd_profile(log_path: &PathBuf, handle: &str) {
     println!("  {}  {} {}{}",
         ui::accent(sigil), ui::bold(display), ui::dim(&format!("(@{handle})")),
         p.account.as_ref().map(|a| if a.about.is_empty() { String::new() } else { format!("  {}", ui::dim(&a.about)) }).unwrap_or_default());
+    if let Some(a) = &p.account {
+        if !a.github.is_empty() {
+            println!("     {}", ui::dim(&format!("github.com/{}  (checkable: that account publishes razor:{}…)",
+                a.github, &a.pubkey[..12.min(a.pubkey.len())])));
+        }
+    }
     println!();
     let dot = ui::dim("·");
     println!("     {} solved {dot} {} rejected {dot} {} top spots {dot} {} earned {dot} {} funded",
@@ -424,6 +453,238 @@ fn cmd_reveal(root: &PathBuf, log_path: &PathBuf, submission: &str, file: &str, 
     ui::step(&format!("revealed {} razor verify --submission {submission}", ui::dim("- next:")));
 }
 
+/// The verification environment a hole was registered with: the Lean
+/// package directory and its root import.
+fn env_of(root: &PathBuf, hole: &model::Hole) -> (PathBuf, &'static str) {
+    match hole.env.as_deref() {
+        Some("mathlib") => (root.join("lean-mathlib"), "RazorMathlib"),
+        _ => (root.join("lean"), "Razor"),
+    }
+}
+
+fn require_env_ready(lean_dir: &PathBuf, root_import: &str) {
+    if root_import == "RazorMathlib" && !lean_dir.join(".lake/packages/mathlib").exists() {
+        eprintln!("{} this hole verifies in the Mathlib environment, which has not been fetched yet.", ui::red("✕"));
+        eprintln!("  {}", ui::dim("run ./mathlib-env.sh once (several GB of prebuilt cache), then retry."));
+        std::process::exit(2);
+    }
+}
+
+/// Claim a hole. Two forms:
+///   razor submit --hole H --solver S --decl Name.Of.Proof
+///   razor submit --hole H --solver S --decl Name --file proof.lean
+/// With --file, the CLI installs the file into the hole's Lean package as a
+/// fresh module and builds it - no package surgery by the solver. The decl
+/// must be the fully qualified name of the proof inside that file.
+fn cmd_submit(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
+    let id = req(args, "--id");
+    let hole_id = req(args, "--hole");
+    let solver = req(args, "--solver");
+    let decl = req(args, "--decl");
+    let module = opt(args, "--file").map(|file| {
+        let state = State::fold(load(log_path));
+        let Some(hole) = state.holes.get(&hole_id) else {
+            ui::die(&format!("unknown hole: {hole_id}"));
+        };
+        let (lean_dir, root_import) = env_of(root, hole);
+        require_env_ready(&lean_dir, root_import);
+        let modname: String = id.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
+        let module = format!("{root_import}.Submissions.S{modname}");
+        let dest = lean_dir.join(root_import).join("Submissions").join(format!("S{modname}.lean"));
+        std::fs::create_dir_all(dest.parent().unwrap()).expect("mkdir Submissions");
+        std::fs::copy(&file, &dest).unwrap_or_else(|e| {
+            ui::die(&format!("cannot install {file}: {e}"));
+        });
+        ui::step(&format!("installed as {} {}", ui::cyan(&module), ui::dim("- building…")));
+        let build = std::process::Command::new("lake")
+            .arg("build")
+            .current_dir(&lean_dir)
+            .output()
+            .expect("lake build");
+        if !build.status.success() {
+            let _ = std::fs::remove_file(&dest);
+            ui::verdict(false, "submitted file does not compile");
+            println!("{}", String::from_utf8_lossy(&build.stderr));
+            std::process::exit(1);
+        }
+        module
+    });
+    append(log_path, Event::Submit {
+        id: id.clone(), hole: hole_id.clone(), solver, decl, module,
+    });
+    ui::step(&format!("submitted {} {}", ui::bold(&id),
+        ui::dim(&format!("- next: razor verify --submission {id}"))));
+}
+
+/// Migrate a hole's pinned statement to a new wording. The registry only
+/// accepts the repin if `--equiv-decl` kernel-checks as a proof of
+/// `new ↔ old` in the hole's environment; the old wording, the new wording,
+/// and the equivalence stay on the log. This is how a hole survives library
+/// churn (Mathlib renames, definition refactors) without losing its
+/// history: proofs admitted against the old wording remain valid because
+/// the equivalence is itself a checked theorem.
+fn cmd_repin(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
+    let hole_id = req(args, "--hole");
+    let author = req(args, "--author");
+    let new_type = req(args, "--lean-type");
+    let equiv = req(args, "--equiv-decl");
+    let note = opt(args, "--note").unwrap_or_default();
+    let state = State::fold(load(log_path));
+    let Some(hole) = state.holes.get(&hole_id) else {
+        ui::die(&format!("unknown hole: {hole_id}"));
+    };
+    let old_type = hole.lean_type.clone();
+    if old_type == new_type {
+        ui::die("the new wording is identical to the current one");
+    }
+    let (lean_dir, root_import) = env_of(root, hole);
+    require_env_ready(&lean_dir, root_import);
+    ui::step(&format!("repinning {} {}", ui::cyan(&hole_id), ui::dim("- equivalence must kernel-check")));
+    ui::kv("old", &old_type);
+    ui::kv("new", &new_type);
+    ui::kv("equiv", &equiv);
+    let iff_type = format!("({new_type}) ↔ ({old_type})");
+    let v = verify::verify(&lean_dir, root_import, &iff_type, &equiv, &hole.allowed_axioms, None);
+    ui::verdict(v.admitted, if v.admitted {
+        "wordings are provably equivalent; hole repinned"
+    } else {
+        &v.detail
+    });
+    if !v.admitted {
+        std::process::exit(1);
+    }
+    append(log_path, Event::Repin {
+        hole: hole_id.clone(), author, lean_type: new_type, equiv_decl: equiv, note,
+    });
+    ui::kv("kept", &ui::dim("old wording + equivalence proof stay on the log; prior admissions remain valid"));
+}
+
+/// Append proposals in bulk from a JSONL file: one {"id","title","body"}
+/// object per line. Lines whose id is already a proposal are skipped, so
+/// re-running an ingestion snapshot is idempotent.
+fn cmd_propose_batch(log_path: &PathBuf, args: &[String]) {
+    let file = req(args, "--file");
+    let author = req(args, "--author");
+    let text = std::fs::read_to_string(&file).unwrap_or_else(|e| {
+        ui::die(&format!("cannot read {file}: {e}"));
+    });
+    let existing: std::collections::BTreeSet<String> =
+        State::fold(load(log_path)).proposals.keys().cloned().collect();
+    let (mut added, mut skipped) = (0u64, 0u64);
+    for (n, line) in text.lines().enumerate() {
+        if line.trim().is_empty() { continue }
+        let v: serde_json::Value = serde_json::from_str(line).unwrap_or_else(|e| {
+            ui::die(&format!("{file}:{}: bad JSON: {e}", n + 1));
+        });
+        let id = v["id"].as_str().unwrap_or_else(|| {
+            ui::die(&format!("{file}:{}: missing \"id\"", n + 1));
+        }).to_string();
+        if existing.contains(&id) {
+            skipped += 1;
+            continue;
+        }
+        append(log_path, Event::Propose {
+            id,
+            title: v["title"].as_str().unwrap_or_default().into(),
+            body: v["body"].as_str().unwrap_or_default().into(),
+            author: author.clone(),
+        });
+        added += 1;
+    }
+    ui::step(&format!("{} proposals appended{}", ui::bold(&added.to_string()),
+        if skipped > 0 { ui::dim(&format!(" ({skipped} already on the log, skipped)")) } else { String::new() }));
+}
+
+fn year_of_ts(ts: u64) -> i64 {
+    // Days-to-civil-year, Gregorian (Howard Hinnant's algorithm, year part).
+    let z = (ts / 86400) as i64 + 719468;
+    let era = z.div_euclid(146097);
+    let doe = z.rem_euclid(146097);
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    if mp >= 10 { y + 1 } else { y }
+}
+
+/// sha256 (hex) of the raw log up to and including event `seq` - a content
+/// hash a citation can pin, checkable by anyone holding the log.
+fn log_hash_through(log_path: &PathBuf, seq: u64) -> String {
+    use sha2::{Digest, Sha256};
+    let text = std::fs::read_to_string(log_path).unwrap_or_default();
+    let mut h = Sha256::new();
+    for line in text.lines().take(seq as usize + 1) {
+        h.update(line.as_bytes());
+        h.update(b"\n");
+    }
+    format!("{:x}", h.finalize())
+}
+
+/// Emit a BibTeX citation for a hole or a submission. The citation pins the
+/// event's sequence number and a hash of the log up to it, so the cited
+/// fact is checkable: anyone with the log can recompute the hash and re-run
+/// the verification.
+fn cmd_cite(log_path: &PathBuf, id: &str) {
+    if id.is_empty() {
+        ui::die("usage: razor cite <hole-or-submission-id>");
+    }
+    let mut state = State::fold(load(log_path));
+    state.aggregate_people();
+    let display_of = |handle: &str| -> String {
+        state.accounts.get(handle)
+            .map(|a| format!("{} (@{})", a.display, a.handle))
+            .unwrap_or_else(|| handle.to_string())
+    };
+    // A submission: cite the proof.
+    let as_sub = state.holes.values()
+        .find_map(|h| h.submissions.iter().find(|s| s.id == id).map(|s| (h, s)));
+    let (key, title, author, seq, note) = if let Some((hole, sub)) = as_sub {
+        let seq = state.events.iter().find(|e| matches!(&e.event,
+            Event::Submit { id: sid, .. } | Event::Commit { id: sid, .. } if sid == id))
+            .map(|e| e.seq)
+            .unwrap_or_else(|| ui::die(&format!("no log event for submission {id}")));
+        let status = match &sub.verdict {
+            Some((true, ..)) => "kernel-checked and admitted".to_string(),
+            Some((false, ..)) => "rejected by the verifier".to_string(),
+            None => "not yet verified".to_string(),
+        };
+        (format!("razor-{id}"),
+         format!("A machine-checked proof of {}: {}", hole.id, hole.title),
+         display_of(&sub.solver),
+         seq,
+         format!("{status}; pinned statement: {}", hole.lean_type))
+    } else if let Some(hole) = state.holes.get(id) {
+        let seq = state.events.iter().find(|e| matches!(&e.event,
+            Event::RegisterHole { id: hid, .. } if hid == id))
+            .map(|e| e.seq)
+            .unwrap_or(0);
+        let author = hole.proposal.as_ref()
+            .and_then(|p| state.proposals.get(p))
+            .map(|p| display_of(&p.author))
+            .unwrap_or_else(|| "the registry".into());
+        let status = match hole.status.as_str() {
+            "solved" => format!("solved (submission {})", hole.solved_by.clone().unwrap_or_default()),
+            s => s.to_string(),
+        };
+        (format!("razor-{id}"),
+         format!("{}: {}", hole.id, hole.title),
+         author, seq,
+         format!("{status}; pinned Lean statement: {}", hole.lean_type))
+    } else {
+        ui::die(&format!("unknown hole or submission: {id}"));
+    };
+    let ts = state.events.get(seq as usize).map(|e| e.ts).unwrap_or(0);
+    let hash = log_hash_through(log_path, seq);
+    println!("@misc{{{key},");
+    println!("  title        = {{{title}}},");
+    println!("  author       = {{{author}}},");
+    println!("  year         = {{{}}},", year_of_ts(ts));
+    println!("  howpublished = {{Satoshi's Razor registry, event {seq}}},");
+    println!("  note         = {{{note}. Log sha256 through event {seq}: {hash}.");
+    println!("                  Recheck with `razor verify-log` and `razor verify`.}}");
+    println!("}}");
+}
+
 fn cmd_zk_verify(root: &PathBuf, log_path: &PathBuf, submission: &str) {
     let state = State::fold(load(log_path));
     // The full proof lives on the log; state keeps only a prefix.
@@ -494,15 +755,8 @@ fn cmd_verify(root: &PathBuf, log_path: &PathBuf, submission: &str) {
     ui::kv("claims", &sub.decl);
     ui::kv("pinned", &hole.lean_type);
     // Pick the verification environment the hole was registered with.
-    let (lean_dir, root_import) = match hole.env.as_deref() {
-        Some("mathlib") => (root.join("lean-mathlib"), "RazorMathlib"),
-        _ => (root.join("lean"), "Razor"),
-    };
-    if root_import == "RazorMathlib" && !lean_dir.join(".lake/packages/mathlib").exists() {
-        eprintln!("{} this hole verifies in the Mathlib environment, which has not been fetched yet.", ui::red("✕"));
-        eprintln!("  {}", ui::dim("run ./mathlib-env.sh once (several GB of prebuilt cache), then retry."));
-        std::process::exit(2);
-    }
+    let (lean_dir, root_import) = env_of(root, hole);
+    require_env_ready(&lean_dir, root_import);
     let t0 = std::time::Instant::now();
     let v = verify::verify(&lean_dir, root_import, &hole.lean_type, &sub.decl, &hole.allowed_axioms, sub.module.as_deref());
     let cost_ms = t0.elapsed().as_millis() as u64;
@@ -652,7 +906,14 @@ fn cmd_status(log_path: &PathBuf) {
     state.aggregate_people();
     let arrow = ui::dim("→");
     ui::section("proposals", Some(state.proposals.len()));
-    for p in state.proposals.values() {
+    // With ingested catalogues on the log there can be hundreds of
+    // proposals; the terminal shows the ones with activity plus a window of
+    // the rest. Everything is in the site and `razor log`.
+    let (active, idle): (Vec<_>, Vec<_>) = state.proposals.values()
+        .partition(|p| !p.statements.is_empty());
+    let window = 12usize.saturating_sub(active.len());
+    let hidden = idle.len().saturating_sub(window);
+    for p in active.iter().chain(idle.iter().take(window)) {
         println!("  {}  {}  {}", ui::cyan(&format!("{:<9}", p.id)), p.title,
             ui::dim(&format!("[{} statements]", p.statements.len())));
         for c in &p.clumps {
@@ -665,6 +926,9 @@ fn cmd_status(log_path: &PathBuf) {
             println!("             {tag}  {}  {}",
                 ui::dim(&format!("weight {}", c.weight)), c.members.join(&format!(" {} ", ui::dim("≡"))));
         }
+    }
+    if hidden > 0 {
+        println!("  {}", ui::dim(&format!("… and {hidden} more awaiting formalization (browse them on the site, or `razor log`)")));
     }
     ui::section("statements", Some(state.statements.len()));
     for s in state.statements.values() {
@@ -681,6 +945,9 @@ fn cmd_status(log_path: &PathBuf) {
         };
         let pool = if h.pool > 0 { format!("  {}", ui::pool(h.pool)) } else { String::new() };
         println!("  {}  {}  {}{}{}", ui::cyan(&format!("{:<16}", h.id)), ui::chip(&h.status), h.title, pool, extra);
+        for (_old, _new, equiv) in &h.repins {
+            println!("      {}", ui::dim(&format!("⟲ repinned - wording migrated, equivalence kernel-checked ({equiv})")));
+        }
         for (by, replacement, note) in &h.superseded_by {
             let n = if note.is_empty() { String::new() } else { format!(": {note}") };
             println!("      {}", ui::dim(&format!("↷ marked superseded by {replacement} (by {by}{n})")));

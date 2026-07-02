@@ -88,9 +88,27 @@ $RAZOR propose --id PRP-006 --author "registry" \
   --title "The heat equation and its smoothing estimates" \
   --body "Missing Mathlib library. Mathlib has strong foundations in measure theory and functional analysis but very little partial differential equation theory. The heat equation on R^n - existence of solutions via the heat kernel, uniqueness under growth conditions, smoothing - is the standard first target, and its absence blocks most of formal mathematical physics."
 
-$RAZOR propose --id PRP-007 --author "registry" \
-  --title "Benchmark theorem lists: close the remaining gaps" \
-  --body "Freek Wiedijk maintains the 'Formalizing 100 Theorems' list and the follow-up '1000+ theorems' list, both tracking which benchmark theorems each proof assistant has formalized. The entries not yet present in Mathlib are a ready-made queue of holes with well-understood informal proofs. Reference: https://www.cs.ru.nl/~freek/100/. Each missing entry should become its own hole under this proposal."
+# ─────────────────────────────────────────────────────────────────────
+step "The 1000+ theorems frontier, ingested"
+# ─────────────────────────────────────────────────────────────────────
+# The 1000+ project (successor of Freek Wiedijk's 'Formalizing 100
+# Theorems') catalogues notable theorems and which proof assistants have
+# formalized each one. Every entry with no Lean proof enters here as its
+# own proposal - a real, sourced work queue, not an invented one. The
+# snapshot is committed and dated; refresh it with
+#   uv run ingest/fetch_thousand_plus.py --as-of <date>
+
+$RAZOR corpus --id thousand-plus \
+  --name "1000+ theorems list" \
+  --url "https://1000-plus.github.io/" \
+  --source "https://github.com/1000-plus/1000-plus.github.io" \
+  --as-of "2026-07-03" \
+  --stat "theorems catalogued=1,199" \
+  --stat "with Lean proofs=224" \
+  --stat "without Lean formalization=975" \
+  --note "A community catalogue of notable theorems and their formalization status across proof assistants, maintained as the successor of Freek Wiedijk's 'Formalizing 100 Theorems'. The 975 entries without a Lean formalization are ingested below as proposals: each needs a pinned Mathlib-vocabulary statement before it is a solvable hole, and that formalization work is itself attributed on this log."
+
+$RAZOR propose-batch --file ingest/data/thousand-plus.jsonl --author "registry"
 
 # ─────────────────────────────────────────────────────────────────────
 step "First real formalization: Erdos-Straus, pinned as a hole"
@@ -132,6 +150,26 @@ $RAZOR hole --id ES-002 --proposal PRP-002 --statement STM-ES-RAT --env mathlib 
   --lean-type "RazorMathlib.ErdosStrausRat"
 
 # ─────────────────────────────────────────────────────────────────────
+step "Mathlib vocabulary is the default for new holes"
+# ─────────────────────────────────────────────────────────────────────
+# A proof is worth most where it can be built on, and for mathematics that
+# place is Mathlib. New holes should be stated in Mathlib's vocabulary
+# (razor hole --env mathlib); the core-Lean environment stays for
+# statements that deliberately avoid all dependencies. Where Mathlib
+# already names the Prop - as it does for Fermat's Last Theorem - the hole
+# pins Mathlib's own name, so a proof accepted by Mathlib closes the hole
+# verbatim: no restatement, no translation risk.
+
+$RAZOR formalize --id STM-ET-MATHLIB --proposal PRP-003 --author "registry" \
+  --decl RazorMathlib.ErdosTuranAdditiveBasis \
+  --gloss "if every sufficiently large natural number is a sum of two elements of A, the number of representations n = a + b with a, b in A is unbounded; ordered pairs are counted, which changes nothing about boundedness" \
+  --notes "Mathlib environment (lean-mathlib/RazorMathlib/Statements.lean), stated with Set.ncard and Filter.atTop"
+
+$RAZOR hole --id ET-001 --proposal PRP-003 --statement STM-ET-MATHLIB --env mathlib \
+  --title "Erdos-Turan on additive bases (Mathlib vocabulary)" \
+  --lean-type "RazorMathlib.ErdosTuranAdditiveBasis"
+
+# ─────────────────────────────────────────────────────────────────────
 step "Fermat's Last Theorem: one statement, two competing splits"
 # ─────────────────────────────────────────────────────────────────────
 # PRP-001 tracks the FLT project. The full theorem is statable in core Lean
@@ -154,6 +192,17 @@ $RAZOR certify --statement STM-FLT-CORE --kind instance-check \
 $RAZOR hole --id FLT-000 --proposal PRP-001 --statement STM-FLT-CORE \
   --title "Fermat's Last Theorem (naturals, core Lean)" \
   --lean-type "Razor.Frontier.FLT"
+
+# Mathlib states FLT itself, so the flagship hole pins Mathlib's own Prop:
+# whatever proof the FLT project lands in Mathlib closes FLT-M verbatim.
+$RAZOR formalize --id STM-FLT-MATHLIB --proposal PRP-001 --author "registry" \
+  --decl FermatLastTheorem \
+  --gloss "Mathlib's own statement: for every n >= 3 there are no positive naturals x, y, z with x^n + y^n = z^n" \
+  --notes "the Prop is defined by Mathlib itself (FermatLastTheorem, in Mathlib.NumberTheory.FLT.Basic) - the exact statement the Imperial FLT project is proving. Proving it equivalent to STM-FLT-CORE is an open convergence task."
+
+$RAZOR hole --id FLT-M --proposal PRP-001 --statement STM-FLT-MATHLIB --env mathlib \
+  --title "Fermat's Last Theorem (Mathlib's own statement)" \
+  --lean-type "FermatLastTheorem"
 
 # The children of both splits. FLT-4 is shared between them - a hole can
 # serve in any number of splits.
