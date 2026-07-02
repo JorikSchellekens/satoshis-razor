@@ -1,0 +1,8 @@
+name = "razor"
+defaultTargets = ["Razor"]
+
+[[lean_lib]]
+name = "Razor"
+# Build every module under Razor/, including revealed private submissions
+# (Razor/Private/*) that nothing imports yet.
+globs = ["Razor", "Razor.+"]
