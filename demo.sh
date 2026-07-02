@@ -281,6 +281,9 @@ step "ZKH-001: an ordinary hole whose statement names one specific commitment"
 # little-endian to a natural number). Anyone could in principle solve it
 # with an ordinary Lean proof; peggy will solve it without revealing
 # anything.
+# The trusted setup is deterministic (fixed seed), so running it here and
+# again inside `razor zk-route` produces the identical proving/verifying keys.
+./target/release/zk-prover setup --n 4 > /dev/null
 PEGGY=$(./target/release/zk-prover prove --list 42,7,255,7)
 PEGGY_PUB=$(echo "$PEGGY" | python3 -c "import json,sys; print(json.load(sys.stdin)['public'])")
 PEGGY_PRF=$(echo "$PEGGY" | python3 -c "import json,sys; print(json.load(sys.stdin)['proof'])")
