@@ -1,8 +1,14 @@
-//! The sorted-witness circuit.
+//! The sorted-witness circuit, for any list length from 2 to 32.
 //!
-//! Public input:  h - a MiMC-style commitment to a secret list of 4 values.
+//! Public input:  h - a MiMC-style commitment to a secret list.
 //! Private input: the list xs (each < 2^8) and, implicitly, its sorted
-//! arrangement (the comparator select bits).
+//! arrangement (the comparator select bits). The sorting network is
+//! Batcher's odd-even mergesort generated for the list's length; for
+//! length 4 it is exactly the 5-comparator network whose soundness is the
+//! Lean theorem `Razor.Zk.network_sound`. For other lengths the
+//! per-comparator theorem (`Razor.Zk.comparator_sound`) covers every gate,
+//! and the whole-network theorem is an honest open hole anyone can
+//! register and prove.
 //!
 //! Constraints:
 //! 1. Commitment: h = sponge(xs) where the permutation is x -> (x + c_i)^5,
@@ -30,8 +36,33 @@ use ark_relations::r1cs::{
 
 pub const MIMC_ROUNDS: usize = 64;
 pub const RANGE_BITS: usize = 8;
-/// Comparator pairs of the optimal 5-comparator sorting network on 4 wires.
-pub const NETWORK: [(usize, usize); 5] = [(0, 1), (2, 3), (0, 2), (1, 3), (1, 2)];
+pub const MIN_LIST: usize = 2;
+pub const MAX_LIST: usize = 32;
+
+/// Comparator pairs of Batcher's odd-even mergesort network on `n` wires.
+/// For n = 4 this is the optimal 5-comparator network [(0,1), (2,3),
+/// (0,2), (1,3), (1,2)] proven sound in Lean.
+pub fn network(n: usize) -> Vec<(usize, usize)> {
+    let mut pairs = Vec::new();
+    let mut p = 1;
+    while p < n {
+        let mut k = p;
+        while k >= 1 {
+            let mut j = k % p;
+            while j + k < n {
+                for i in 0..k {
+                    if j + i + k < n && (j + i) / (2 * p) == (j + i + k) / (2 * p) {
+                        pairs.push((j + i, j + i + k));
+                    }
+                }
+                j += 2 * k;
+            }
+            k /= 2;
+        }
+        p *= 2;
+    }
+    pairs
+}
 
 pub fn mimc_constants() -> Vec<Fr> {
     // Fixed, public constants for the demo.
@@ -39,7 +70,7 @@ pub fn mimc_constants() -> Vec<Fr> {
 }
 
 /// The sponge computed natively (prover-side and for out-of-circuit checks).
-pub fn commit(xs: &[u64; 4]) -> Fr {
+pub fn commit(xs: &[u64]) -> Fr {
     let cs = mimc_constants();
     let mut state = Fr::from(0u64);
     for &x in xs {
@@ -56,29 +87,32 @@ pub struct SortedWitnessCircuit {
     /// Public commitment.
     pub hash: Option<Fr>,
     /// The secret list.
-    pub xs: Option<[u64; 4]>,
+    pub xs: Option<Vec<u64>>,
+    /// List length: fixes the circuit's shape (and so the proving key).
+    pub n: usize,
 }
 
 impl ConstraintSynthesizer<Fr> for SortedWitnessCircuit {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
+        let n = self.n;
         let hash_input = cs.new_input_variable(|| self.hash.ok_or(SynthesisError::AssignmentMissing))?;
         let xs = self.xs;
-        let val = |i: usize| xs.map(|v| Fr::from(v[i]));
+        let val = |i: usize| xs.as_ref().map(|v| Fr::from(v[i]));
 
         // The secret list: allocated exactly once, shared by the commitment
         // sponge and the sorting network (a separate allocation per
         // sub-circuit would let a prover commit one list and sort another).
         let mut x_lcs: Vec<LinearCombination<Fr>> = Vec::new();
-        for i in 0..4 {
+        for i in 0..n {
             let xi = cs.new_witness_variable(|| val(i).ok_or(SynthesisError::AssignmentMissing))?;
             x_lcs.push(lc!() + xi);
         }
 
         // 1. Commitment sponge over the shared variables.
         let constants = mimc_constants();
-        let mut state_val = xs.map(|_| Fr::from(0u64));
+        let mut state_val = xs.as_ref().map(|_| Fr::from(0u64));
         let mut state_lc: LinearCombination<Fr> = lc!();
-        for i in 0..4 {
+        for i in 0..n {
             state_val = state_val.zip(val(i)).map(|(s, v)| s + v);
             state_lc = state_lc + x_lcs[i].clone();
             for c in &constants {
@@ -100,10 +134,10 @@ impl ConstraintSynthesizer<Fr> for SortedWitnessCircuit {
         cs.enforce_constraint(state_lc, lc!() + Variable::One, lc!() + hash_input)?;
 
         // 2. Sorting network over the same variables.
-        let mut wire_vals: Vec<Option<Fr>> = (0..4).map(val).collect();
+        let mut wire_vals: Vec<Option<Fr>> = (0..n).map(val).collect();
         let mut wire_lcs = x_lcs;
 
-        for &(i, j) in NETWORK.iter() {
+        for (i, j) in network(n) {
             let a_val = wire_vals[i];
             let b_val = wire_vals[j];
             let lt = |a: Fr, b: Fr| fr_to_u64(b) < fr_to_u64(a);

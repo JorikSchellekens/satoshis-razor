@@ -1803,6 +1803,7 @@ dependencies = [
  "hex",
  "rand",
  "rand_chacha",
+ "sha2",
 ]
 
 [[package]]

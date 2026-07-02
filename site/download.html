@@ -39,11 +39,13 @@
       about what it does.</p>
 
       <h4>What you have afterwards</h4>
-      <div class="codeblock">target/release/razor        <span class="c"># the registry CLI</span>
-target/release/anvil-harness<span class="c"># fuel + native benchmarks</span>
-target/release/zk-prover    <span class="c"># Groth16 setup / prove / verify</span>
-registry/data/events.jsonl  <span class="c"># the append-only log (the registry IS this file)</span>
-site/data.json              <span class="c"># derived state, feeds these pages</span></div>
+      <p>Three commands on your PATH (linked into <code>~/.cargo/bin</code>, so a rebuild updates them in
+      place), and two files that are the system's entire state:</p>
+      <div class="codeblock">razor                       <span class="c"># the registry CLI: append events, verify proofs, serve the site</span>
+anvil-harness               <span class="c"># fuel + native benchmarks</span>
+zk-prover                   <span class="c"># Groth16 setup / prove / verify, any list length 2-32</span>
+registry/data/events.jsonl  <span class="c"># the append-only log - the registry IS this file</span>
+site/data.json              <span class="c"># everything above, folded into one snapshot for these pages</span></div>
     </div>
   </div>
 </section>
@@ -59,24 +61,24 @@ site/data.json              <span class="c"># derived state, feeds these pages</
 cd lean &amp;&amp; lake build &amp;&amp; cd ..
 
 <span class="c"># submit and verify (the kernel is the referee)</span>
-target/release/razor submit --id SUB-me --hole RZR-104 \
+razor submit --id SUB-me --hole RZR-104 \
   --solver you --decl Razor.Sorting.merge_sorted
-target/release/razor verify --submission SUB-me
+razor verify --submission SUB-me
 
 <span class="c"># regenerate the site</span>
-target/release/razor export --out site/data.json</div>
+razor export --out site/data.json</div>
 
       <h4>Prefer to work in private?</h4>
       <div class="codeblock"><span class="c"># commit a hash first (priority without exposure) …</span>
-target/release/razor seal --file my-proof.lean --salt my-secret
-target/release/razor commit --id SUB-me --hole RZR-104 --solver you --commitment &lt;hash&gt;
+razor seal --file my-proof.lean --salt my-secret
+razor commit --id SUB-me --hole RZR-104 --solver you --commitment &lt;hash&gt;
 <span class="c"># … reveal when ready</span>
-target/release/razor reveal --submission SUB-me --file my-proof.lean \
+razor reveal --submission SUB-me --file my-proof.lean \
   --salt my-secret --decl Razor.Private.You.merge_sorted
 
 <span class="c"># or go full zero-knowledge: solve through a hole's zk route (see the zk page)</span>
-target/release/zk-prover prove --list 42,7,255,7
-target/release/razor zk-submit --id SUB-me-zk --hole ZKH-001 --route ZKR-001 \
+zk-prover prove --list 42,7,255,7
+razor zk-submit --id SUB-me-zk --hole ZKH-001 --route ZKR-001 \
   --solver you --public &lt;hex&gt; --proof &lt;hex&gt;</div>
 
       <h4>Work on the live registry</h4>
@@ -97,13 +99,13 @@ target/release/razor zk-submit --id SUB-me-zk --hole ZKH-001 --route ZKR-001 \
       composes the glue statement mechanically from the pinned types, so there is nothing to get subtly
       wrong:</p>
       <div class="codeblock"><span class="c"># state each gap as its own hole …</span>
-target/release/razor hole --id MY-LEMMA-1 --title "..." --lean-type "..."
+razor hole --id MY-LEMMA-1 --title "..." --lean-type "..."
 <span class="c"># … tie them to the parent; this pins MY-SPLIT-glue to (lemma 1) → … → parent</span>
-target/release/razor split --id MY-SPLIT --parent RZR-104 --author you \
+razor split --id MY-SPLIT --parent RZR-104 --author you \
   --child MY-LEMMA-1 --note "induction on the left list"
 <span class="c"># prove the glue like any hole - checkable while every child is still open</span>
-target/release/razor submit --id SUB-glue --hole MY-SPLIT-glue --solver you --decl You.my_glue
-target/release/razor verify --submission SUB-glue</div>
+razor submit --id SUB-glue --hole MY-SPLIT-glue --solver you --decl You.my_glue
+razor verify --submission SUB-glue</div>
       <p>When all children and the glue are admitted, the split reads <em>complete</em>: the parent is
       provable by composition, which in your original file is just replacing each <code>sorry</code> with
       the admitted proof. If the plan turns out wrong, register a better split next to it - splits are
@@ -135,18 +137,6 @@ target/release/razor verify --submission SUB-glue</div>
   </div>
 </section>
 
-<section>
-  <div class="wrap">
-    <div class="sec-head"><h3>Design documents</h3></div>
-    <div class="prose">
-      <p><strong>README.md</strong> — the thesis: parallel search over proofs and programs, credits as an optional module.<br>
-      <strong>FUNNEL.md</strong> — how statements earn trust: glosses, certificates, convergence clumps,
-      weighted supersession marks when a better wording exists.<br>
-      <strong>ANVIL.md</strong> — verified-performance competition: measurement tiers, rigs, arch pools, spec-bug
-      policy.</p>
-    </div>
-  </div>
-</section>
 
 <footer>
   <div class="wrap">

@@ -112,7 +112,8 @@ fn main() {
                 std::process::exit(2);
             }
             let zk = root.join("target/release/zk-prover");
-            let setup = run_json(&zk, &["setup"]);
+            let n = opt(&args, "--n").unwrap_or("4".into());
+            let setup = run_json(&zk, &["setup", "--n", &n]);
             append(&log_path, Event::ZkRoute {
                 id: req(&args, "--id"),
                 hole: hole_id,
