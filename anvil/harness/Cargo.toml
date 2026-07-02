@@ -1,0 +1,15 @@
+[package]
+name = "anvil-harness"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anvil-abi = { path = "../abi" }
+popcount-naive = { path = "../impls/popcount-naive" }
+popcount-swar = { path = "../impls/popcount-swar" }
+sum-loop = { path = "../impls/sum-loop" }
+sum-closed = { path = "../impls/sum-closed" }
+evm-ref = { path = "../impls/evm-ref" }
+evm-tos = { path = "../impls/evm-tos" }
+wasmtime = { version = "27", default-features = false, features = ["cranelift", "runtime"] }
