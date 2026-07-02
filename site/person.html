@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Person — Satoshi's Razor</title>
+<link rel="stylesheet" href="razor.css">
+<style>
+  .detail-head .sigil { font-size: 34px; line-height: 1; }
+</style>
+</head>
+<body>
+
+<header class="mast">
+  <div class="wrap">
+    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <nav class="pages"></nav>
+  </div>
+</header>
+
+<div class="pagehead wrap detail-head">
+  <div class="row1" id="chips"></div>
+  <h2 id="title">Person</h2>
+  <p class="lede" id="lede"></p>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>Record</h3><span class="note">built entirely from the event log</span></div>
+    <div class="kv" id="record"></div>
+  </div>
+</section>
+
+<section id="sec-subs" style="display:none">
+  <div class="wrap">
+    <div class="sec-head"><h3>Submissions over time</h3></div>
+    <div id="subs"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Claim a handle: <code>razor account new</code>.</span>
+    <span class="right"><a href="people.html">← all people</a></span>
+  </div>
+</footer>
+
+<script src="razor.js"></script>
+<script>
+const OUTCOME = {
+  admitted: ['✓', 'good', 'accepted'],
+  rejected: ['✕', 'bad', 'rejected'],
+  sealed: ['🔒', '', 'sealed (not yet revealed)'],
+  pending: ['·', '', 'not yet verified'],
+};
+
+loadData(S => {
+  const id = qid();
+  const p = (S.people || {})[id];
+  if (!p) {
+    $('title').textContent = id ? `Nobody named ${id}` : 'Nobody selected';
+    $('lede').innerHTML = 'Everyone with any activity is listed on <a href="people.html">the people page</a>.';
+    return;
+  }
+  document.title = `@${p.handle} — Satoshi's Razor`;
+  const a = p.account;
+  $('chips').innerHTML = [
+    a ? `<span class="sigil">${esc(a.sigil)}</span>` : '',
+    a ? '' : '<span class="badge">no account registered</span>',
+  ].join('');
+  $('title').textContent = a ? `${a.display} — @${p.handle}` : `@${p.handle}`;
+  $('lede').textContent = a && a.about ? a.about : 'This profile is derived from the log alone.';
+
+  const linkTarget = (t) => S.holes[t] ? holeLink(t) : S.proposals[t] ? propLink(t) : S.statements[t] ? stmtLink(t) : esc(t);
+  const rows = [
+    ['accepted proofs', String(p.solved)],
+    p.rejected ? ['rejected attempts', String(p.rejected)] : null,
+    p.payouts_total ? ['earned', `<span style="color:var(--gold)">${p.payouts_total.toLocaleString()} credits</span>`] : null,
+    p.funded_total ? ['funded', `${p.funded_total.toLocaleString()} credits`] : null,
+    p.top_spots ? ['leaderboard rows led', String(p.top_spots)] : null,
+    p.proposals.length ? ['proposals', p.proposals.map(propLink).join(', ')] : null,
+    p.statements.length ? ['candidate statements', p.statements.map(stmtLink).join(', ')] : null,
+    p.open_holes_authored.length ? ['waiting on', p.open_holes_authored.map(holeLink).join(', ') + ' <span style="color:var(--muted)">(open holes under their proposals)</span>'] : null,
+    (p.curated || []).length ? ['curates', p.curated.map(linkTarget).join(', ') + ` <span style="color:var(--muted)">(each pick counts with weight ${1 + p.solved})</span>`] : null,
+    p.rigs.length ? ['brings hardware', p.rigs.map(esc).join(', ')] : null,
+    p.lanes.length ? ['anvil lanes', p.lanes.map(([ch, imp, board, score, unit, leader]) =>
+      `${leader ? '<span style="color:var(--gold)">♛</span> leads' : 'runs'} ${esc(ch)} with ${esc(imp)} on [${esc(board)}] — best ${score.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${esc(unit)}`).join('<br>')] : null,
+  ].filter(Boolean);
+  $('record').innerHTML = rows.map(([k, v]) => `<div class="k">${k}</div><div class="v">${v}</div>`).join('');
+
+  if (p.submissions.length) {
+    $('sec-subs').style.display = '';
+    $('subs').innerHTML = `<div class="timeline">${p.submissions.map(([seq, sid, target, kind, outcome]) => {
+      const [glyph, tone, word] = OUTCOME[outcome] || OUTCOME.pending;
+      return `<div class="tl ${tone}"><span class="k">#${seq} ${glyph} ${esc(sid)}</span> → ${linkTarget(target)} — ${esc(kind)} submission, ${word}</div>`;
+    }).join('')}</div>`;
+  }
+});
+</script>
+</body>
+</html>

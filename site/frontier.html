@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The frontier — Satoshi's Razor</title>
+<link rel="stylesheet" href="razor.css">
+</head>
+<body>
+
+<header class="mast">
+  <div class="wrap">
+    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <nav class="pages"></nav>
+  </div>
+</header>
+
+<div class="pagehead wrap">
+  <h2>The frontier</h2>
+  <p class="lede">Every hole in the registry — that is, every precisely stated open problem, together with
+  the ones already solved. Each card shows the exact Lean statement a solution must prove, any
+  bounty attached to that exact statement, who has curated it and why, every attempt made so far with the
+  checker's verdict and how long the kernel check took, and the full event history. The
+  <strong>attention</strong> number is one sortable estimate of how much a hole currently matters: bounty
+  credits, plus fixed weights for each community signal - people independently writing equivalent statements,
+  curations (counting more from people with accepted proofs), earlier wordings replaced, registered splits,
+  and attempts - with a small bump while it is open, minus the weight of any supersession marks (attributed
+  notes that a better wording exists). It is a reading aid: every input is listed on the hole's own page.</p>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="controls">
+      <label for="sort">sort by</label>
+      <select id="sort">
+        <option value="attention">attention (bounty + community signals)</option>
+        <option value="pool">bounty (credits on this exact statement)</option>
+        <option value="curation">curation weight</option>
+        <option value="clump">clump weight (independent authors)</option>
+        <option value="splits">splits (registered reduction plans)</option>
+        <option value="lineage">earlier wordings replaced</option>
+        <option value="convergence">independent formalizations</option>
+        <option value="subs">number of attempts</option>
+        <option value="id">id</option>
+      </select>
+      <label for="filter">show</label>
+      <select id="filter">
+        <option value="all">all</option>
+        <option value="open">open</option>
+        <option value="solved">solved</option>
+        <option value="superseded">marked superseded</option>
+      </select>
+      <input id="search" type="search" placeholder="search title / id / statement" aria-label="search holes">
+    </div>
+    <div class="cards" id="holes"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>Proposals and their clumps</h3><span class="note">candidate statements, grouped by machine-checked equivalence</span></div>
+    <p class="prose">A <strong>proposal</strong> is a problem in plain language. Anyone may attach a
+    <strong>candidate statement</strong>: a Lean formalization together with its author's own plain-language
+    reading (the <strong>gloss</strong>). Statements proven equivalent to each other form a
+    <strong>clump</strong>; a clump's weight counts its distinct authors, because two people independently
+    writing equivalent formalizations is the strongest available evidence that both mean what the proposal
+    means. The unique heaviest clump with at least two independent members is <strong>dominant</strong> - the
+    reading the community has converged on, and the signal a funder should wait for before putting a bounty
+    on any statement. The labels on a clump are computed from the log, not decided by anyone:
+    <strong>proven</strong> means some member statement has an admitted proof (proving one member proves them
+    all, since they are equivalent). A statement that is proven, has one author, and took milliseconds to
+    check is usually a mistranslation that says less than intended - but that is for the reader to conclude;
+    no label here says it.</p>
+    <div class="cards" id="proposals"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>How holes relate</h3><span class="note">replacements and decompositions, drawn from the log</span></div>
+    <div class="board">
+      <svg id="graph" role="img" aria-label="Graph of connected holes: supersession marks point from a statement to the better wording, and larger problems point to the subproblems they were split into."></svg>
+      <div class="cap">dashed red = a supersession mark pointing to the better wording · solid = a problem split into subproblems (the proof that the parts imply the whole is itself machine-checked)</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>To attempt one: pick an open hole, write the proof, then run <code>razor submit</code> and <code>razor verify</code>.</span>
+    <span class="right"><a href="download.html">get started</a></span>
+  </div>
+</footer>
+
+<script src="razor.js"></script>
+<script>
+let STATE = null;
+
+function card(S, h) {
+  const m = holeMetrics(S, h);
+  const [glyph, label] = CHIP[h.status];
+  const marks = (h.superseded_by || []).map(([by, r, note]) =>
+    `<span class="bad">→ marked superseded by ${holeLink(r)} (${esc(by)}${note ? `: “${esc(note)}”` : ''})</span>`).join('');
+  const splits = (h.splits || []).map(sp =>
+    `<span>split ${esc(sp.id)} by ${esc(sp.author)} — ${sp.complete ? '<span class="ok">complete</span>' : `${sp.solved_children}/${sp.children.length} children solved`}</span>`).join('');
+  const routes = (h.zk_routes || []).map(r =>
+    `<span>zk route ${esc(r.id)} — ${r.constraints} constraints, bridge (${esc(r.bridge_kind)})</span>`).join('');
+  const partOf = (h.part_of || []).length ? `<span>serves in split${h.part_of.length > 1 ? 's' : ''} ${h.part_of.map(esc).join(', ')}</span>` : '';
+  const curs = curatorsOf(S, h.id);
+  const badges = [
+    m.clump ? `<span class="badge ${m.dominant ? 'gold' : ''}">clump weight ${m.clump}${m.dominant ? ' · dominant' : ''}${m.proven ? ' · proven' : ''}</span>` : '',
+    m.curation ? `<span class="badge gold">curation ${m.curation}</span>` : '',
+    m.convergence ? `<span class="badge blue">convergence ×${m.convergence}</span>` : '',
+    m.lineage ? `<span class="badge red">lineage ${m.lineage}</span>` : '',
+    m.superseded ? `<span class="badge red">marked superseded · weight ${m.superseded}</span>` : '',
+    m.splits ? `<span class="badge blue">${m.splits} split${m.splits > 1 ? 's' : ''}</span>` : '',
+    m.subs ? `<span class="badge">${m.subs} submission${m.subs > 1 ? 's' : ''}${m.rejected ? `, ${m.rejected} rejected` : ''}</span>` : '',
+    `<span class="badge">attention ${m.attention.toLocaleString()}</span>`,
+  ].join('');
+  return `<article class="card">
+    <div class="row1">
+      ${holeLink(h.id)}
+      <span class="chip ${h.status}">${glyph} ${label}</span>
+      ${h.env === 'mathlib' ? '<span class="badge blue">Mathlib environment</span>' : ''}
+      ${m.pool ? `<span class="pool">bounty ${m.pool.toLocaleString()}</span>` : ''}
+    </div>
+    <h4><a class="cardlink" href="hole.html?id=${encodeURIComponent(h.id)}">${esc(h.title)}</a></h4>
+    <pre>${esc(h.lean_type)}</pre>
+    <div>${badges}</div>
+    ${marks || splits || routes || partOf || curs.length ? `<div class="meta">${marks}${partOf}${splits}${routes}${curs.map(([who, , note]) => `<span class="ok">☆ curated by ${esc(who)}${note ? `: “${esc(note)}”` : ''}</span>`).join('')}</div>` : ''}
+    <a class="go" href="hole.html?id=${encodeURIComponent(h.id)}">full record: the Lean unfolded, every attempt, every event →</a>
+  </article>`;
+}
+
+function draw() {
+  const S = STATE;
+  const sort = $('sort').value, filter = $('filter').value, q = $('search').value.toLowerCase();
+  let holes = Object.values(S.holes).map(h => ({ h, m: holeMetrics(S, h) }));
+  if (filter === 'superseded') holes = holes.filter(({ h }) => (h.superseded_by || []).length);
+  else if (filter !== 'all') holes = holes.filter(({ h }) => h.status === filter);
+  if (q) holes = holes.filter(({ h }) =>
+    (h.id + ' ' + h.title + ' ' + h.lean_type).toLowerCase().includes(q));
+  holes.sort((a, b) => sort === 'id'
+    ? a.h.id.localeCompare(b.h.id)
+    : (b.m[sort] ?? b.m.attention) - (a.m[sort] ?? a.m.attention));
+  $('holes').innerHTML = holes.map(({ h }) => card(S, h)).join('')
+    || (Object.keys(S.holes).length
+      ? '<p class="lede">Nothing matches.</p>'
+      : '<p class="lede">No holes yet: nothing has been formalized into a pinned Lean statement. The open work is in the proposals below — formalizing one creates the registry\'s first hole.</p>');
+}
+
+function renderGraph(S) {
+  const holes = Object.values(S.holes);
+  const byId = Object.fromEntries(holes.map(h => [h.id, h]));
+  const edges = [];
+  for (const h of holes) {
+    for (const [, r] of (h.superseded_by || []))
+      if (byId[r] && !edges.some(e => e.from === h.id && e.to === r)) edges.push({ from: h.id, to: r, kind: 'supersede' });
+    for (const sp of (h.splits || []))
+      for (const [sg] of sp.children) if (byId[sg]) edges.push({ from: h.id, to: sg, kind: 'decompose' });
+  }
+  const inGraph = new Set(edges.flatMap(e => [e.from, e.to]));
+  if (!inGraph.size) { $('graph').closest('.board').style.display = 'none'; return; }
+  const depth = {};
+  const dfs = (id) => {
+    if (id in depth) return depth[id];
+    const preds = edges.filter(e => e.to === id);
+    depth[id] = preds.length ? 1 + Math.max(...preds.map(e => dfs(e.from))) : 0;
+    return depth[id];
+  };
+  inGraph.forEach(dfs);
+  const cols = {};
+  inGraph.forEach(id => (cols[depth[id]] ||= []).push(id));
+  const W = 940, colW = W / Object.keys(cols).length, H = 250;
+  const pos = {};
+  Object.entries(cols).forEach(([d, ids]) => {
+    ids.sort();
+    ids.forEach((id, i) => { pos[id] = { x: colW * d + colW / 2, y: (H / (ids.length + 1)) * (i + 1) + 14 }; });
+  });
+  const color = { open: 'var(--open)', solved: 'var(--solved)' };
+  let svg = '';
+  for (const e of edges) {
+    const a = pos[e.from], b = pos[e.to];
+    const mx = (a.x + b.x) / 2, wob = (e.to.charCodeAt(e.to.length - 1) % 2 ? 14 : -12);
+    svg += `<path class="gedge ${e.kind}" d="M ${a.x + 62} ${a.y} Q ${mx} ${(a.y + b.y) / 2 + wob} ${b.x - 62} ${b.y}"/>`;
+    if (e.kind === 'supersede')
+      svg += `<text class="gedge-label" x="${mx}" y="${(a.y + b.y) / 2 + wob - 6}" text-anchor="middle">marked superseded by</text>`;
+  }
+  for (const id of inGraph) {
+    const h = byId[id], p = pos[id];
+    const [glyph] = CHIP[h.status];
+    svg += `<a href="hole.html?id=${encodeURIComponent(id)}"><g class="gnode">
+      <ellipse cx="${p.x}" cy="${p.y}" rx="64" ry="26" fill="var(--bg)" stroke="${color[h.status]}" stroke-width="1.8"/>
+      <text x="${p.x}" y="${p.y - 1}" text-anchor="middle">${esc(id)}</text>
+      <text class="sub" x="${p.x}" y="${p.y + 13}" text-anchor="middle">${glyph} ${h.status}</text>
+    </g></a>`;
+  }
+  $('graph').setAttribute('viewBox', `0 0 ${W} ${H + 20}`);
+  $('graph').innerHTML = svg;
+}
+
+function renderProposals(S) {
+  const props = Object.values(S.proposals || {});
+  $('proposals').innerHTML = props.map(p => {
+    const clumps = (p.clumps || []).map(c => {
+      const tag = c.dominant ? '<span class="chip solved">✓ dominant</span>'
+        : '<span class="chip open">○ candidate</span>';
+      const proven = c.proven ? '<span class="badge">proven true</span>' : '';
+      const members = c.members.map(id => {
+        const st = S.statements[id] || {};
+        return `<div class="clump-member">
+          ${stmtLink(id)} <span>by ${esc(st.author || '?')}</span>
+          ${st.gloss ? `<div class="prop-body">"${esc(st.gloss)}"</div>` : ''}
+          ${(st.certificates || []).length ? `<div class="prop-body">certificates: ${st.certificates.map(([k]) => esc(k)).join(', ')}</div>` : ''}
+          ${(st.implies || []).map(([b]) => `<div class="prop-body">proven to imply ${esc(b)} (converse unproven: ${esc(b)} may be strictly weaker)</div>`).join('')}
+        </div>`;
+      }).join('');
+      return `<div class="clump">
+        <div class="row1">${tag}${proven}<span class="badge">weight ${c.weight} (${c.weight === 1 ? '1 author' : c.weight + ' independent authors'})</span></div>
+        ${members}
+      </div>`;
+    }).join('');
+    return `<article class="card wide">
+      <div class="row1">
+        ${propLink(p.id)}
+        ${curationWeight(S, p.id) ? `<span class="badge gold">curation ${curationWeight(S, p.id)}</span>` : ''}
+        ${p.statements.length ? `<span class="badge blue">${p.statements.length} candidate statement${p.statements.length > 1 ? 's' : ''}</span>`
+          : '<span class="chip open">○ needs a formal statement</span>'}
+      </div>
+      <h4><a class="cardlink" href="proposal.html?id=${encodeURIComponent(p.id)}">${esc(p.title)}</a></h4>
+      <p class="prop-body">${esc(p.body)}</p>
+      ${curatorsOf(S, p.id).map(([who, , note]) => `<div class="prop-body">☆ curated by ${esc(who)}${note ? `: “${esc(note)}”` : ''}</div>`).join('')}
+      ${clumps}
+      <div class="meta"><span>proposed by ${esc(p.author)}</span></div>
+    </article>`;
+  }).join('') || '<p class="lede">No proposals on the log.</p>';
+}
+
+loadData(S => {
+  STATE = S;
+  draw();
+  renderProposals(S);
+  renderGraph(S);
+  for (const id of ['sort', 'filter', 'search']) $(id).addEventListener('input', draw);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get started — Satoshi's Razor</title>
+<link rel="stylesheet" href="razor.css">
+</head>
+<body>
+
+<header class="mast">
+  <div class="wrap">
+    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <nav class="pages"></nav>
+  </div>
+</header>
+
+<div class="pagehead wrap">
+  <h2>Get started</h2>
+  <p class="lede">One script builds the whole stack — the Lean package, the registry CLI, the benchmark
+  harness, the Groth16 prover — replays the demo walkthrough once to prove every part works on your
+  machine (verifications included), then seeds the live registry and serves this site. Switch datasets any
+  time: <code>./seed.sh</code> for the live registry, <code>./demo.sh</code> for the scripted walkthrough.</p>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>Install</h3></div>
+    <div class="prose">
+      <div class="codeblock">curl -sSf http://localhost:8420/install.sh | bash
+<span class="c"># or, from a checkout:</span>
+./install.sh</div>
+      <p>The script checks for <strong>git</strong>, <strong>rust</strong> (via rustup), and <strong>python3</strong>; installs
+      <strong>elan</strong> (the Lean toolchain manager) and the <strong>wasm32</strong> compile target if they are missing;
+      builds everything; runs <code>./demo.sh</code>; and serves the site on port 8420 with
+      <code>razor serve</code>, which re-derives <code>data.json</code> from the log on every request - append an
+      event from the CLI and every open page updates within a few seconds.
+      <a href="install.sh">Read the script before you run it</a> — you should not have to trust this page's word
+      about what it does.</p>
+
+      <h4>What you have afterwards</h4>
+      <div class="codeblock">target/release/razor        <span class="c"># the registry CLI</span>
+target/release/anvil-harness<span class="c"># fuel + native benchmarks</span>
+target/release/zk-prover    <span class="c"># Groth16 setup / prove / verify</span>
+registry/data/events.jsonl  <span class="c"># the append-only log (the registry IS this file)</span>
+site/data.json              <span class="c"># derived state, feeds these pages</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>Solve your first hole</h3><span class="note">the whole loop, five commands</span></div>
+    <div class="prose">
+      <p>The demo dataset keeps two holes open for exactly this purpose: RZR-104 (merge preserves
+      sortedness) and RZR-105 (merge preserves counts). Run <code>./demo.sh</code>, prove one in
+      <code>lean/Razor/Holes/Open.lean</code> (replace the <code>sorry</code>), then:</p>
+      <div class="codeblock"><span class="c"># check your proof builds</span>
+cd lean &amp;&amp; lake build &amp;&amp; cd ..
+
+<span class="c"># submit and verify (the kernel is the referee)</span>
+target/release/razor submit --id SUB-me --hole RZR-104 \
+  --solver you --decl Razor.Sorting.merge_sorted
+target/release/razor verify --submission SUB-me
+
+<span class="c"># regenerate the site</span>
+target/release/razor export --out site/data.json</div>
+
+      <h4>Prefer to work in private?</h4>
+      <div class="codeblock"><span class="c"># commit a hash first (priority without exposure) …</span>
+target/release/razor seal --file my-proof.lean --salt my-secret
+target/release/razor commit --id SUB-me --hole RZR-104 --solver you --commitment &lt;hash&gt;
+<span class="c"># … reveal when ready</span>
+target/release/razor reveal --submission SUB-me --file my-proof.lean \
+  --salt my-secret --decl Razor.Private.You.merge_sorted
+
+<span class="c"># or go full zero-knowledge: solve through a hole's zk route (see the zk page)</span>
+target/release/zk-prover prove --list 42,7,255,7
+target/release/razor zk-submit --id SUB-me-zk --hole ZKH-001 --route ZKR-001 \
+  --solver you --public &lt;hex&gt; --proof &lt;hex&gt;</div>
+
+      <h4>Work on the live registry</h4>
+      <p>The live registry (<code>./seed.sh</code>) carries real open problems from the Lean community's
+      current frontier. Most are still proposals waiting for a formal statement; the Erdos-Straus
+      conjecture already has one pinned hole per environment (ES-001 in core Lean, ES-002 in Mathlib's
+      vocabulary), and Fermat's Last Theorem is pinned in core Lean (FLT-000) with two registered splits
+      whose glue proofs are already admitted. FLT-RED - every exponent at least 3 factors through 4 or an
+      odd prime - is self-contained number theory and a genuinely provable first hole on the live board.
+      Add your own candidate statement with <code>razor formalize --gloss "..."</code> - the
+      gloss is your plain-language reading, which is what reviewers compare against the proposal - and
+      strengthen a clump by proving your statement equivalent to an existing one
+      (<code>razor converge</code>).</p>
+
+      <h4>Share partial progress as a split</h4>
+      <p>If you can prove a hole from lemmas you cannot yet prove - in a Lean file, a proof with
+      <code>sorry</code> in the gaps - register the gaps as holes and the reduction as a split. The CLI
+      composes the glue statement mechanically from the pinned types, so there is nothing to get subtly
+      wrong:</p>
+      <div class="codeblock"><span class="c"># state each gap as its own hole …</span>
+target/release/razor hole --id MY-LEMMA-1 --title "..." --lean-type "..."
+<span class="c"># … tie them to the parent; this pins MY-SPLIT-glue to (lemma 1) → … → parent</span>
+target/release/razor split --id MY-SPLIT --parent RZR-104 --author you \
+  --child MY-LEMMA-1 --note "induction on the left list"
+<span class="c"># prove the glue like any hole - checkable while every child is still open</span>
+target/release/razor submit --id SUB-glue --hole MY-SPLIT-glue --solver you --decl You.my_glue
+target/release/razor verify --submission SUB-glue</div>
+      <p>When all children and the glue are admitted, the split reads <em>complete</em>: the parent is
+      provable by composition, which in your original file is just replacing each <code>sorry</code> with
+      the admitted proof. If the plan turns out wrong, register a better split next to it - splits are
+      never edited, because an admitted glue is a true theorem either way.</p>
+
+      <h4>Accounts, signatures, and the sandbox</h4>
+      <p><code>razor account new</code> generates an Ed25519 keypair: the public key goes on the log as your
+      handle's identity, the signing key stays on your machine (<code>registry/data/keys/</code>). From then
+      on every event you author is signed automatically, the CLI refuses to append events in a registered
+      handle's name without its key, and <code>razor verify-log</code> re-checks every signature on the log.
+      Handles without accounts can still do everything - their events are simply marked as unsigned.
+      Verification treats a submission as untrusted code, because Lean elaboration can run programs: the
+      checker runs with network access denied (<code>sandbox-exec</code> on macOS, <code>bwrap</code> on
+      Linux) and is killed after a time limit.</p>
+
+      <h4>Proofs that use Mathlib</h4>
+      <p>Holes registered with <code>--env mathlib</code> pin statements written in Mathlib's vocabulary
+      and are verified in the <code>lean-mathlib/</code> package, which requires Mathlib v4.31.0 (matching
+      the pinned toolchain, so the prebuilt cache applies). Fetch it once with
+      <code>./mathlib-env.sh</code> - it is several gigabytes. Until then the registry refuses to verify
+      Mathlib-environment submissions and says why.</p>
+
+      <h4>Enter the anvil</h4>
+      <p>Write a faster implementation of a challenge spec in <code>anvil/impls/</code>, hand-translate it to a
+      Lean model in <code>lean/Razor/Anvil/</code>, prove it refines the executable spec, then
+      <code>razor anvil-submit</code> and <code>razor bench</code>. Your lane appears on
+      <a href="anvil.html">the leaderboards</a> next to its proof.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>Design documents</h3></div>
+    <div class="prose">
+      <p><strong>README.md</strong> — the thesis: parallel search over proofs and programs, credits as an optional module.<br>
+      <strong>FUNNEL.md</strong> — how statements earn trust: glosses, certificates, convergence clumps,
+      weighted supersession marks when a better wording exists.<br>
+      <strong>ANVIL.md</strong> — verified-performance competition: measurement tiers, rigs, arch pools, spec-bug
+      policy.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Satoshi's Razor — a registry for machine-checked mathematics and verified software.</span>
+    <span class="right"><code>./demo.sh</code> reproduces everything on this site</span>
+  </div>
+</footer>
+
+<script src="razor.js"></script>
+<script>loadData(() => {});</script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statement — Satoshi's Razor</title>
+<link rel="stylesheet" href="razor.css">
+</head>
+<body>
+
+<header class="mast">
+  <div class="wrap">
+    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <nav class="pages"></nav>
+  </div>
+</header>
+
+<div class="pagehead wrap detail-head">
+  <div class="row1" id="chips"></div>
+  <h2 id="title">Candidate statement</h2>
+  <p class="lede" id="lede"></p>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>The author's gloss</h3><span class="note">their own plain-language reading — what reviewers compare against the proposal</span></div>
+    <p class="prose" id="gloss"></p>
+    <div class="kv" id="facts"></div>
+  </div>
+</section>
+
+<section id="sec-clump" style="display:none">
+  <div class="wrap">
+    <div class="sec-head"><h3>Its clump</h3><span class="note">statements proven equivalent by machine-checked proof</span></div>
+    <div class="cards" id="clump"></div>
+  </div>
+</section>
+
+<section id="sec-holes" style="display:none">
+  <div class="wrap">
+    <div class="sec-head"><h3>Holes pinning this statement</h3></div>
+    <div class="cards" id="holes"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>History</h3><span class="note">every event touching this statement, in log order</span></div>
+    <div id="history"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Strengthen a clump: prove your statement equivalent to this one with <code>razor converge</code>.</span>
+    <span class="right"><a href="frontier.html">← back to the frontier</a></span>
+  </div>
+</footer>
+
+<script src="razor.js"></script>
+<script>
+loadData(S => {
+  const id = qid();
+  const st = S.statements[id];
+  if (!st) {
+    $('title').textContent = id ? `No statement named ${id}` : 'No statement selected';
+    $('lede').innerHTML = 'Pick one on <a href="frontier.html">the frontier</a>.';
+    return;
+  }
+  document.title = `${st.id} — Satoshi's Razor`;
+  $('chips').innerHTML = `<span class="hid">${esc(st.id)}</span><span class="badge">by ${personLink(st.author)}</span>`;
+  $('title').textContent = st.gloss || st.decl;
+  $('lede').innerHTML = `A Lean formalization of proposal ${propLink(st.proposal)}, declared as <code>${esc(st.decl)}</code>.${st.notes ? ` ${esc(st.notes)}` : ''}`;
+  $('gloss').innerHTML = st.gloss ? `“${esc(st.gloss)}”` : 'No gloss was filed with this statement.';
+
+  const rows = [
+    ['declaration', `<code>${esc(st.decl)}</code>`],
+    st.certificates.length ? ['certificates', st.certificates.map(([k, d, n]) => `<b>${esc(k)}</b> — <code>${esc(d)}</code>${n ? ` — ${esc(n)}` : ''}`).join('<br>')] : null,
+    st.convergences.length ? ['proven equivalent to', st.convergences.map(([o, d]) => `${stmtLink(o)} <span style="color:var(--muted)">(via <code>${esc(d)}</code>)</span>`).join('<br>')] : null,
+    st.implies.length ? ['proven to imply', st.implies.map(([b, d]) => `${stmtLink(b)} <span style="color:var(--muted)">(via <code>${esc(d)}</code>; the converse is unproven — ${esc(b)} may be strictly weaker)</span>`).join('<br>')] : null,
+    st.implied_by.length ? ['implied by', st.implied_by.map(([a, d]) => `${stmtLink(a)} <span style="color:var(--muted)">(via <code>${esc(d)}</code>; this statement may be the strictly weaker one)</span>`).join('<br>')] : null,
+  ].filter(Boolean);
+  $('facts').innerHTML = rows.map(([k, v]) => `<div class="k">${k}</div><div class="v">${v}</div>`).join('');
+
+  const prop = S.proposals[st.proposal];
+  const c = prop && (prop.clumps || []).find(c => c.members.includes(st.id));
+  if (c) {
+    $('sec-clump').style.display = '';
+    $('clump').innerHTML = `<article class="card wide">
+      <div class="row1">
+        ${c.dominant ? '<span class="chip solved">✓ dominant</span>' : '<span class="chip open">○ candidate</span>'}
+        ${c.proven ? '<span class="badge">proven true</span>' : ''}
+        <span class="badge">weight ${c.weight} (${c.weight === 1 ? '1 author' : c.weight + ' independent authors'})</span>
+      </div>
+      <div class="meta">${c.members.map(mid => `<span>${mid === st.id ? `<b>${esc(mid)}</b>` : stmtLink(mid)} by ${esc(S.statements[mid]?.author || '?')}</span>`).join('')}</div>
+    </article>`;
+  }
+
+  const holes = Object.values(S.holes).filter(h => h.statement === st.id);
+  if (holes.length) {
+    $('sec-holes').style.display = '';
+    $('holes').innerHTML = holes.map(h => `<article class="card">
+      <div class="row1">${holeLink(h.id)}${chip(h.status)}${h.pool ? `<span class="pool">bounty ${h.pool.toLocaleString()}</span>` : ''}</div>
+      <h4>${esc(h.title)}</h4>
+    </article>`).join('');
+  }
+
+  $('history').innerHTML = timeline(S.events.filter(e =>
+    (e.type === 'formalize' && e.id === st.id)
+    || (e.type === 'certify' && e.statement === st.id)
+    || ((e.type === 'converge' || e.type === 'implies') && (e.a === st.id || e.b === st.id))
+    || (e.type === 'curate' && e.target === st.id)));
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>People — Satoshi's Razor</title>
+<link rel="stylesheet" href="razor.css">
+<style>
+  .person .sigil { font-size: 26px; line-height: 1; }
+  .person .statline { font-family: var(--mono); font-size: 11.5px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+  .person .statline b { color: var(--chalk); font-weight: 500; }
+  .person .statline .earned { color: var(--gold); }
+</style>
+</head>
+<body>
+
+<header class="mast">
+  <div class="wrap">
+    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <nav class="pages"></nav>
+  </div>
+</header>
+
+<div class="pagehead wrap">
+  <h2>People</h2>
+  <p class="lede">Everyone who has done anything on this registry, whether or not they registered an
+  account. A profile is built entirely from the event log: what someone submitted and when, which
+  submissions were accepted or rejected, which leaderboard rows they currently lead, how much they have
+  earned or funded, and what they curate - curation picks are public and weighted by the curator's
+  admitted work, so a person's taste has a track record here too. Register a handle from the command line with
+  <code>razor account new</code>.</p>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="controls">
+      <label for="sort">sort by</label>
+      <select id="sort">
+        <option value="solved">accepted submissions</option>
+        <option value="earned">total earned</option>
+        <option value="top_spots">leaderboard rows led</option>
+        <option value="activity">number of submissions</option>
+        <option value="funded">amount funded</option>
+      </select>
+      <input id="search" type="search" placeholder="search handle or name" aria-label="search people">
+    </div>
+    <div class="cards" id="people"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Claim a handle: <code>razor account new</code>. Your profile appears here as soon as you do anything.</span>
+    <span class="right"><a href="download.html">get started</a></span>
+  </div>
+</footer>
+
+<script src="razor.js"></script>
+<script>
+let STATE = null;
+
+const OUTCOME = {
+  admitted: ['✓', 'good', 'accepted'],
+  rejected: ['✕', 'bad', 'rejected'],
+  sealed: ['🔒', '', 'sealed (not yet revealed)'],
+  pending: ['·', '', 'not yet verified'],
+};
+
+function personCard(p) {
+  const a = p.account;
+  const sigil = a ? a.sigil : '·';
+  const name = a ? a.display : p.handle;
+  const about = a && a.about ? `<p style="color:var(--muted);font-size:14.5px">${esc(a.about)}</p>` : '';
+  const registered = a ? '' : '<span class="badge">no account registered</span>';
+
+  const stats = `<div class="statline">
+    <span><b>${p.solved}</b> accepted</span>
+    ${p.rejected ? `<span><b>${p.rejected}</b> rejected</span>` : ''}
+    ${p.top_spots ? `<span><b>${p.top_spots}</b> board${p.top_spots > 1 ? 's' : ''} led</span>` : ''}
+    ${p.payouts_total ? `<span class="earned"><b>${p.payouts_total.toLocaleString()}</b> earned</span>` : ''}
+    ${p.funded_total ? `<span><b>${p.funded_total.toLocaleString()}</b> funded</span>` : ''}
+  </div>`;
+
+  const subs = p.submissions.length ? `<details class="hist">
+    <summary>submissions over time — ${p.submissions.length}</summary>
+    <div class="timeline">${p.submissions.map(([seq, id, target, kind, outcome]) => {
+      const [glyph, tone, word] = OUTCOME[outcome] || OUTCOME.pending;
+      return `<div class="tl ${tone}"><span class="k">#${seq} ${glyph} ${esc(id)}</span> → ${esc(target)} — ${esc(kind)} submission, ${word}</div>`;
+    }).join('')}</div>
+  </details>` : '';
+
+  const lanes = p.lanes.length ? `<div class="meta">${p.lanes.map(([ch, imp, board, score, unit, leader]) =>
+    `<span>${leader ? '<span style="color:var(--gold)">♛</span> leads' : 'runs'} ${esc(ch)} with ${esc(imp)} on [${esc(board)}] — best ${score.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${esc(unit)}</span>`
+  ).join('')}</div>` : '';
+
+  const waiting = p.open_holes_authored.length
+    ? `<div class="meta"><span>waiting on solutions to: ${p.open_holes_authored.map(esc).join(', ')} (open problems under their proposals)</span></div>` : '';
+  const curates = (p.curated || []).length
+    ? `<div class="meta"><span>☆ curates: ${p.curated.map(esc).join(', ')} (each pick counts with weight ${1 + p.solved} - 1 plus their admitted work)</span></div>` : '';
+  const rigs = p.rigs.length ? `<div class="meta"><span>brings hardware: ${p.rigs.map(esc).join(', ')}</span></div>` : '';
+
+  return `<article class="card person">
+    <div class="row1">
+      <span class="sigil">${esc(sigil)}</span>
+      <h4><a class="cardlink" href="person.html?id=${encodeURIComponent(p.handle)}">${esc(name)}</a> <span style="color:var(--muted);font-weight:400">@${esc(p.handle)}</span></h4>
+      ${registered}
+    </div>
+    ${about}
+    ${stats}
+    ${lanes}
+    ${waiting}${curates}
+    ${rigs}
+    ${subs}
+  </article>`;
+}
+
+function draw() {
+  const S = STATE;
+  const sort = $('sort').value, q = $('search').value.toLowerCase();
+  const metric = (p) => sort === 'earned' ? p.payouts_total
+    : sort === 'activity' ? p.submissions.length
+    : sort === 'funded' ? p.funded_total
+    : p[sort] || 0;
+  let people = Object.values(S.people || {});
+  if (q) people = people.filter(p =>
+    (p.handle + ' ' + (p.account?.display || '')).toLowerCase().includes(q));
+  people.sort((a, b) => (metric(b) - metric(a))
+    || (b.account ? 1 : 0) - (a.account ? 1 : 0)
+    || a.handle.localeCompare(b.handle));
+  $('people').innerHTML = people.map(personCard).join('') || '<p class="lede">Nobody matches.</p>';
+}
+
+loadData(S => {
+  STATE = S;
+  draw();
+  for (const id of ['sort', 'search']) $(id).addEventListener('input', draw);
+});
+</script>
+</body>
+</html>

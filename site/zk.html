@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zero-knowledge — Satoshi's Razor</title>
+<link rel="stylesheet" href="razor.css">
+</head>
+<body>
+
+<header class="mast">
+  <div class="wrap">
+    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <nav class="pages"></nav>
+  </div>
+</header>
+
+<div class="pagehead wrap">
+  <h2>Zero-knowledge</h2>
+  <p class="lede">Two ways to take part without publishing your work. With <strong>commit-reveal</strong>, you
+  register a hash of your solution file now and reveal the file later; the hash proves you had the solution
+  at the earlier time, and nobody can steal work they cannot see. With a <strong>zero-knowledge submission</strong>,
+  you go further: you send a short cryptographic proof (a Groth16 proof, about 200 bytes) that you possess a
+  valid solution. The registry can check this proof in milliseconds and learns nothing about the solution
+  itself — it is never sent. A hole becomes zk-solvable when someone attaches a <strong>zk route</strong> to it:
+  a verifying key for a circuit, plus a <strong>bridge</strong> establishing that satisfying the circuit means the
+  hole's pinned statement is true. There is one kind of hole; routes are attachments, several can coexist,
+  and a route is never edited.</p>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>What a verified proof actually establishes</h3><span class="note">three steps, each with its own guarantee</span></div>
+    <div class="overview">
+      <div class="card">
+        <h4>1 · The cryptographic proof</h4>
+        <p>A zero-knowledge circuit is a set of equations (here, 829 of them). A valid Groth16 proof
+        establishes one thing: the prover knows values that satisfy all of the equations. It does not reveal
+        those values, and it cannot be forged — a tampered proof fails verification, as mallory's does
+        below.</p>
+      </div>
+      <div class="card">
+        <h4>2 · The bridge: what the equations mean</h4>
+        <p>Satisfying a set of equations only matters if the equations say the right thing. Each route
+        carries a bridge tying its circuit to the hole's pinned statement. The route below carries a
+        <strong>theorem bridge</strong>: <code>Razor.Zk.network_sound</code> (solved hole ZKS-001 on
+        <a href="frontier.html">the frontier</a>), a kernel-checked proof that any values satisfying the
+        equations really do describe a correctly sorted copy of the hidden list. This approach — prove the
+        circuit's meaning in Lean rather than trusting its author — comes from the zkGolf project.</p>
+      </div>
+      <div class="card">
+        <h4>3 · What is not yet covered</h4>
+        <p>Three known gaps, stated plainly. The Lean model uses ordinary integers while the circuit uses
+        modular arithmetic; the proof that this difference is harmless is an open proposal (PRP-200). The
+        hash function used for commitments is a simplified one, fine for a demonstration but not audited for
+        production. And the cryptographic setup was generated from a fixed, public seed so that anyone can
+        reproduce it; a real deployment would generate it in a multi-party ceremony.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>Holes with zk routes</h3><span class="note">the equation count is also the competition score: a smaller circuit that proves the same thing wins</span></div>
+    <div class="cards" id="zkholes"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>The universal route</h3><span class="note">specified, not yet built - the cost is the open question</span></div>
+    <p class="prose">A Lean proof is data and checking it is computation, so one circuit could cover every
+    hole at once: a program that runs the Lean proof checker, executed inside a proving system that attests
+    to correct execution (a zkVM). Public inputs: a hash of the pinned proof-checking environment and the
+    hole's statement. Private witness: the proof. An accepted proof means "someone possesses a proof the
+    checker accepts for this exact statement" - for any hole, with no per-hole circuit work.
+    Two facts about such a route, recorded plainly. First, its bridge can never be a theorem: "the checker
+    accepts a proof of a statement, therefore the statement is true" is Lean's own soundness, which Lean
+    cannot prove about itself. The bridge is instead an auditable claim - the hash of the checker binary and
+    of the environment - which is the same kind of trust every ordinary submission already places in the
+    checker, made explicit, plus trust in the proving system itself. Second, its cost is unmeasured: proving
+    a checker run inside a zkVM multiplies the work by a large factor, and whether a real check proves in
+    minutes or days is a benchmark nobody here has run. The registry records the route kind on every
+    zk-solved hole, so a reader always sees which trust chain admitted it: <strong>theorem</strong> (a
+    kernel-checked bridge, like the route below) or <strong>binary-hash</strong> (the universal route, when
+    someone builds and measures it).</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>Commit-reveal submissions</h3><span class="note">hashes registered now, solutions revealed later (or already revealed)</span></div>
+    <div class="cards" id="sealed"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>To submit privately: <code>zk-prover prove --list …</code> then <code>razor zk-submit</code>. The registry never sees your data.</span>
+    <span class="right"><a href="download.html">get started</a></span>
+  </div>
+</footer>
+
+<script src="razor.js"></script>
+<script>
+loadData(S => {
+  const zk = Object.values(S.holes).filter(h => (h.zk_routes || []).length);
+  $('zkholes').innerHTML = zk.map(h => {
+    const subs = (h.zk_submissions || []).map(s => {
+      if (!s.verdict) return `<span>· ${esc(s.id)} by ${esc(s.solver)} — unverified</span>`;
+      const [ok, why] = s.verdict;
+      return ok
+        ? `<span class="ok">✓ ${esc(s.id)} by ${esc(s.solver)} via ${esc(s.route)} — proof verified, witness never revealed (proof ${esc(s.proof_prefix)}…)</span>`
+        : `<span class="bad">✕ ${esc(s.id)} by ${esc(s.solver)} — forged: ${esc((why.match(/"reason":"([^"]+)"/) || [])[1] || 'invalid proof')}</span>`;
+    }).join('');
+    const routes = h.zk_routes.map(r => `<span>route ${esc(r.id)} — <span class="badge blue">${r.constraints} constraints</span> <span class="badge">vk ${esc(r.vk_hash.slice(0, 12))}…</span> bridge (${esc(r.bridge_kind)}): <span class="ok">${esc(r.bridge)}</span>${r.note ? ` — “${esc(r.note)}”` : ''}</span>`).join('');
+    return `<article class="card wide">
+      <div class="row1">
+        ${holeLink(h.id)}
+        ${chip(h.status)}
+        ${h.pool ? `<span class="pool">pool ${h.pool.toLocaleString()}</span>` : ''}
+      </div>
+      <h4><a class="cardlink" href="hole.html?id=${encodeURIComponent(h.id)}">${esc(h.title)}</a></h4>
+      <pre>${esc(h.lean_type)}</pre>
+      <div class="meta">
+        ${routes}
+        ${subs}
+      </div>
+      <a class="go" href="hole.html?id=${encodeURIComponent(h.id)}">full record: the Lean unfolded, every attempt, every event →</a>
+    </article>`;
+  }).join('') || '<p class="lede">No hole carries a zk route yet.</p>';
+
+  const sealed = Object.values(S.holes)
+    .flatMap(h => h.submissions.filter(s => !s.revealed).map(s => ({ h, s })));
+  const revealed = Object.values(S.holes)
+    .flatMap(h => h.submissions.filter(s => s.revealed && s.commitment).map(s => ({ h, s })));
+  $('sealed').innerHTML = [
+    ...sealed.map(({ h, s }) => `<article class="card">
+      <div class="row1"><span class="hid">${esc(s.id)}</span><span class="chip open">🔒 sealed</span></div>
+      <h4>${personLink(s.solver)} holds a commitment on ${holeLink(h.id)}</h4>
+      <div class="meta"><span>sha256(file ‖ salt) = ${esc((s.commitment || '').slice(0, 24))}…</span>
+      <span>priority is timestamped; nobody can front-run a hash; nothing is revealed until the solver chooses.</span></div>
+    </article>`),
+    ...revealed.map(({ h, s }) => `<article class="card">
+      <div class="row1"><span class="hid">${esc(s.id)}</span><span class="chip solved">✓ revealed</span></div>
+      <h4>${personLink(s.solver)} revealed on ${holeLink(h.id)}${s.verdict?.[0] ? ' — admitted' : ''}</h4>
+      <div class="meta"><span>commitment ${esc((s.commitment || '').slice(0, 24))}… checked against the revealed file, then verified by the kernel like any submission (${esc(s.decl)}).</span></div>
+    </article>`),
+  ].join('') || '<p class="lede">No commitments in flight.</p>';
+});
+</script>
+</body>
+</html>

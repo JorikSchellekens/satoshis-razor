@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hole — Satoshi's Razor</title>
+<link rel="stylesheet" href="razor.css">
+</head>
+<body>
+
+<header class="mast">
+  <div class="wrap">
+    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <nav class="pages"></nav>
+  </div>
+</header>
+
+<div class="pagehead wrap detail-head">
+  <div class="row1" id="chips"></div>
+  <h2 id="title">Hole</h2>
+  <p class="lede" id="lede"></p>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>The pinned statement</h3><span class="note">a solution must prove exactly this, character for character</span></div>
+    <div class="leandef"><div class="name">pinned type</div><pre id="pinned"></pre></div>
+    <div id="unfolded"></div>
+  </div>
+</section>
+
+<section id="sec-standing">
+  <div class="wrap">
+    <div class="sec-head"><h3>Where it stands</h3><span class="note">every number below is computed from recorded events - the registry never judges a statement, people do, attributably</span></div>
+    <div class="kv" id="standing"></div>
+  </div>
+</section>
+
+<section id="sec-splits" style="display:none">
+  <div class="wrap">
+    <div class="sec-head"><h3>Splits</h3><span class="note">registered plans reducing this hole to child holes; several can coexist</span></div>
+    <div class="cards" id="splits"></div>
+  </div>
+</section>
+
+<section id="sec-routes" style="display:none">
+  <div class="wrap">
+    <div class="sec-head"><h3>Zero-knowledge routes</h3><span class="note">attachments that make this hole solvable by a Groth16 proof</span></div>
+    <div class="cards" id="routes"></div>
+  </div>
+</section>
+
+<section id="sec-subs" style="display:none">
+  <div class="wrap">
+    <div class="sec-head"><h3>Submissions</h3><span class="note">every attempt, with the checker's verdict</span></div>
+    <div class="cards" id="subs"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>History</h3><span class="note">every event touching this hole, in log order</span></div>
+    <div id="history"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>To attempt it: write the proof, then <code>razor submit</code> and <code>razor verify</code>.</span>
+    <span class="right"><a href="frontier.html">← back to the frontier</a></span>
+  </div>
+</footer>
+
+<script src="razor.js"></script>
+<script>
+loadData(S => {
+  const id = qid();
+  const h = S.holes[id];
+  if (!h) {
+    $('title').textContent = id ? `No hole named ${id}` : 'No hole selected';
+    $('lede').innerHTML = 'Pick one on <a href="frontier.html">the frontier</a>.';
+    return;
+  }
+  document.title = `${h.id} — Satoshi's Razor`;
+  const m = holeMetrics(S, h);
+
+  $('chips').innerHTML = [
+    `<span class="hid">${esc(h.id)}</span>`,
+    chip(h.status),
+    h.env === 'mathlib' ? '<span class="badge blue">Mathlib environment</span>' : '',
+    h.pool ? `<span class="pool">bounty ${h.pool.toLocaleString()}</span>` : '',
+  ].join('');
+  $('title').textContent = h.title;
+  $('lede').innerHTML = [
+    h.proposal ? `Pinned under proposal ${propLink(h.proposal)}.` : 'Pinned directly, without a proposal.',
+    h.statement ? `Formalized as candidate statement ${stmtLink(h.statement)}.` : '',
+    h.solved_by ? `Solved by submission <b>${esc(h.solved_by)}</b>.` : '',
+  ].filter(Boolean).join(' ');
+
+  $('pinned').textContent = h.lean_type;
+  $('unfolded').innerHTML = (h.lean_source || [])
+    .map(([name, src]) => `<div class="leandef"><div class="name">${esc(name)}</div><pre>${esc(src)}</pre></div>`)
+    .join('')
+    || '<p class="prose">No definitions to unfold: the pinned type is written out in full above.</p>';
+
+  // standing: metrics, curations, supersession marks, split membership
+  const curs = curatorsOf(S, h.id);
+  const marks = h.superseded_by || [];
+  const rows = [
+    ['attention', `${m.attention.toLocaleString()} <span style="color:var(--muted)">— bounty credits plus fixed weights for each signal below, minus the weight of supersession marks; the frontier sorts by this</span>`],
+    m.clump ? ['clump', `weight ${m.clump}${m.dominant ? ' · dominant' : ''}${m.proven ? ' · proven' : ''}`] : null,
+    m.convergence ? ['convergence', `${m.convergence} machine-checked equivalence proof${m.convergence > 1 ? 's' : ''} on its statement`] : null,
+    m.lineage ? ['lineage', `${m.lineage} earlier wording${m.lineage > 1 ? 's' : ''} point${m.lineage > 1 ? '' : 's'} here — attempt ${m.lineage + 1} at stating this problem`] : null,
+    curs.length ? ['curated by', curs.map(([who, , note]) => `${personLink(who)}${note ? ` — “${esc(note)}”` : ''}`).join('<br>')] : null,
+    marks.length ? ['marked superseded', marks.map(([by, r, note]) => `by ${personLink(by)} in favor of ${holeLink(r)}${note ? ` — “${esc(note)}”` : ''}`).join('<br>')] : null,
+    (h.part_of || []).length ? ['serves in', `split${h.part_of.length > 1 ? 's' : ''} ${h.part_of.map(esc).join(', ')}`] : null,
+    h.allowed_axioms.length ? ['extra axioms allowed', h.allowed_axioms.map(esc).join(', ')] : null,
+  ].filter(Boolean);
+  $('standing').innerHTML = rows.map(([k, v]) => `<div class="k">${k}</div><div class="v">${v}</div>`).join('');
+
+  // splits
+  const splits = h.splits || [];
+  if (splits.length) {
+    $('sec-splits').style.display = '';
+    $('splits').innerHTML = splits.map(sp => `<article class="card wide">
+      <div class="row1"><span class="hid">${esc(sp.id)}</span>
+        ${sp.complete ? '<span class="chip solved">✓ complete — parent provable by composition</span>'
+          : `<span class="chip open">○ ${sp.solved_children}/${sp.children.length} children solved</span>`}
+        <span class="badge">by ${personLink(sp.author)}</span></div>
+      ${sp.note ? `<p class="prop-body">“${esc(sp.note)}”</p>` : ''}
+      <div class="meta">
+        <span class="${sp.glue[1] === 'solved' ? 'ok' : ''}">glue ${holeLink(sp.glue[0])} [${esc(sp.glue[1])}]</span>
+        ${sp.children.map(([c, st]) => `<span class="${st === 'solved' ? 'ok' : ''}">child ${holeLink(c)} [${esc(st)}]</span>`).join('')}
+      </div>
+    </article>`).join('');
+  }
+
+  // zk routes
+  const routes = h.zk_routes || [];
+  if (routes.length) {
+    $('sec-routes').style.display = '';
+    $('routes').innerHTML = routes.map(r => `<article class="card wide">
+      <div class="row1"><span class="hid">${esc(r.id)}</span>
+        <span class="badge blue">${r.constraints} constraints</span>
+        <span class="badge">vk ${esc(r.vk_hash.slice(0, 12))}…</span>
+        <span class="badge ${r.bridge_kind === 'theorem' ? 'gold' : ''}">bridge: ${esc(r.bridge_kind)}</span></div>
+      <div class="meta"><span>${r.bridge_kind === 'theorem'
+        ? `kernel-checked bridge theorem: <span class="ok">${esc(r.bridge)}</span> — satisfying the circuit implies the pinned statement`
+        : `checker binary hash: ${esc(r.bridge)} — an auditable claim, not a theorem (see the <a href="zk.html">zero-knowledge page</a>)`}</span>
+      ${r.note ? `<span class="note">“${esc(r.note)}”</span>` : ''}</div>
+    </article>`).join('');
+  }
+
+  // submissions (kernel + zk)
+  const subs = h.submissions || [], zsubs = h.zk_submissions || [];
+  if (subs.length || zsubs.length) {
+    $('sec-subs').style.display = '';
+    $('subs').innerHTML = [
+      ...subs.map(s => {
+        const cost = (S.events.find(e => e.type === 'verdict' && e.submission === s.id) || {}).cost_ms;
+        const state = !s.revealed ? '<span class="chip open">🔒 sealed commitment</span>'
+          : !s.verdict ? '<span class="chip open">· unverified</span>'
+          : s.verdict[0] ? '<span class="chip solved">✓ admitted</span>' : '<span class="chip voided-x" style="color:var(--danger);border-color:var(--danger)">✕ rejected</span>';
+        const detail = !s.revealed ? `sha256(file ‖ salt) = ${esc((s.commitment || '').slice(0, 24))}…`
+          : !s.verdict ? `claims ${esc(s.decl)}`
+          : s.verdict[0] ? `${esc(s.decl)} — axioms: ${esc((s.verdict[1] || []).join(', ') || 'none')}${cost ? ` — kernel check ${cost} ms` : ''}`
+          : esc(s.verdict[2].includes('sorryAx') ? 'proof contains sorry' : s.verdict[2].split(':')[0]);
+        return `<article class="card"><div class="row1"><span class="hid">${esc(s.id)}</span>${state}</div>
+          <h4>by ${personLink(s.solver)}</h4><div class="meta"><span>${detail}</span></div></article>`;
+      }),
+      ...zsubs.map(z => {
+        const state = !z.verdict ? '<span class="chip open">· unverified</span>'
+          : z.verdict[0] ? '<span class="chip solved">✓ proof verified</span>' : '<span class="chip" style="color:var(--danger);border-color:var(--danger)">✕ forged</span>';
+        return `<article class="card"><div class="row1"><span class="hid">${esc(z.id)}</span>${state}<span class="badge blue">zero-knowledge</span></div>
+          <h4>by ${personLink(z.solver)}</h4>
+          <div class="meta"><span>via route ${esc(z.route)} — public input ${esc(z.public.slice(0, 16))}…, proof ${esc(z.proof_prefix)}… — the witness was never sent</span></div></article>`;
+      }),
+    ].join('');
+  }
+
+  $('history').innerHTML = timeline(holeHistory(S, h));
+});
+</script>
+</body>
+</html>

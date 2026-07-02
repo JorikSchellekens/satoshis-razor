@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proposal — Satoshi's Razor</title>
+<link rel="stylesheet" href="razor.css">
+</head>
+<body>
+
+<header class="mast">
+  <div class="wrap">
+    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <nav class="pages"></nav>
+  </div>
+</header>
+
+<div class="pagehead wrap detail-head">
+  <div class="row1" id="chips"></div>
+  <h2 id="title">Proposal</h2>
+  <p class="lede" id="lede"></p>
+</div>
+
+<section id="sec-cur" style="display:none">
+  <div class="wrap">
+    <div class="sec-head"><h3>Curation</h3><span class="note">public, attributed, weighted by the curator's verified work</span></div>
+    <div class="kv" id="curations"></div>
+  </div>
+</section>
+
+<section id="sec-clumps" style="display:none">
+  <div class="wrap">
+    <div class="sec-head"><h3>Candidate statements, grouped by equivalence</h3><span class="note">two independent authors converging is the strongest evidence a formalization is faithful</span></div>
+    <div class="cards" id="clumps"></div>
+  </div>
+</section>
+
+<section id="sec-holes" style="display:none">
+  <div class="wrap">
+    <div class="sec-head"><h3>Holes under this proposal</h3></div>
+    <div class="cards" id="holes"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Add your own reading: <code>razor formalize --gloss "…"</code>.</span>
+    <span class="right"><a href="frontier.html">← back to the frontier</a></span>
+  </div>
+</footer>
+
+<script src="razor.js"></script>
+<script>
+loadData(S => {
+  const id = qid();
+  const p = S.proposals[id];
+  if (!p) {
+    $('title').textContent = id ? `No proposal named ${id}` : 'No proposal selected';
+    $('lede').innerHTML = 'Pick one on <a href="frontier.html">the frontier</a>.';
+    return;
+  }
+  document.title = `${p.id} — Satoshi's Razor`;
+  $('chips').innerHTML = [
+    `<span class="hid">${esc(p.id)}</span>`,
+    `<span class="badge">proposed by ${personLink(p.author)}</span>`,
+    p.statements.length ? `<span class="badge blue">${p.statements.length} candidate statement${p.statements.length > 1 ? 's' : ''}</span>`
+      : '<span class="chip open">○ needs a formal statement</span>',
+  ].join('');
+  $('title').textContent = p.title;
+  $('lede').textContent = p.body;
+
+  const curs = curatorsOf(S, p.id);
+  if (curs.length) {
+    $('sec-cur').style.display = '';
+    $('curations').innerHTML = curs.map(([who, , note]) =>
+      `<div class="k">☆ ${personLink(who)}</div><div class="v">${note ? `“${esc(note)}”` : ''} <span style="color:var(--muted)">(weight ${1 + (S.people?.[who]?.solved || 0)})</span></div>`).join('');
+  }
+
+  const clumps = p.clumps || [];
+  if (clumps.length) {
+    $('sec-clumps').style.display = '';
+    $('clumps').innerHTML = clumps.map(c => `<article class="card wide">
+      <div class="row1">
+        ${c.dominant ? '<span class="chip solved">✓ dominant</span>' : '<span class="chip open">○ candidate</span>'}
+        ${c.proven ? '<span class="badge">proven true</span>' : ''}
+        <span class="badge">weight ${c.weight} (${c.weight === 1 ? '1 author' : c.weight + ' independent authors'})</span>
+      </div>
+      ${c.members.map(mid => {
+        const st = S.statements[mid] || {};
+        return `<div class="clump-member" style="margin-top:8px">
+          ${stmtLink(mid)} <span style="color:var(--muted)">by ${esc(st.author || '?')}</span>
+          ${st.gloss ? `<div class="prop-body">“${esc(st.gloss)}”</div>` : ''}
+        </div>`;
+      }).join('')}
+    </article>`).join('');
+  }
+
+  const holes = Object.values(S.holes).filter(h => h.proposal === p.id);
+  if (holes.length) {
+    $('sec-holes').style.display = '';
+    $('holes').innerHTML = holes.map(h => `<article class="card">
+      <div class="row1">${holeLink(h.id)}${chip(h.status)}${h.pool ? `<span class="pool">bounty ${h.pool.toLocaleString()}</span>` : ''}</div>
+      <h4>${esc(h.title)}</h4>
+      <div class="meta"><span>attention ${holeMetrics(S, h).attention.toLocaleString()}</span></div>
+    </article>`).join('');
+  }
+});
+</script>
+</body>
+</html>

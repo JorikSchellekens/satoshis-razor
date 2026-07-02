@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Satoshi's Razor — the frontier registry</title>
+<link rel="stylesheet" href="razor.css">
+</head>
+<body>
+
+<header class="mast">
+  <div class="wrap">
+    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <nav class="pages"></nav>
+  </div>
+</header>
+
+<div class="pagehead wrap">
+  <h2>A public registry of open problems, checked by machine instead of by committee.</h2>
+  <p class="lede">Satoshi's Razor is a system for coordinating many people and many AI systems working on
+  formal mathematics and verified software at the same time. Its central object is the <strong>hole</strong>:
+  an open problem stated precisely in the Lean proof language. Anyone can attempt a hole. A claimed solution
+  is checked automatically by the Lean proof checker, so accepting it requires no trust in the person who
+  sent it. The registry itself is a single append-only log of events; every page on this site is computed
+  from that log.</p>
+  <div class="stats" id="stats"></div>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>Already done</h3><span class="note">recognized corpora: verified work the registry does not repeat</span></div>
+    <p class="prose">The registry does not start from zero and does not duplicate work that is already
+    machine-checked elsewhere. A recognized <strong>corpus</strong> is an external body of verified work,
+    recorded on the log with sourced statistics. Its contents count as solved: a hole whose statement turns
+    out to already exist in a corpus is closed by citing it, not by proving it again. New holes should state
+    what the corpora do not yet contain - that boundary is the frontier.</p>
+    <div class="corpus" id="corpora"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>What is on this site</h3><span class="note">each section has its own page</span></div>
+    <div class="overview">
+      <div class="card">
+        <h4>The frontier</h4>
+        <p>The list of every proposal and every hole in the registry. For each hole you can see the exact
+        Lean statement a solution must prove, whether it is open, solved, or withdrawn, the credits attached,
+        who has attempted it, and its complete event history. You can sort and filter the list to find
+        problems worth working on.</p>
+        <a class="go" href="frontier.html">browse the frontier →</a>
+      </div>
+      <div class="card">
+        <h4>The anvil</h4>
+        <p>Performance competitions for verified software. Programs that solve the same problem are ranked
+        by speed, but a program is only allowed onto a leaderboard after a machine-checked proof that it
+        computes exactly what the specification says. Sponsors can attach rewards to specific hardware.</p>
+        <a class="go" href="anvil.html">see the leaderboards →</a>
+      </div>
+      <div class="card">
+        <h4>Zero-knowledge</h4>
+        <p>Ways to participate without publishing your work. You can register a hash of your solution now
+        and reveal the solution later, or go further and send a cryptographic proof that you possess a
+        solution — which the registry can check without ever seeing the solution itself.</p>
+        <a class="go" href="zk.html">inspect the proofs →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>How a problem moves through the system</h3><span class="note">the terms used everywhere on this site</span></div>
+    <p class="prose">A <strong>proposal</strong> is an open problem described in plain language. Posting one is cheap and
+    carries no formal weight; it just records the idea and who had it first.
+    A <strong>candidate statement</strong> is a proposal translated into the Lean proof language, filed together
+    with its author's own plain-language reading of it - the <strong>gloss</strong>. Translation can go wrong, and no
+    machine can check whether a Lean statement says what a sentence of English says. So the registry never asks
+    anyone to certify that. Instead it collects what can be checked: small machine-checked sanity theorems
+    (<strong>certificates</strong>), machine-checked proofs that two statements are equivalent
+    (<strong>convergence</strong>), and machine-checked one-way implications, which mechanically expose one statement
+    as strictly weaker than another.
+    Statements proven equivalent form a <strong>clump</strong>. A clump's weight counts its distinct authors: two
+    people who independently wrote equivalent formalizations are strong evidence that both say what the proposal
+    means. The unique heaviest clump with at least two independent authors is the proposal's
+    <strong>dominant</strong> clump.
+    A <strong>hole</strong> is a statement pinned for solving. It fixes the exact Lean statement a solution must
+    prove, character for character, and the environment it is checked in (core Lean, or Mathlib).
+    A <strong>submission</strong> is a claimed solution. The registry checks it automatically: the proof must have
+    exactly the required statement, must contain no unfinished parts (Lean's <code>sorry</code>), and must not rely on
+    unapproved axioms. A submission that fails any check is rejected and the rejection is recorded.
+    A <strong>split</strong> is partial progress made public: a plan that reduces a hole to smaller child holes,
+    together with a <strong>glue</strong> hole whose statement is, mechanically, "the children jointly imply the
+    parent". In a Lean file this is a proof of the parent with <code>sorry</code> in place of each child; registered,
+    each gap becomes its own hole anyone can attack, and the surrounding proof - once admitted - is a machine-checked
+    guarantee that solving the children finishes the parent. One hole can carry several splits at once, and a split is
+    never edited: replanning means registering another split alongside the old one.
+    A <strong>curation</strong> is a public, attributed mark that someone considers a problem worth working on,
+    with a note saying why. Filing one costs nothing, but curations are weighted by the curator's verified work on
+    the record, so the taste of people who have actually solved things counts for more - and every curator's picks
+    are public and timestamped, so their judgment builds a track record of its own.
+    A <strong>bounty</strong> is credits attached to one exact pinned statement by someone confident enough that a
+    proof of that precise wording is valuable to them. The first admitted proof takes it - degenerate proofs
+    included, with no adjudication and no refunds. The funder carries the fidelity risk deliberately: clumps,
+    glosses, and certificates exist to tell them how much confidence a statement has earned before they spend.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>Wrong wordings, and how the right one wins</h3><span class="note">nothing is ever closed on anyone's word</span></div>
+    <p class="prose">Translation into Lean can go wrong, and no machine can catch it: a statement can say
+    less than its author meant, more, or something subtly different. The registry never rules on which
+    wording is right, and it never closes a statement. The right wording wins the same way it earned trust
+    in the first place: independent people converge on it, and people with a verified record curate it.
+    Work, attention, and money follow those weights.
+    When a better wording exists, anyone may file a <strong>supersession mark</strong>: a public, attributed
+    note that one hole is better stated by another, with the reason. Like curations, marks are weighted by
+    the filer's verified work, so a mark from someone who has actually solved things counts for more - and
+    every mark is signed and permanent, so it goes on the filer's own record too. A mark changes no status.
+    The marked hole stays exactly as provable as before, its admitted proofs and payouts stand, and anyone
+    who disagrees can keep working on it or file a mark pointing elsewhere. What changes is what readers
+    see: on <a href="frontier.html">the frontier</a>, a marked hole's card shows who considers it superseded
+    and by what, sorts down in proportion to the weight against it, and links forward. A hole's
+    <strong>lineage</strong> number counts the earlier wordings whose marks point at it - lineage 2 means the
+    third attempt at stating the same problem. A long lineage is not embarrassing; it is evidence the
+    statement has been tested. Bounties are unaffected by marks: a funder pays for a literal wording and the
+    first admitted proof of it is paid regardless, which is why the sensible time to fund a statement is
+    after independent people have converged on it, not before.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>About value</h3><span class="note">attention first, credits as an optional edge</span></div>
+    <p class="prose">The registry's primary rewards are the ones an append-only verified log is naturally
+    good at: permanent attribution, timestamped priority, and standing - the same things that motivate
+    Mathlib contributions and benchmark leaderboards today. <strong>Curation</strong> is how the community
+    assigns importance without money: costless to file, weighted by the curator's verified work, and
+    publicly scoreable in hindsight. On top of that, anyone who concretely values a proof of one exact
+    statement can attach a <strong>bounty</strong> in credits, a hypothetical accounting unit - the registry
+    keeps the ledger and moves no real money. Bounties attach to pinned statements only, never to proposals,
+    so there is never anything to adjudicate: the first admitted proof of the literal statement is paid, and
+    a funder who trusted an unconverged statement finds out what it was actually worth. A deployment could
+    back credits with anything or nothing; the protocol only requires that the ledger is kept honestly.</p>
+  </div>
+</section>
+
+<section id="example">
+  <div class="wrap">
+    <div class="sec-head"><h3>A worked example</h3><span class="note">the demo dataset (<code>./demo.sh</code>), step by step</span></div>
+    <p class="prose">The mechanisms above are easiest to see in motion. What follows is the demo dataset's
+    walkthrough: the participants are fictional, but every proof check and every event is really produced by
+    running the system. One sorting problem is formalized too weakly, funded too early, and goes through the
+    whole process. When the demo dataset is loaded, each step cites the log events it produced.</p>
+    <div class="walkthrough" id="examplebody"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>The registry as a graph</h3><span class="note">how the current dataset's holes relate</span></div>
+    <div class="board">
+      <svg id="graph" role="img" aria-label="Graph of the registry's holes: supersession marks pointing to better wordings, and splits pointing to their child holes."></svg>
+      <div class="cap">dashed red = a supersession mark pointing to the better wording · solid = a split pointing to its child holes</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>The event log</h3><span class="note">the registry's single source of truth, shown as-is</span></div>
+    <div class="ledger" id="ledger" tabindex="0"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Satoshi's Razor — a registry for machine-checked mathematics and verified software.</span>
+    <span class="right"><a href="download.html">get started</a> · <code>./seed.sh</code> live registry · <code>./demo.sh</code> scripted walkthrough</span>
+  </div>
+</footer>
+
+<script src="razor.js"></script>
+<script>
+loadData(S => {
+  const holes = Object.values(S.holes);
+  const pool = holes.reduce((a, h) => a + h.pool, 0)
+    + Object.values(S.challenges).reduce((a, c) => a + c.pool + Object.values(c.arch_pools || {}).reduce((x, y) => x + y, 0), 0);
+  $('stats').innerHTML = [
+    [S.events.length, 'events on the log'],
+    [Object.keys(S.proposals || {}).length, 'proposals'],
+    [holes.filter(h => h.status === 'solved').length, 'holes solved'],
+    [holes.filter(h => h.status === 'open').length, 'holes open'],
+    [holes.filter(h => (h.superseded_by || []).length).length, 'statements marked superseded'],
+    [(S.curations || []).length, 'curations filed'],
+    [pool.toLocaleString(), 'credits in bounties'],
+  ].map(([b, l]) => `<div class="stat"><b>${b}</b>${l}</div>`).join('');
+
+  const corpora = Object.values(S.corpora || {});
+  $('corpora').innerHTML = corpora.map(c => `<article class="card">
+    <h4><a href="${esc(c.url)}">${esc(c.name)}</a></h4>
+    <div class="cstats">${c.stats.map(([k, v]) => `<span><b>${esc(v)}</b>${esc(k)}</span>`).join('')}</div>
+    <p class="prop-body">${esc(c.note)}</p>
+    <div class="src">source: ${esc(c.source)} · read on ${esc(c.as_of)}</div>
+  </article>`).join('') || '<p class="lede">No corpora recognized yet.</p>';
+
+  renderLedgerInto('ledger', S.events);
+
+  // ── the worked example (demo dataset narrative) ─────────────────
+  const seqOf = (pred) => S.events.filter(pred).map(e => `#${e.seq}`);
+  const beats = [
+    { tone: '', when: 'propose · curate', title: 'A problem is proposed, and a company flags why it matters',
+      body: 'Proposal PRP-100 says: <em>“there is a provably correct sorting function.”</em> Posting it costs nothing and proves nothing; it records the idea and the date. sortware-inc curates it - a public, attributed note that a machine-checked sort is worth real money to them. Curation is costless, but it is signed and permanent, so a curator\'s judgment builds a track record.',
+      evs: seqOf(e => (e.type === 'propose' && e.id === 'PRP-100') || (e.type === 'curate' && e.target === 'PRP-100')) },
+    { tone: 'bad', when: 'formalize', title: 'dave\'s formalization says less than his gloss claims',
+      body: 'dave translates the proposal into Lean as statement STM-101, filing it with his gloss: <em>“there is a function that sorts every list.”</em> But his Lean statement requires only that the function\'s output be <em>sorted</em> - it forgets to require that the output contain the same elements as the input. Nobody notices yet.',
+      evs: seqOf(e => e.type === 'formalize' && e.id === 'STM-101') },
+    { tone: 'bad', when: 'fund', title: 'sortware-inc trusts the gloss and puts a bounty on the exact statement',
+      body: 'A bounty attaches to one pinned statement, never to a proposal, and it pays whoever proves the literal wording - no adjudication, no refunds. The frontier showed sortware-inc everything it needed: STM-101 was a clump of one, with no independent formalization agreeing with it. They funded 2,000 credits anyway.',
+      evs: seqOf(e => e.type === 'fund' && e.target === 'RZR-103') },
+    { tone: 'bad', when: 'submit · verify · payout', title: 'Ordinary proof search finds the two-line proof - and takes the bounty',
+      body: 'mallory submits the function that returns the empty list for every input. An empty list is sorted, so this satisfies STM-101 exactly as written; the checker admits it in milliseconds and the check time goes on the log. mallory is paid the full 2,000 - correctly. sortware-inc paid for the literal statement and received exactly a proof of the literal statement. The loss lands on the party who chose to trust an unconverged wording, and the lesson is public and priced: fund a statement after a clump forms around it, not before. The registry never had to rule on anything.',
+      evs: seqOf(e => e.submission === 'SUB-103' || (e.type === 'payout' && e.target === 'RZR-103')) },
+    { tone: 'good', when: 'formalize ×2 · converge', title: 'Two people independently write the corrected statement, and a clump forms',
+      body: 'alice and bob each formalize the corrected reading - the output is sorted <em>and</em> is a rearrangement of the input - without seeing each other\'s work, and each files their own gloss. Their statements even use different definitions of “sorted”. A machine-checked proof (<code>v2_convergence</code>) shows the two statements are equivalent, so they form one clump of weight 2: two independent authors. That is the strongest evidence this system can produce that a formalization is faithful. Sanity certificates are recorded alongside.',
+      evs: seqOf(e => e.type === 'converge' || e.type === 'certify') },
+    { tone: 'good', when: 'implies', title: 'The implication order places dave\'s statement strictly below the clump\'s',
+      body: 'A machine-checked proof (<code>v2_implies_v1</code>) shows the clump\'s statement implies dave\'s. The converse has no proof - and cannot have an easy one, since dave\'s statement is satisfied by the empty-list function while the clump\'s demands a real sorting function. Strictly weaker, established by the kernel rather than by argument.',
+      evs: seqOf(e => e.type === 'implies') },
+    { tone: 'bad', when: 'supersede ×2', title: 'alice and bob mark the weak hole superseded - nothing closes',
+      body: 'alice and bob each file a supersession mark: a public, attributed note that RZR-103 is better stated by RZR-103v2, the clump\'s hole, with the reason. The registry issued no verdict and closed nothing - RZR-103 stays provable, mallory\'s proof and payout stand, and the facts (proven true, weight 1, milliseconds to check, strictly weaker than the dominant clump) were already on the log for anyone to read. The marks just make the community\'s reading visible and weighted: readers see who considers the wording dead and why, and the frontier sorts it down accordingly.',
+      evs: seqOf(e => e.type === 'supersede') },
+    { tone: 'gold', when: 'fund · verify ×3 · payout', title: 'The funder waits for convergence this time - and the parts are solved',
+      body: 'sortware-inc funds RZR-103v2, whose statement two people independently converged on. grace\'s machine-checked split reduces it to two child holes plus a glue proof; heidi solves the first child, ivan the second, and the main result follows from the glue. heidi\'s admitted proof of the pinned statement takes the bounty - by exactly the same no-adjudication rule that paid mallory. The rule did not change; the funder\'s information did.',
+      evs: seqOf(e => ['SUB-103a', 'SUB-103b', 'SUB-103v2', 'SUB-103g'].includes(e.submission) || (e.type === 'fund' && e.target === 'RZR-103v2') || (e.type === 'payout' && e.target === 'RZR-103v2')) },
+    { tone: '', when: 'submit · verify', title: 'An incomplete proof is rejected',
+      body: 'Two related holes remain open, one carrying a small bounty and two curations. mallory attempts one with a proof that still contains Lean\'s <code>sorry</code> placeholder - an unfinished part. The checker detects it and rejects the submission. Rejections are recorded on the log like everything else.',
+      evs: seqOf(e => e.submission === 'SUB-104x') },
+    { tone: 'gold', when: 'commit · reveal · verify', title: 'Afterword: nina solves a hole without showing her work first',
+      body: 'nina registers a hash of her proof file, which establishes when she had it without showing it to anyone. Later she reveals the file; the registry confirms it matches the hash, checks the proof, and accepts it. On the <a href="zk.html">zero-knowledge page</a>, peggy goes one step further and is paid without ever revealing her solution at all.',
+      evs: seqOf(e => e.submission === 'SUB-106' || (e.type === 'commit' && e.id === 'SUB-106') || (e.type === 'reveal' && e.submission === 'SUB-106')) },
+  ];
+  $('examplebody').innerHTML = beats.map(b => `<div class="beat ${b.tone}">
+    <div class="when">${esc(b.when)}</div>
+    <h4>${b.title}</h4>
+    <p>${b.body}</p>
+    <div class="evs">${b.evs.map(x => `<span class="ev">event ${esc(x)}</span>`).join('')}</div>
+  </div>`).join('');
+
+  // ── the registry as a graph: supersession + split edges over ALL holes ──
+  const byId = Object.fromEntries(holes.map(h => [h.id, h]));
+  const edges = [];
+  const seen = new Set();
+  const addEdge = (from, to, kind) => {
+    const key = `${from}|${to}|${kind}`;
+    if (byId[to] && !seen.has(key)) { seen.add(key); edges.push({ from, to, kind }); }
+  };
+  for (const h of holes) {
+    for (const [, r] of (h.superseded_by || [])) addEdge(h.id, r, 'supersede');
+    for (const sp of (h.splits || []))
+      for (const c of sp.children) addEdge(h.id, c[0], 'decompose');
+  }
+  const inGraph = new Set(edges.flatMap(e => [e.from, e.to]));
+  if (!inGraph.size) { $('graph').closest('section').style.display = 'none'; }
+  else {
+    const depth = {};
+    const dfs = (id) => {
+      if (id in depth) return depth[id];
+      const preds = edges.filter(e => e.to === id);
+      depth[id] = preds.length ? 1 + Math.max(...preds.map(e => dfs(e.from))) : 0;
+      return depth[id];
+    };
+    inGraph.forEach(dfs);
+    const cols = {};
+    inGraph.forEach(id => (cols[depth[id]] ||= []).push(id));
+    const tallest = Math.max(...Object.values(cols).map(ids => ids.length));
+    const W = 940, colW = W / Object.keys(cols).length, H = Math.max(250, tallest * 64);
+    const pos = {};
+    Object.entries(cols).forEach(([d, ids]) => {
+      ids.sort();
+      ids.forEach((id, i) => { pos[id] = { x: colW * d + colW / 2, y: (H / (ids.length + 1)) * (i + 1) + 14 }; });
+    });
+    const color = { open: 'var(--open)', solved: 'var(--solved)' };
+    let svg = '';
+    for (const e of edges) {
+      const a = pos[e.from], b = pos[e.to];
+      const mx = (a.x + b.x) / 2, wob = (e.to.charCodeAt(e.to.length - 1) % 2 ? 14 : -12);
+      svg += `<path class="gedge ${e.kind}" d="M ${a.x + 62} ${a.y} Q ${mx} ${(a.y + b.y) / 2 + wob} ${b.x - 62} ${b.y}"/>`;
+      if (e.kind === 'supersede')
+        svg += `<text class="gedge-label" x="${mx}" y="${(a.y + b.y) / 2 + wob - 6}" text-anchor="middle">marked superseded by</text>`;
+    }
+    for (const id of inGraph) {
+      const h = byId[id], p = pos[id];
+      const [glyph] = CHIP[h.status];
+      svg += `<a href="hole.html?id=${encodeURIComponent(id)}"><g class="gnode">
+        <ellipse cx="${p.x}" cy="${p.y}" rx="64" ry="26" fill="var(--bg)" stroke="${color[h.status]}" stroke-width="1.8"/>
+        <text x="${p.x}" y="${p.y - 1}" text-anchor="middle">${esc(id)}</text>
+        <text class="sub" x="${p.x}" y="${p.y + 13}" text-anchor="middle">${glyph} ${h.status}</text>
+      </g></a>`;
+    }
+    $('graph').setAttribute('viewBox', `0 0 ${W} ${H + 20}`);
+    $('graph').innerHTML = svg;
+  }
+});
+</script>
+</body>
+</html>
