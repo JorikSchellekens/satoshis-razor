@@ -10,6 +10,8 @@ popcount-naive = { path = "../impls/popcount-naive" }
 popcount-swar = { path = "../impls/popcount-swar" }
 sum-loop = { path = "../impls/sum-loop" }
 sum-closed = { path = "../impls/sum-closed" }
+sort8-bubble = { path = "../impls/sort8-bubble" }
+sort8-network = { path = "../impls/sort8-network" }
 evm-ref = { path = "../impls/evm-ref" }
 evm-tos = { path = "../impls/evm-tos" }
 wasmtime = { version = "27", default-features = false, features = ["cranelift", "runtime"] }

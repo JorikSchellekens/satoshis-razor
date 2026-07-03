@@ -12,6 +12,7 @@ import Razor.Zk.Soundness
 import Razor.Evm.Spec
 import Razor.Anvil.Popcount
 import Razor.Anvil.Sum
+import Razor.Anvil.Sort8
 import Razor.Sorting.Implications
 import Razor.Sorting.Repin
 import Razor.Frontier.ErdosStraus

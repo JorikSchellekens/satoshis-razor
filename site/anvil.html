@@ -48,7 +48,10 @@
         <p>Each submission is also timed as a normal compiled program. Timing depends on the machine, so
         every native score names the machine it was measured on. A <strong>rig</strong> is such a machine,
         registered in advance by whoever owns it — typically a sponsor who wants results on hardware they
-        care about. The rig's owner runs the benchmark on it and reports the scores.</p>
+        care about. The rig's owner runs the benchmark on it and reports the scores. A rig does not have
+        to be bare hardware: it can name a <em>runner command</em> the harness is executed through, so a
+        Docker container (a Linux virtual machine, on a Mac) can join the boards —
+        <code>./docker-rig.sh</code> sets one up.</p>
       </div>
       <div class="card">
         <h4>architecture pools: rewards for specific hardware</h4>
@@ -93,9 +96,9 @@
 <script>
 loadData(S => {
   const rigs = Object.values(S.rigs || {});
-  $('rigs').innerHTML = `<tr><th>rig</th><th>owner</th><th>architecture</th><th>tier</th><th>notes</th></tr>` +
-    (rigs.map(r => `<tr><td>${esc(r.id)}</td><td>${esc(r.owner)}</td><td>${esc(r.arch)}</td><td>${esc(r.tier)}</td><td>${esc(r.note)}</td></tr>`).join('')
-     || '<tr><td colspan="5">no rigs registered</td></tr>');
+  $('rigs').innerHTML = `<tr><th>rig</th><th>owner</th><th>architecture</th><th>tier</th><th>runs via</th><th>notes</th></tr>` +
+    (rigs.map(r => `<tr><td>${esc(r.id)}</td><td>${esc(r.owner)}</td><td>${esc(r.arch)}</td><td>${esc(r.tier)}</td><td>${r.runner ? `<code>${esc(r.runner)}</code>` : 'directly on the machine'}</td><td>${esc(r.note)}</td></tr>`).join('')
+     || '<tr><td colspan="6">no rigs registered</td></tr>');
 
   const chals = Object.values(S.challenges);
   $('anvils').innerHTML = chals.map(c => {
@@ -128,7 +131,7 @@ loadData(S => {
       }).join('')}
       <div class="foot">${proofs.join(' · ') || 'no admitted submissions yet'}</div>
     </div>`;
-  }).join('') || '<p class="lede">No challenges registered on this dataset. The demo dataset (<code>./demo.sh</code>) runs three: popcount, summation, and a small EVM interpreter.</p>';
+  }).join('') || '<p class="lede">No challenges registered on this dataset. The demo dataset (<code>./demo.sh</code>) runs four: popcount, summation, sorting the bytes of a word, and a small EVM interpreter.</p>';
 
   const benches = S.events.filter(e => e.type === 'bench');
   $('history').innerHTML = `<tr><th>#</th><th>submission</th><th>tier</th><th>arch</th><th>rig</th><th>score</th><th>checksum</th></tr>` +

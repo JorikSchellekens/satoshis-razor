@@ -137,8 +137,11 @@ pub enum Event {
     Bench { submission: String, tier: String, arch: String, score: f64, unit: String, checksum: u64, #[serde(default)] rig: Option<String> },
     /// A benchmark rig: hardware a bounty provider selects or brings to the
     /// table. Scores recorded through a rig carry its architecture; a rig
-    /// owner runs `razor bench --rig <id>` on their own machine.
-    RegisterRig { id: String, owner: String, arch: String, tier: String, note: String },
+    /// owner runs `razor bench --rig <id>` on their own machine. `runner` is
+    /// an optional command prefix the harness is executed through (for
+    /// example `docker run --rm <image>`), so a rig can be a container or a
+    /// virtual machine rather than the host itself. Empty = run directly.
+    RegisterRig { id: String, owner: String, arch: String, tier: String, note: String, #[serde(default, skip_serializing_if = "String::is_empty")] runner: String },
     /// An account: a handle someone claims from the CLI. `pubkey` is the
     /// hash of a locally held secret; the registry never stores the secret.
     /// `github` is an optional bridge to an existing identity: to make it
@@ -522,6 +525,9 @@ pub struct Rig {
     pub arch: String,
     pub tier: String,
     pub note: String,
+    /// Command prefix the harness runs through (e.g. `docker run --rm <image>`).
+    /// Empty means the harness binary is executed directly on the host.
+    pub runner: String,
 }
 
 #[derive(Serialize, Default, Debug)]
@@ -701,8 +707,8 @@ impl State {
                     });
                 }
             }
-            Event::RegisterRig { id, owner, arch, tier, note } => {
-                self.rigs.insert(id.clone(), Rig { id, owner, arch, tier, note });
+            Event::RegisterRig { id, owner, arch, tier, note, runner } => {
+                self.rigs.insert(id.clone(), Rig { id, owner, arch, tier, note, runner });
             }
             Event::RegisterAccount { handle, display, about, sigil, pubkey, github } => {
                 self.accounts.insert(handle.clone(), Account { handle, display, about, sigil, pubkey, github });

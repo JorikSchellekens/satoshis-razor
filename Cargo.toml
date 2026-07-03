@@ -9,6 +9,8 @@ members = [
     "anvil/impls/popcount-swar",
     "anvil/impls/sum-loop",
     "anvil/impls/sum-closed",
+    "anvil/impls/sort8-bubble",
+    "anvil/impls/sort8-network",
     "anvil/impls/evm-common",
     "anvil/impls/evm-ref",
     "anvil/impls/evm-tos",

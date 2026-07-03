@@ -14,7 +14,7 @@ step "Build everything (Lean package, registry, harness, wasm submissions)"
 (cd lean && lake build 2>&1 | tail -1)
 cargo build --release 2>&1 | tail -1
 cargo build --release --target wasm32-unknown-unknown \
-  -p popcount-naive -p popcount-swar -p sum-loop -p sum-closed -p evm-ref -p evm-tos 2>&1 | tail -1
+  -p popcount-naive -p popcount-swar -p sum-loop -p sum-closed -p sort8-bubble -p sort8-network -p evm-ref -p evm-tos 2>&1 | tail -1
 
 step "Fresh registry"
 rm -rf registry/data site/data.json lean/Razor/Private lean/Razor/Submissions
@@ -289,6 +289,23 @@ $RAZOR anvil-submit --id ANV-002-closed --challenge ANV-002 --impl sum-closed \
 $RAZOR bench --challenge ANV-002 --iters 20000 --rig wasm-referee
 $RAZOR bench --challenge ANV-002 --iters 20000 --rig m4-station
 
+step "ANV-003 sort 8 bytes: a 19-comparator network, admission by SAT - nobody has to see why it sorts"
+$RAZOR challenge --id ANV-003 --title "sort the 8 bytes of a u64" --spec-impl sort8-bubble \
+  --obligation "∀ x : BitVec 64, model x = Razor.Anvil.sortBubble x"
+$RAZOR fund --target ANV-003 --amount 4000 --funder bitboard-labs
+$RAZOR anvil-submit --id ANV-003-ref --challenge ANV-003 --impl sort8-bubble \
+  --solver spec-author --proof-decl ""
+$RAZOR hole --id ANV-003-NET-PROOF \
+  --title "the 19-comparator sorting network refines the bubble-sort spec" \
+  --lean-type "∀ x : BitVec 64, Razor.Anvil.sortNetwork x = Razor.Anvil.sortBubble x" \
+  --allow-axiom "bv_decide" --allow-axiom "Lean.ofReduceBool"
+$RAZOR submit --id SUB-ANV3 --hole ANV-003-NET-PROOF --solver judy --decl Razor.Anvil.network_refines
+$RAZOR verify --submission SUB-ANV3
+$RAZOR anvil-submit --id ANV-003-net --challenge ANV-003 --impl sort8-network \
+  --solver judy --proof-decl Razor.Anvil.network_refines --refinement-hole ANV-003-NET-PROOF
+$RAZOR bench --challenge ANV-003 --iters 20000 --rig wasm-referee
+$RAZOR bench --challenge ANV-003 --iters 20000 --rig m4-station
+
 step "ANV-100 EVM interpreter: the submission is admitted - and loses anyway"
 $RAZOR challenge --id ANV-100 --title "EVM interpreter (64-bit demo words)" --spec-impl evm-ref \
   --obligation "∀ p gas stack, model p gas stack = Razor.Evm.execSpec p gas stack"
@@ -310,6 +327,8 @@ $RAZOR payout --target ANV-001 --recipient judy --amount 5000 \
   --reason "wasm-fuel and native crowns, popcount(u64)"
 $RAZOR payout --target ANV-001 --recipient judy --amount 3000 \
   --reason "arch-reserved pool: crown on aarch64-apple-m (rig m4-station)"
+$RAZOR payout --target ANV-003 --recipient judy --amount 4000 \
+  --reason "wasm-fuel and native crowns, sort the 8 bytes of a u64"
 $RAZOR payout --target ANV-002 --recipient kevin --amount 5000 \
   --reason "wasm-fuel and native crowns, sum(1..n)"
 

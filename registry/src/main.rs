@@ -82,6 +82,7 @@ fn main() {
             id: req(&args, "--id"), owner: req(&args, "--owner"),
             arch: req(&args, "--arch"), tier: req(&args, "--tier"),
             note: opt(&args, "--note").unwrap_or_default(),
+            runner: opt(&args, "--runner").unwrap_or_default(),
         }),
         "payout" => append(&log_path, Event::Payout {
             target: req(&args, "--target"), recipient: req(&args, "--recipient"),
@@ -213,7 +214,7 @@ fn print_help(cmd: &str) {
             ("challenge", "open a verified-performance competition"),
             ("anvil-submit", "enter an implementation with its refinement proof"),
             ("bench", "fuel-metered and native leaderboard runs"),
-            ("rig", "register hardware you bring to the boards"),
+            ("rig", "register hardware you bring to the boards (--runner runs the harness through a command, e.g. a Docker container)"),
         ]),
         ("people", &[
             ("account new", "claim a handle; generates your signing key"),
@@ -1062,7 +1063,14 @@ fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed: u64, 
                 t1["fuel_per_op"], ui::dim("fuel/op")));
         }
         if run_native {
-            let tn = run_json(&harness, &["native", "--impl", &entry.impl_name, "--seed", &seed.to_string(), "--iters", &iters.to_string()]);
+            // A rig with a runner executes the harness through that command
+            // (e.g. inside a Docker container), so the measurement really
+            // happens in the rig's environment, not on this host.
+            let native_args = ["native", "--impl", &entry.impl_name, "--seed", &seed.to_string(), "--iters", &iters.to_string()];
+            let tn = match rig.as_ref().filter(|r| !r.runner.is_empty()) {
+                Some(r) => run_json_via(&r.runner, &native_args),
+                None => run_json(&harness, &native_args),
+            };
             append(log_path, Event::Bench {
                 submission: entry.id.clone(),
                 tier: "native".into(),
@@ -1785,6 +1793,23 @@ fn cmd_verify_log(log_path: &PathBuf) {
     if bad > 0 {
         std::process::exit(1);
     }
+}
+
+/// Run the harness through a rig's runner command prefix (split on
+/// whitespace), e.g. `docker run --rm satoshis-anvil-rig native --impl …`.
+fn run_json_via(runner: &str, args: &[&str]) -> serde_json::Value {
+    let mut words = runner.split_whitespace();
+    let program = words.next().unwrap_or_else(|| ui::die("empty rig runner"));
+    let out = std::process::Command::new(program)
+        .args(words)
+        .args(args)
+        .output()
+        .unwrap_or_else(|e| ui::die(&format!("cannot run rig runner `{runner}`: {e}")));
+    if !out.status.success() {
+        eprintln!("{} rig runner failed: {}", ui::red("✕"), String::from_utf8_lossy(&out.stderr));
+        std::process::exit(1);
+    }
+    serde_json::from_slice(&out.stdout).expect("harness json")
 }
 
 fn run_json(bin: &PathBuf, args: &[&str]) -> serde_json::Value {

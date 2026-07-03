@@ -140,6 +140,15 @@ razor verify --submission SUB-glue</div>
       Lean model in <code>lean/Razor/Anvil/</code>, prove it refines the executable spec, then
       <code>razor anvil-submit</code> and <code>razor bench</code>. Your lane appears on
       <a href="anvil.html">the leaderboards</a> next to its proof.</p>
+
+      <h4>Bring a rig in Docker</h4>
+      <p>Native scores name the machine they were measured on, and a rig can be a container instead of
+      bare hardware: it registers a runner command, and <code>razor bench --rig</code> executes the
+      harness through it. One script builds a Linux image with the harness inside, registers it, and
+      measures every challenge in it — on a Mac this means real Linux scores (Docker runs containers in a
+      Linux virtual machine) appear on the boards next to your host's native scores:</p>
+      <div class="codeblock">./demo.sh        <span class="c"># the challenges (skip if already seeded)</span>
+./docker-rig.sh  <span class="c"># build image, register rig docker-linux-&lt;arch&gt;, bench everything in it</span></div>
     </div>
   </div>
 </section>

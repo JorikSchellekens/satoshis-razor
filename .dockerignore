@@ -1,0 +1,11 @@
+# Keep the Docker rig's build context to the Rust workspace: the image only
+# builds anvil-harness, so everything heavy or stateful stays out.
+target/
+lean/
+lean-mathlib/
+site/
+registry/data/
+ingest/
+examples/
+.git/
+*.gif

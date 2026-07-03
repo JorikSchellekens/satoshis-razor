@@ -32,6 +32,7 @@ struct Impl {
 const CHALLENGES: &[Challenge] = &[
     Challenge { name: "popcount", map: |x| x, reference: popcount_naive::solve },
     Challenge { name: "sum", map: |x| x & 0xffff, reference: sum_loop::solve },
+    Challenge { name: "sort8", map: |x| x, reference: sort8_bubble::solve },
     Challenge { name: "evm", map: |x| x, reference: evm_ref::solve },
 ];
 
@@ -40,6 +41,8 @@ const IMPLS: &[Impl] = &[
     Impl { name: "popcount-swar", challenge: "popcount", solve: popcount_swar::solve },
     Impl { name: "sum-loop", challenge: "sum", solve: sum_loop::solve },
     Impl { name: "sum-closed", challenge: "sum", solve: sum_closed::solve },
+    Impl { name: "sort8-bubble", challenge: "sort8", solve: sort8_bubble::solve },
+    Impl { name: "sort8-network", challenge: "sort8", solve: sort8_network::solve },
     Impl { name: "evm-ref", challenge: "evm", solve: evm_ref::solve },
     Impl { name: "evm-tos", challenge: "evm", solve: evm_tos::solve },
 ];
