@@ -20,9 +20,11 @@ jobs:
         run: cd lean && lake build
       - name: Build the registry CLI
         run: cargo build --release -p razor-registry
+      - name: Audit every signature on the committed log
+        run: ./target/release/razor verify-log
       - name: Replay the live seed (kernel-checks every glue proof)
         run: ./seed.sh
-      - name: Audit every signature on the log
+      - name: Audit every signature on the replayed log
         run: ./target/release/razor verify-log
 
   # The Mathlib environment: proves that every statement in

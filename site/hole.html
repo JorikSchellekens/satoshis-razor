@@ -88,6 +88,7 @@ loadData(S => {
     `<span class="hid">${esc(h.id)}</span>`,
     chip(h.status),
     h.env === 'mathlib' ? '<span class="badge blue">Mathlib environment</span>' : '',
+    h.upstreamed ? `<span class="badge gold">↥ upstreamed</span>` : '',
     h.pool ? `<span class="pool">bounty ${h.pool.toLocaleString()}</span>` : '',
   ].join('');
   $('title').textContent = h.title;
@@ -95,6 +96,7 @@ loadData(S => {
     h.proposal ? `Pinned under proposal ${propLink(h.proposal)}.` : 'Pinned directly, without a proposal.',
     h.statement ? `Formalized as candidate statement ${stmtLink(h.statement)}.` : '',
     h.solved_by ? `Solved by submission <b>${esc(h.solved_by)}</b>.` : '',
+    h.upstreamed ? `The admitted proof was carried to its home library: <a href="${esc(h.upstreamed)}">${esc(h.upstreamed)}</a>.` : '',
   ].filter(Boolean).join(' ');
 
   $('pinned').textContent = h.lean_type;
@@ -108,6 +110,19 @@ loadData(S => {
   const marks = h.superseded_by || [];
   const rows = [
     ['attention', `${m.attention.toLocaleString()} <span style="color:var(--muted)">— bounty credits plus fixed weights for each signal below, minus the weight of supersession marks; the frontier sorts by this</span>`],
+    ['statement fidelity', (() => {
+      const f = h.fidelity || {};
+      const parts = [
+        f.converged
+          ? `<span class="ok">${f.authors} independent formalizations, proven equivalent by kernel check</span> — two people read the same words and their Lean agrees, the strongest mechanical evidence the statement is faithful`
+          : f.authors === 1
+            ? 'one formalization author, unconverged — no independent formalization has been proven equivalent yet; filing one is attributed work'
+            : 'pinned directly, without a formalization trail on the log',
+        f.certificates ? `${f.certificates} sanity certificate${f.certificates > 1 ? 's' : ''}` : '',
+        f.repins ? `${f.repins} wording migration${f.repins > 1 ? 's' : ''} survived, each equivalence kernel-checked` : '',
+      ].filter(Boolean);
+      return parts.join(' · ');
+    })()],
     m.clump ? ['clump', `weight ${m.clump}${m.dominant ? ' · dominant' : ''}${m.proven ? ' · proven' : ''}`] : null,
     m.convergence ? ['convergence', `${m.convergence} machine-checked equivalence proof${m.convergence > 1 ? 's' : ''} on its statement`] : null,
     m.lineage ? ['lineage', `${m.lineage} earlier wording${m.lineage > 1 ? 's' : ''} point${m.lineage > 1 ? '' : 's'} here — attempt ${m.lineage + 1} at stating this problem`] : null,

@@ -227,6 +227,24 @@ $RAZOR verify --submission SUB-105
 step "An admitted proof is citable: seq + log hash pin the fact"
 $RAZOR cite SUB-105
 
+step "Anyone can independently recheck the claim - one command, nothing written"
+# This is what a "machine X solved open problem Y" announcement reduces to:
+# replay the kernel check against the pinned statement, audit the signature
+# on the claim, compare with the recorded verdict.
+$RAZOR recheck --submission SUB-105
+
+step "An admitted proof is carried to its home library, and the log records where it landed"
+# Without --pr this drafts a contribution file with the proof source and a
+# provenance header; with --pr it records the landing. The registry counts
+# upstreamed proofs, not admitted ones, as its measure of usefulness.
+$RAZOR upstream --hole RZR-105 --out "$JUDY_DIR/upstream-draft.lean"
+$RAZOR upstream --hole RZR-105 --by judy \
+  --pr "https://github.com/example/library/pull/104" \
+  --note "demo: where the merge_count proof would land"
+
+step "The frontier is exportable as proving targets (miniF2F-shaped JSONL)"
+$RAZOR export-benchmark | head -2
+
 # ─────────────────────────────────────────────────────────────────────
 step "ACT III - The Anvil: verified implementations compete on speed"
 # ─────────────────────────────────────────────────────────────────────

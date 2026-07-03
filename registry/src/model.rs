@@ -101,6 +101,11 @@ pub enum Event {
         #[serde(default)]
         note: String,
     },
+    /// An admitted proof left the registry for a home library (normally
+    /// Mathlib): `pr_url` is the pull request or commit that carried it.
+    /// The registry measures itself by these - a proof that lands upstream
+    /// is one the rest of formal mathematics actually builds on.
+    Upstream { hole: String, by: String, pr_url: String, #[serde(default)] note: String },
     /// An attributed, weighted opinion that `replacement` states the same
     /// problem better than `hole`. Nothing closes: the hole stays exactly as
     /// provable as before and its proofs still count. Marks are weighted by
@@ -210,6 +215,7 @@ impl Event {
             Event::Formalize { author, .. } => Some(author),
             Event::Split { author, .. } => Some(author),
             Event::Repin { author, .. } => Some(author),
+            Event::Upstream { by, .. } => Some(by),
             Event::Submit { solver, .. } => Some(solver),
             Event::Commit { solver, .. } => Some(solver),
             Event::ZkSubmit { solver, .. } => Some(solver),
@@ -312,6 +318,14 @@ pub struct Hole {
     /// is kept so proofs admitted against an earlier wording stay auditable.
     #[serde(default)]
     pub repins: Vec<(String, String, String)>,
+    /// Recorded fidelity facts about the pinned statement - see `Fidelity`.
+    /// Derived, filled by `aggregate_fidelity`.
+    #[serde(default)]
+    pub fidelity: Fidelity,
+    /// Set when an admitted proof of this hole was carried to a home
+    /// library: the pull request or commit URL, from an `Upstream` event.
+    #[serde(default)]
+    pub upstreamed: Option<String>,
     /// Supersession marks filed against this hole: (by, replacement, note).
     /// Opinions, weighted by the reader; the hole itself never closes.
     pub superseded_by: Vec<(String, String, String)>,
@@ -332,6 +346,27 @@ pub struct Hole {
     /// Derived: split ids this hole serves in, as a child or as the glue.
     pub part_of: Vec<String>,
     pub pool: u64,
+}
+
+/// Recorded facts about how much independent scrutiny a hole's pinned
+/// statement has survived. The hardest problem in formalization is not
+/// proving a statement but trusting that the statement is the theorem it
+/// claims to be; these are the log's answers, with no judgment encoded -
+/// the reader weighs them. All counts are over the statement's equivalence
+/// clump, because kernel-checked equivalence transfers scrutiny.
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct Fidelity {
+    /// Distinct authors across the clump - independent formalizations.
+    pub authors: usize,
+    /// At least two independent authors' statements, proven equivalent by
+    /// kernel check. The strongest mechanical evidence a formalization is
+    /// faithful: two people read the same words and their Lean agrees.
+    pub converged: bool,
+    /// Sanity certificates attached across the clump.
+    pub certificates: usize,
+    /// Wording migrations survived, each one a kernel-checked equivalence
+    /// to the previous wording (see `Repin`).
+    pub repins: usize,
 }
 
 /// A split, as recorded on the log.
@@ -545,7 +580,8 @@ impl State {
             Event::RegisterHole { id, title, statement, lean_type, allowed_axioms, proposal, env } => {
                 self.holes.insert(id.clone(), Hole {
                     id, title, statement, lean_type, allowed_axioms, proposal, env,
-                    status: "open".into(), solved_by: None, repins: vec![], superseded_by: vec![],
+                    status: "open".into(), solved_by: None, repins: vec![],
+                    fidelity: Fidelity::default(), upstreamed: None, superseded_by: vec![],
                     zk_routes: vec![], zk_submissions: vec![], lean_source: vec![],
                     submissions: vec![], splits: vec![], part_of: vec![],
                     pool: 0,
@@ -610,6 +646,11 @@ impl State {
                             h.solved_by = Some(submission.clone());
                         }
                     }
+                }
+            }
+            Event::Upstream { hole, pr_url, .. } => {
+                if let Some(h) = self.holes.get_mut(&hole) {
+                    h.upstreamed = Some(pr_url);
                 }
             }
             Event::Supersede { hole, by, replacement, note } => {
@@ -917,6 +958,50 @@ impl State {
             }
             clumps.sort_by(|a, b| b.weight.cmp(&a.weight));
             prop.clumps = clumps;
+        }
+    }
+
+    /// Fill each hole's fidelity facts from its statement's equivalence
+    /// clump. Call after `aggregate_clumps`.
+    pub fn aggregate_fidelity(&mut self) {
+        let mut per_hole: Vec<(String, Fidelity)> = vec![];
+        for h in self.holes.values() {
+            if h.statement.is_empty() {
+                per_hole.push((h.id.clone(), Fidelity { repins: h.repins.len(), ..Default::default() }));
+                continue;
+            }
+            // The clump containing this hole's statement, if the proposal
+            // has been clumped.
+            let clump = h.proposal.as_ref()
+                .and_then(|p| self.proposals.get(p))
+                .and_then(|p| p.clumps.iter().find(|c| c.members.contains(&h.statement)));
+            let f = match clump {
+                Some(c) => {
+                    let certificates = c.members.iter()
+                        .filter_map(|m| self.statements.get(m))
+                        .map(|s| s.certificates.len())
+                        .sum();
+                    Fidelity {
+                        authors: c.weight,
+                        converged: c.weight >= 2,
+                        certificates,
+                        repins: h.repins.len(),
+                    }
+                }
+                None => Fidelity {
+                    authors: if self.statements.contains_key(&h.statement) { 1 } else { 0 },
+                    converged: false,
+                    certificates: self.statements.get(&h.statement)
+                        .map(|s| s.certificates.len()).unwrap_or(0),
+                    repins: h.repins.len(),
+                },
+            };
+            per_hole.push((h.id.clone(), f));
+        }
+        for (id, f) in per_hole {
+            if let Some(h) = self.holes.get_mut(&id) {
+                h.fidelity = f;
+            }
         }
     }
 

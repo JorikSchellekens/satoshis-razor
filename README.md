@@ -13,6 +13,21 @@ Mathlib closes it verbatim. A proof admitted here is a proof the rest of
 formal mathematics can build on, not one stranded in a package nobody
 else imports.
 
+Two questions the registry is built to answer, which no list answers:
+
+- **Is this Lean statement really the theorem it claims to be?** Every hole
+  carries recorded fidelity facts: how many people independently formalized
+  it, whether their statements were proven equivalent by kernel check, what
+  certificates it survived. Two people reading the same words and their
+  Lean agreeing is the strongest mechanical evidence a formalization is
+  faithful - and here it is a first-class, queryable property.
+- **Did that machine really solve that open problem?** When a person or a
+  model claims a solve, the claim reduces to one command: `razor recheck`
+  replays the kernel check against the statement that was pinned before the
+  attempt, audits the Ed25519 signature on the claim, and compares with the
+  verdict on the log. No thread of screenshots, no adjudication - a
+  checkable public fact.
+
 ## Quick start
 
 ```sh
@@ -25,9 +40,12 @@ razor serve        # browse the registry at http://localhost:8420
 
 `razor help` lists every command. The registry's entire state is one file,
 `registry/data/events.jsonl`; everything else - the site, the leaderboards,
-every profile - is derived from it. CI elaborates every pinned Mathlib
+every profile - is derived from it. The log is committed, so this repository
+is its permanent public home: a `razor cite` log hash is checkable by anyone
+with a checkout, with no server to trust. CI elaborates every pinned Mathlib
 statement on every push, so you do not need the local Mathlib cache to trust
-the statements.
+the statements. (demo.sh overwrites the log with its fictional walkthrough
+locally; `git checkout registry/data/events.jsonl` restores the live one.)
 
 ## What is on the frontier
 
@@ -52,6 +70,19 @@ the statements.
 - **Solving.** `razor submit --file proof.lean` takes a single Lean file; the
   verifier checks the named declaration against the hole's exact pinned
   statement - no `sorry`, no extra axioms - inside a no-network sandbox.
+  `razor recheck` lets anyone replay that check later, read-only, and
+  compare with the recorded verdict.
+- **Proofs flow to Mathlib, not away from it.** `razor upstream` drafts a
+  home-library contribution from an admitted proof - the proof source under
+  a provenance header pinning the submission, verdict event, and log hash -
+  and records the pull request once it lands. The hole then shows as
+  upstreamed. The registry measures itself by upstreamed proofs, not
+  admitted ones.
+- **The frontier flows to the provers.** `razor export-benchmark` emits
+  every open hole as a JSONL proving target in the shape prover benchmarks
+  already consume: a header, a formal statement ending in `sorry`, the
+  informal text, and the statement's fidelity facts. Point a model at the
+  export; its claimed solves come back through submit / verify / recheck.
 - **Partial progress is attributed.** A hole can be split into child holes
   plus a glue hole whose statement the CLI composes mechanically - `(child 1)
   → ... → (child n) → parent` - so an admitted glue proof is a kernel-checked

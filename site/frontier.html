@@ -121,7 +121,14 @@ function card(S, h) {
     `<span>zk route ${esc(r.id)} — ${r.constraints} constraints, bridge (${esc(r.bridge_kind)})</span>`).join('');
   const partOf = (h.part_of || []).length ? `<span>serves in split${h.part_of.length > 1 ? 's' : ''} ${h.part_of.map(esc).join(', ')}</span>` : '';
   const curs = curatorsOf(S, h.id);
+  const f = h.fidelity || {};
+  const fidelity = f.converged
+    ? `<span class="badge gold">statement fidelity: ${f.authors} independent formalizations, equivalence kernel-checked</span>`
+    : f.authors === 1
+      ? `<span class="badge">statement fidelity: one author, unconverged</span>`
+      : `<span class="badge">statement fidelity: pinned directly</span>`;
   const badges = [
+    fidelity,
     m.clump ? `<span class="badge ${m.dominant ? 'gold' : ''}">clump weight ${m.clump}${m.dominant ? ' · dominant' : ''}${m.proven ? ' · proven' : ''}</span>` : '',
     m.curation ? `<span class="badge gold">curation ${m.curation}</span>` : '',
     m.convergence ? `<span class="badge blue">convergence ×${m.convergence}</span>` : '',
@@ -136,6 +143,7 @@ function card(S, h) {
       ${holeLink(h.id)}
       <span class="chip ${h.status}">${glyph} ${label}</span>
       ${h.env === 'mathlib' ? '<span class="badge blue">Mathlib environment</span>' : ''}
+      ${h.upstreamed ? `<span class="badge gold">↥ upstreamed</span>` : ''}
       ${m.pool ? `<span class="pool">bounty ${m.pool.toLocaleString()}</span>` : ''}
     </div>
     <h4><a class="cardlink" href="hole.html?id=${encodeURIComponent(h.id)}">${esc(h.title)}</a></h4>

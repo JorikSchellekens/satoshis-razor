@@ -136,6 +136,7 @@ function holeHistory(S, h) {
       case 'submit': case 'commit': return e.hole === h.id;
       case 'reveal': case 'verdict': return subIds.has(e.submission);
       case 'supersede': return e.hole === h.id || e.replacement === h.id;
+      case 'repin': case 'upstream': return e.hole === h.id;
       case 'zk_route': case 'zk_submit': return e.hole === h.id;
       case 'split': return e.parent === h.id || (e.children || []).includes(h.id) || e.glue === h.id;
       case 'formalize': return h.statement && e.id === h.statement;
@@ -150,6 +151,7 @@ const EV_TONE = {
   verdict: e => e.admitted ? 'good' : 'bad',
   supersede: () => 'bad',
   payout: () => 'gold', fund: () => 'gold', curate: () => 'gold',
+  upstream: () => 'gold',
 };
 
 function evLine(e) {

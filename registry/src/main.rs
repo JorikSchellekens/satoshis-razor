@@ -136,6 +136,9 @@ fn main() {
         }),
         "zk-verify" => cmd_zk_verify(&root, &log_path, &req(&args, "--submission")),
         "verify" => cmd_verify(&root, &log_path, &req(&args, "--submission")),
+        "recheck" => cmd_recheck(&root, &log_path, &req(&args, "--submission")),
+        "upstream" => cmd_upstream(&root, &log_path, &args),
+        "export-benchmark" => cmd_export_benchmark(&log_path, &args),
         "bench" => cmd_bench(&root, &log_path, &req(&args, "--challenge"),
             opt(&args, "--seed").map(|s| s.parse().expect("--seed")).unwrap_or(0xC0FFEE),
             opt(&args, "--iters").map(|s| s.parse().expect("--iters")).unwrap_or(10_000),
@@ -190,6 +193,8 @@ fn print_help(cmd: &str) {
         ("solving", &[
             ("submit", "claim a hole with a proof declaration or a .lean file"),
             ("verify", "kernel-check a submission against the pinned type"),
+            ("recheck", "independently re-verify a claimed solve (read-only)"),
+            ("upstream", "draft a home-library PR from an admitted proof"),
         ]),
         ("value", &[
             ("curate", "a public, attributed pick - weighted by your admitted work"),
@@ -221,6 +226,7 @@ fn print_help(cmd: &str) {
             ("log", "the raw event log, one JSON object per line"),
             ("corpus", "recognize an external verified corpus (e.g. Mathlib)"),
             ("export", "write site/data.json for the explorer"),
+            ("export-benchmark", "emit open holes as prover-ready JSONL targets"),
             ("serve", "host the site; data.json re-derived per request"),
             ("verify-log", "audit every event signature against registered keys"),
         ]),
@@ -786,6 +792,233 @@ fn cmd_verify(root: &PathBuf, log_path: &PathBuf, submission: &str) {
     }
 }
 
+/// Signature status of the event at `seq`: Some(true) means a valid
+/// signature from the actor's registered key, Some(false) means missing or
+/// invalid, None means the actor never registered (open participation).
+fn event_sig_status(entries: &[Entry], seq: u64) -> Option<bool> {
+    use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+    let mut keys: std::collections::BTreeMap<String, VerifyingKey> = Default::default();
+    for e in entries {
+        if let Event::RegisterAccount { handle, pubkey, .. } = &e.event {
+            if let Some(vk) = bytes_of_hex(pubkey)
+                .and_then(|b| <[u8; 32]>::try_from(b).ok())
+                .and_then(|b| VerifyingKey::from_bytes(&b).ok())
+            {
+                keys.insert(handle.clone(), vk);
+            }
+        }
+        if e.seq == seq {
+            let actor = e.event.actor()?;
+            let vk = keys.get(actor)?;
+            let msg = serde_json::to_string(&e.event).unwrap();
+            return Some(e.sig.as_deref()
+                .and_then(bytes_of_hex)
+                .and_then(|b| <[u8; 64]>::try_from(b).ok())
+                .map(|b| vk.verify(msg.as_bytes(), &Signature::from_bytes(&b)).is_ok())
+                .unwrap_or(false));
+        }
+    }
+    None
+}
+
+/// Independently re-verify a claimed solve, writing nothing. This is the
+/// command every citation points at: it replays the kernel check against
+/// the pinned statement, audits the signature on the claim, pins the log
+/// hash, and compares the fresh result with the verdict on the log. A
+/// "machine X solved open problem Y" claim reduces to running this and
+/// reading one line.
+fn cmd_recheck(root: &PathBuf, log_path: &PathBuf, submission: &str) {
+    let state = State::fold(load(log_path));
+    let (hole, sub) = state
+        .holes
+        .values()
+        .find_map(|h| h.submissions.iter().find(|s| s.id == submission).map(|s| (h, s)))
+        .unwrap_or_else(|| {
+            ui::die(&format!("unknown submission: {submission}"));
+        });
+    if !sub.revealed {
+        ui::die(&format!("{} is committed but not yet revealed - nothing to recheck", sub.id));
+    }
+    let Some((recorded, ..)) = &sub.verdict else {
+        ui::die(&format!("{submission} has no verdict on the log yet - run razor verify first"));
+    };
+    let vseq = state.events.iter().rev()
+        .find(|e| matches!(&e.event, Event::Verdict { submission: s, .. } if s == submission))
+        .map(|e| e.seq)
+        .unwrap_or_else(|| ui::die(&format!("no verdict event for {submission}")));
+    let claim_seq = state.events.iter()
+        .find(|e| matches!(&e.event,
+            Event::Submit { id, .. } | Event::Commit { id, .. } if id == submission))
+        .map(|e| e.seq)
+        .unwrap_or_else(|| ui::die(&format!("no claim event for {submission}")));
+    ui::step(&format!("rechecking {} {} {} {}", ui::bold(&sub.id), ui::dim("against"),
+        ui::cyan(&hole.id), ui::dim("(read-only - the log is not touched)")));
+    ui::kv("claims", &sub.decl);
+    ui::kv("pinned", &hole.lean_type);
+    ui::kv("recorded", &format!("{} at event {vseq}",
+        if *recorded { ui::green("admitted") } else { ui::red("rejected") }));
+    ui::kv("log hash", &format!("{} {}", log_hash_through(log_path, vseq),
+        ui::dim(&format!("(sha256 through event {vseq} - compare with the citation)"))));
+    ui::kv("signature", &match event_sig_status(&state.events, claim_seq) {
+        Some(true) => format!("{} {}", ui::green("valid"),
+            ui::dim(&format!("- Ed25519 by @{}, event {claim_seq}", sub.solver))),
+        Some(false) => format!("{} {}", ui::red("INVALID"),
+            ui::dim("- the claim is not signed by the solver's registered key")),
+        None => ui::dim(&format!("none - @{} never registered an account (open participation)", sub.solver)),
+    });
+    let (lean_dir, root_import) = env_of(root, hole);
+    require_env_ready(&lean_dir, root_import);
+    let t0 = std::time::Instant::now();
+    let v = verify::verify(&lean_dir, root_import, &hole.lean_type, &sub.decl,
+        &hole.allowed_axioms, sub.module.as_deref());
+    ui::kv("axioms", &if v.axioms.is_empty() { ui::dim("none") } else { v.axioms.join(", ") });
+    ui::kv("kernel", &format!("{} ms", t0.elapsed().as_millis()));
+    ui::verdict(v.admitted, if v.admitted { "" } else { &v.detail });
+    if v.admitted == *recorded {
+        ui::step(&format!("recheck {} the recorded verdict", ui::green("agrees with")));
+    } else {
+        eprintln!("  {} recheck {} the recorded verdict - the environment may have drifted; \
+            see razor repin", ui::red("✕"), ui::red("DISAGREES with"));
+        std::process::exit(1);
+    }
+}
+
+/// Carry an admitted proof to its home library. Without --pr this drafts
+/// the contribution: a self-contained .lean file holding the proof source
+/// under a provenance header that pins the registry facts (submission,
+/// verdict event, log hash), ready to adapt into a Mathlib pull request.
+/// With --pr it records where the proof landed; the hole then shows as
+/// upstreamed everywhere. The registry measures itself by upstreamed
+/// proofs, not admitted ones: a proof is only useful where people build on
+/// it.
+fn cmd_upstream(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
+    let hole_id = req(args, "--hole");
+    let state = State::fold(load(log_path));
+    let Some(hole) = state.holes.get(&hole_id) else {
+        ui::die(&format!("unknown hole: {hole_id}"));
+    };
+    if let Some(pr) = opt(args, "--pr") {
+        append(log_path, Event::Upstream {
+            hole: hole_id.clone(), by: req(args, "--by"), pr_url: pr.clone(),
+            note: opt(args, "--note").unwrap_or_default(),
+        });
+        ui::step(&format!("recorded: {} upstreamed {}", ui::cyan(&hole_id), ui::dim(&format!("- {pr}"))));
+        return;
+    }
+    if hole.status != "solved" {
+        ui::die(&format!("{hole_id} is still open - only an admitted proof can be upstreamed"));
+    }
+    let solved_by = hole.solved_by.clone().unwrap_or_default();
+    let Some(sub) = hole.submissions.iter().find(|s| s.id == solved_by) else {
+        ui::die(&format!("{hole_id} was solved by a zero-knowledge submission - there is no proof text to upstream"));
+    };
+    let vseq = state.events.iter().rev()
+        .find(|e| matches!(&e.event, Event::Verdict { submission: s, .. } if *s == sub.id))
+        .map(|e| e.seq).unwrap_or(0);
+    let hash = log_hash_through(log_path, vseq);
+    let solver = state.accounts.get(&sub.solver)
+        .map(|a| format!("{} (@{})", a.display, a.handle))
+        .unwrap_or_else(|| sub.solver.clone());
+    let (lean_dir, _) = env_of(root, hole);
+    // The proof source: the installed module file if the proof arrived as
+    // one, otherwise the declaration's source from the package index.
+    let source = sub.module.as_ref()
+        .and_then(|m| std::fs::read_to_string(lean_dir.join(m.replace('.', "/") + ".lean")).ok())
+        .or_else(|| lean_decl_index(root).get(&sub.decl).map(|(src, ns)| {
+            let mut s = String::new();
+            if !ns.is_empty() { s.push_str(&format!("namespace {ns}\n\n")); }
+            s.push_str(src);
+            if !ns.is_empty() { s.push_str(&format!("\n\nend {ns}")); }
+            s
+        }));
+    let target = if hole.env.as_deref() == Some("mathlib") { "Mathlib" } else { "its home library" };
+    let mut text = format!(
+        "/-\n{}: {}\n\nProved by {}, admitted by kernel check in the Satoshi's Razor registry.\n\
+         Provenance: submission {}, verdict event {}, log sha256 through that\n\
+         event: {}.\n\
+         Independent recheck: razor recheck --submission {}\n\
+         Pinned statement: {}\n-/\n\n",
+        hole.id, hole.title, solver, sub.id, vseq, hash, sub.id, hole.lean_type);
+    match source {
+        Some(src) => text.push_str(&src),
+        None => text.push_str(&format!(
+            "-- The proof lives at {} in the registry's Lean package; inline it here.\n\
+             theorem {} : {} := {}\n",
+            sub.decl,
+            hole.id.to_lowercase().replace(|c: char| !c.is_ascii_alphanumeric(), "_"),
+            hole.lean_type, sub.decl)),
+    }
+    if !text.ends_with('\n') { text.push('\n'); }
+    let out = opt(args, "--out").unwrap_or_else(|| format!("upstream/{hole_id}.lean"));
+    let dest = root.join(&out);
+    std::fs::create_dir_all(dest.parent().unwrap()).ok();
+    std::fs::write(&dest, &text).unwrap_or_else(|e| ui::die(&format!("cannot write {out}: {e}")));
+    ui::step(&format!("drafted {} {}", ui::bold(&out), ui::dim(&format!("- a contribution draft for {target}, with registry provenance"))));
+    ui::kv("next", &ui::dim(&format!("adapt naming/placement to {target}'s conventions and open the PR")));
+    ui::kv("then", &ui::dim(&format!("razor upstream --hole {hole_id} --pr <url> --by <you>  (records it; the hole shows as upstreamed)")));
+}
+
+/// Emit the frontier as machine-consumable proving targets: one JSON
+/// object per open hole, in the shape prover benchmarks (miniF2F and its
+/// descendants) already consume - a header, a formal statement ending in
+/// sorry, and the informal text it came from, plus the hole's recorded
+/// fidelity facts. This is how the frontier flows to where the provers
+/// are; a claimed solve comes back through razor submit / verify /
+/// recheck.
+fn cmd_export_benchmark(log_path: &PathBuf, args: &[String]) {
+    let mut state = State::fold(load(log_path));
+    state.aggregate_clumps();
+    state.aggregate_fidelity();
+    let all = args.iter().any(|a| a == "--all");
+    let index = lean_decl_index(&repo_root());
+    let mut lines: Vec<String> = vec![];
+    for h in state.holes.values() {
+        if !all && h.status != "open" { continue; }
+        // The header a consumer needs: when the pinned type only uses names
+        // the underlying library itself defines (e.g. Mathlib's own
+        // FermatLastTheorem), the library import suffices; when it uses
+        // names defined in this repo's Lean packages, the package import is
+        // required and the statement is only checkable against a checkout.
+        let local = lean_idents(&h.lean_type).iter().any(|w| index.contains_key(w));
+        let (header, env) = match (h.env.as_deref(), local) {
+            (Some("mathlib"), false) => ("import Mathlib", "mathlib"),
+            (Some("mathlib"), true) => ("import RazorMathlib", "mathlib"),
+            (_, _) => ("import Razor", "core"),
+        };
+        let name: String = h.id.chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+            .collect();
+        let informal = h.proposal.as_ref()
+            .and_then(|p| state.proposals.get(p))
+            .map(|p| if p.body.is_empty() { p.title.clone() } else { format!("{}. {}", p.title, p.body) })
+            .unwrap_or_else(|| h.title.clone());
+        let obj = serde_json::json!({
+            "id": h.id,
+            "title": h.title,
+            "env": env,
+            "header": header,
+            "formal_statement": format!("theorem razor_{name} : {} := by sorry", h.lean_type),
+            "lean_type": h.lean_type,
+            "allowed_axioms": h.allowed_axioms,
+            "informal": informal,
+            "status": h.status,
+            "fidelity": serde_json::to_value(&h.fidelity).unwrap(),
+        });
+        lines.push(obj.to_string());
+    }
+    let text = lines.join("\n") + "\n";
+    match opt(args, "--out") {
+        Some(out) => {
+            let dest = repo_root().join(&out);
+            std::fs::create_dir_all(dest.parent().unwrap()).ok();
+            std::fs::write(&dest, &text).unwrap_or_else(|e| ui::die(&format!("cannot write {out}: {e}")));
+            ui::step(&format!("exported {} proving targets {} {}",
+                ui::bold(&lines.len().to_string()), ui::dim("→"), out));
+        }
+        None => print!("{text}"),
+    }
+}
+
 fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed: u64, iters: u64, rig_id: Option<String>) {
     let mut state = State::fold(load(log_path));
     state.settle_admissions();
@@ -902,6 +1135,7 @@ fn cmd_status(log_path: &PathBuf) {
     let mut state = State::fold(load(log_path));
     state.settle_admissions();
     state.aggregate_clumps();
+    state.aggregate_fidelity();
     state.aggregate_splits();
     state.aggregate_people();
     let arrow = ui::dim("→");
@@ -945,6 +1179,18 @@ fn cmd_status(log_path: &PathBuf) {
         };
         let pool = if h.pool > 0 { format!("  {}", ui::pool(h.pool)) } else { String::new() };
         println!("  {}  {}  {}{}{}", ui::cyan(&format!("{:<16}", h.id)), ui::chip(&h.status), h.title, pool, extra);
+        let f = &h.fidelity;
+        let certs = if f.certificates > 0 { format!(" · {} certificates", f.certificates) } else { String::new() };
+        if f.converged {
+            println!("      {} {}", ui::green(&format!("⚖ {} independent formalizations, equivalence kernel-checked", f.authors)), ui::dim(&certs));
+        } else if f.authors == 1 {
+            println!("      {}", ui::dim(&format!("⚖ one formalization author - unconverged{certs}")));
+        } else {
+            println!("      {}", ui::dim("⚖ pinned directly - no formalization trail on record"));
+        }
+        if let Some(pr) = &h.upstreamed {
+            println!("      {}", ui::gold(&format!("↥ upstreamed - {pr}")));
+        }
         for (_old, _new, equiv) in &h.repins {
             println!("      {}", ui::dim(&format!("⟲ repinned - wording migrated, equivalence kernel-checked ({equiv})")));
         }
@@ -1042,6 +1288,7 @@ fn export_string(log_path: &PathBuf, dataset: &str) -> (String, usize) {
     let mut state = State::fold(load(log_path));
     state.settle_admissions();
     state.aggregate_clumps();
+    state.aggregate_fidelity();
     state.aggregate_splits();
     state.aggregate_people();
     // Attach the Lean source of each hole's pinned definitions, so the site
@@ -1055,7 +1302,9 @@ fn export_string(log_path: &PathBuf, dataset: &str) -> (String, usize) {
     // "demo" is the scripted walkthrough with fictional participants,
     // "live" is the real registry.
     json["dataset"] = serde_json::Value::String(dataset.into());
-    (serde_json::to_string_pretty(&json).unwrap(), state.events.len())
+    // Compact: data.json is fetched on every page view, and with a
+    // thousand events on the log pretty-printing costs real bandwidth.
+    (serde_json::to_string(&json).unwrap(), state.events.len())
 }
 
 fn cmd_export(log_path: &PathBuf, out: &PathBuf, dataset: Option<String>) {

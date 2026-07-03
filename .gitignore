@@ -2,7 +2,14 @@ target/
 lean/.lake/
 node_modules/
 site/data.json
-registry/data/
+# The live event log IS the registry - committed, so the repo is the log's
+# permanent public home and `razor cite` log hashes are checkable by anyone
+# with a checkout. Signing keys never leave the machine that made them.
+# (demo.sh overwrites the log with fictional data locally; `git checkout
+# registry/data/events.jsonl` restores the live one.)
+registry/data/keys/
+# Local contribution drafts from `razor upstream` - they leave via PRs, not commits here.
+upstream/
 *.wasm
 .DS_Store
 zk/keys/
