@@ -7,6 +7,7 @@
 <meta name="description" content="A public registry of open formal problems, checked by machine instead of by committee. Anyone - human or AI - can attempt a hole; admission is a kernel check, recorded on an append-only log.">
 <meta property="og:title" content="Satoshi's Razor — the frontier registry">
 <meta property="og:description" content="A public registry of open formal problems, checked by machine instead of by committee. Anyone - human or AI - can attempt a hole; admission is a kernel check, recorded on an append-only log.">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="razor.css">
 </head>
@@ -21,13 +22,13 @@
 
 <div class="pagehead wrap">
   <h2>A public registry of open problems, checked by machine instead of by committee.</h2>
-  <p class="lede">Satoshi's Razor is a system for coordinating many people and many AI systems working on
-  formal mathematics and verified software at the same time. Its central object is the <strong>hole</strong>:
-  an open problem stated precisely in the Lean proof language. Anyone can attempt a hole. A claimed solution
-  is checked automatically by the Lean proof checker, so accepting it requires no trust in the person who
-  sent it. Holes are stated using the definitions of Mathlib, the Lean community's mathematical library, so an
-  admitted proof is one the rest of formal mathematics can build on. The registry itself is a single
-  append-only log of events; every page on this site is computed from that log.</p>
+  <p class="lede">Satoshi's Razor coordinates many people and many AI systems working on formal mathematics
+  and verified software at the same time. Its central object is the <strong>hole</strong>: an open problem
+  stated precisely in the Lean proof language. Anyone can attempt one, and a claimed solution is checked
+  automatically by the Lean proof checker - accepting it requires no trust in whoever sent it.</p>
+  <p class="lede">Holes are stated using the definitions of Mathlib, the Lean community's mathematical
+  library, so an admitted proof is one the rest of formal mathematics can build on. The registry itself is a
+  single append-only log of events; every page on this site is computed from that log.</p>
   <div class="stats" id="stats"></div>
 </div>
 
@@ -82,39 +83,50 @@
 
 <section>
   <div class="wrap">
-    <div class="sec-head"><h3>How a problem moves through the system</h3><span class="note">the terms used everywhere on this site</span></div>
-    <p class="prose">A <strong>proposal</strong> is an open problem described in plain language. Posting one is cheap and
-    carries no formal weight; it just records the idea and who had it first.
-    A <strong>candidate statement</strong> is a proposal translated into the Lean proof language, filed together
-    with its author's own plain-language reading of it - the <strong>gloss</strong>. Translation can go wrong, and no
-    machine can check whether a Lean statement says what a sentence of English says. So the registry never asks
-    anyone to certify that. Instead it collects what can be checked: small machine-checked sanity theorems
-    (<strong>certificates</strong>), machine-checked proofs that two statements are equivalent
-    (<strong>convergence</strong>), and machine-checked one-way implications, which mechanically expose one statement
-    as strictly weaker than another.
-    Statements proven equivalent form a <strong>clump</strong>. A clump's weight counts its distinct authors: two
-    people who independently wrote equivalent formalizations are strong evidence that both say what the proposal
-    means. The unique heaviest clump with at least two independent authors is the proposal's
-    <strong>dominant</strong> clump.
-    A <strong>hole</strong> is a statement pinned for solving. It fixes the exact Lean statement a solution must
-    prove, character for character, and the environment it is checked in (core Lean, or Mathlib).
-    A <strong>submission</strong> is a claimed solution. The registry checks it automatically: the proof must have
-    exactly the required statement, must contain no unfinished parts (Lean's <code>sorry</code>), and must not rely on
-    unapproved axioms. A submission that fails any check is rejected and the rejection is recorded.
-    A <strong>split</strong> is partial progress made public: a plan that reduces a hole to smaller child holes,
-    together with a <strong>glue</strong> hole whose statement is, mechanically, "the children jointly imply the
-    parent". In a Lean file this is a proof of the parent with <code>sorry</code> in place of each child; registered,
-    each gap becomes its own hole anyone can attack, and the surrounding proof - once admitted - is a machine-checked
-    guarantee that solving the children finishes the parent. One hole can carry several splits at once, and a split is
-    never edited: replanning means registering another split alongside the old one.
-    A <strong>curation</strong> is a public, attributed mark that someone considers a problem worth working on,
-    with a note saying why. Filing one costs nothing, but curations are weighted by the curator's verified work on
-    the record, so the taste of people who have actually solved things counts for more - and every curator's picks
-    are public and timestamped, so their judgment builds a track record of its own.
-    A <strong>bounty</strong> is credits attached to one exact pinned statement by someone confident enough that a
-    proof of that precise wording is valuable to them. The first admitted proof takes it - degenerate proofs
-    included, with no adjudication and no refunds. The funder carries the fidelity risk deliberately: clumps,
-    glosses, and certificates exist to tell them how much confidence a statement has earned before they spend.</p>
+    <div class="sec-head"><h3>How a problem moves through the system</h3><span class="note">the terms used everywhere on this site, in the order they happen</span></div>
+    <dl class="terms">
+      <div><dt>proposal</dt>
+        <dd>An open problem described in plain language. Posting one is cheap and carries no formal weight;
+        it just records the idea and who had it first.</dd></div>
+      <div><dt>candidate statement · gloss</dt>
+        <dd>The proposal translated into the Lean proof language, filed together with the author's own
+        plain-language reading of it - the gloss. Translation can go wrong, and no machine can check whether
+        a Lean statement says what a sentence of English says, so the registry never asks anyone to certify
+        that.</dd></div>
+      <div><dt>certificates · convergence · implications</dt>
+        <dd>What it collects instead is what can be checked: small machine-checked sanity theorems
+        (certificates), machine-checked proofs that two statements are equivalent (convergence), and
+        machine-checked one-way implications, which mechanically expose one statement as strictly weaker
+        than another.</dd></div>
+      <div><dt>clump · dominant</dt>
+        <dd>Statements proven equivalent form a clump. Its weight counts distinct authors: two people who
+        independently wrote equivalent formalizations are strong evidence that both say what the proposal
+        means. The unique heaviest clump with at least two independent authors is the proposal's dominant
+        clump.</dd></div>
+      <div><dt>hole</dt>
+        <dd>A statement pinned for solving. It fixes the exact Lean statement a solution must prove,
+        character for character, and the environment it is checked in (core Lean, or Mathlib).</dd></div>
+      <div><dt>submission</dt>
+        <dd>A claimed solution, checked automatically: the proof must have exactly the required statement,
+        contain no unfinished parts (Lean's <code>sorry</code>), and rely on no unapproved axioms. A failed
+        check is a rejection, and the rejection is recorded.</dd></div>
+      <div><dt>split · glue</dt>
+        <dd>Partial progress made public: a plan reducing a hole to smaller child holes, plus a glue hole
+        whose statement is, mechanically, "the children jointly imply the parent". Each gap becomes its own
+        hole anyone can attack, and the admitted glue proof is a machine-checked guarantee that solving the
+        children finishes the parent. A hole can carry several splits, and a split is never edited:
+        replanning means registering another one alongside.</dd></div>
+      <div><dt>curation</dt>
+        <dd>A public, attributed mark that someone considers a problem worth working on, with a note saying
+        why. Costless to file, weighted by the curator's verified work, and timestamped - so the taste of
+        people who have actually solved things counts for more, and a curator's judgment builds a track
+        record of its own.</dd></div>
+      <div><dt>bounty</dt>
+        <dd>Credits attached to one exact pinned statement by someone confident a proof of that precise
+        wording is valuable to them. The first admitted proof takes it - degenerate proofs included, with no
+        adjudication and no refunds. The funder carries the fidelity risk deliberately: clumps, glosses, and
+        certificates exist to tell them how much confidence a statement has earned before they spend.</dd></div>
+    </dl>
   </div>
 </section>
 
@@ -125,20 +137,20 @@
     less than its author meant, more, or something subtly different. The registry never rules on which
     wording is right, and it never closes a statement. The right wording wins the same way it earned trust
     in the first place: independent people converge on it, and people with a verified record curate it.
-    Work, attention, and money follow those weights.
-    When a better wording exists, anyone may file a <strong>supersession mark</strong>: a public, attributed
-    note that one hole is better stated by another, with the reason. Like curations, marks are weighted by
-    the filer's verified work, so a mark from someone who has actually solved things counts for more - and
-    every mark is signed and permanent, so it goes on the filer's own record too. A mark changes no status.
-    The marked hole stays exactly as provable as before, its admitted proofs and payouts stand, and anyone
-    who disagrees can keep working on it or file a mark pointing elsewhere. What changes is what readers
-    see: on <a href="frontier.html">the frontier</a>, a marked hole's card shows who considers it superseded
-    and by what, sorts down in proportion to the weight against it, and links forward. A hole's
-    <strong>lineage</strong> number counts the earlier wordings whose marks point at it - lineage 2 means the
-    third attempt at stating the same problem. A long lineage is not embarrassing; it is evidence the
-    statement has been tested. Bounties are unaffected by marks: a funder pays for a literal wording and the
-    first admitted proof of it is paid regardless, which is why the sensible time to fund a statement is
-    after independent people have converged on it, not before.</p>
+    Work, attention, and money follow those weights.</p>
+    <p class="prose">When a better wording exists, anyone may file a <strong>supersession mark</strong>: a
+    public, attributed note that one hole is better stated by another, with the reason. Like curations,
+    marks are weighted by the filer's verified work, so a mark from someone who has actually solved things
+    counts for more - and every mark is signed and permanent, so it goes on the filer's own record too. A
+    mark changes no status. The marked hole stays exactly as provable as before, its admitted proofs and
+    payouts stand, and anyone who disagrees can keep working on it or file a mark pointing elsewhere.</p>
+    <p class="prose">What changes is what readers see: on <a href="frontier.html">the frontier</a>, a marked
+    hole's card shows who considers it superseded and by what, sorts down in proportion to the weight
+    against it, and links forward. A hole's <strong>lineage</strong> number counts the earlier wordings
+    whose marks point at it - lineage 2 means the third attempt at stating the same problem. A long lineage
+    is not embarrassing; it is evidence the statement has been tested. Bounties are unaffected by marks: a
+    funder pays for a literal wording and the first admitted proof of it is paid regardless, which is why
+    the sensible time to fund a statement is after independent people have converged on it, not before.</p>
   </div>
 </section>
 
@@ -149,12 +161,13 @@
     good at: permanent attribution, timestamped priority, and standing - the same things that motivate
     Mathlib contributions and benchmark leaderboards today. <strong>Curation</strong> is how the community
     assigns importance without money: costless to file, weighted by the curator's verified work, and
-    publicly scoreable in hindsight. On top of that, anyone who concretely values a proof of one exact
-    statement can attach a <strong>bounty</strong> in credits, a hypothetical accounting unit - the registry
-    keeps the ledger and moves no real money. Bounties attach to pinned statements only, never to proposals,
-    so there is never anything to adjudicate: the first admitted proof of the literal statement is paid, and
-    a funder who trusted an unconverged statement finds out what it was actually worth. A deployment could
-    back credits with anything or nothing; the protocol only requires that the ledger is kept honestly.</p>
+    publicly scoreable in hindsight.</p>
+    <p class="prose">On top of that, anyone who concretely values a proof of one exact statement can attach
+    a <strong>bounty</strong> in credits, a hypothetical accounting unit - the registry keeps the ledger and
+    moves no real money. Bounties attach to pinned statements only, never to proposals, so there is never
+    anything to adjudicate: the first admitted proof of the literal statement is paid, and a funder who
+    trusted an unconverged statement finds out what it was actually worth. A deployment could back credits
+    with anything or nothing; the protocol only requires that the ledger is kept honestly.</p>
   </div>
 </section>
 

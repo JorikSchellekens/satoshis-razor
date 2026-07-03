@@ -7,6 +7,7 @@
 <meta name="description" content="Take part without publishing your work: commit-reveal priority and zero-knowledge submissions the registry checks without seeing the solution.">
 <meta property="og:title" content="Zero-knowledge — Satoshi's Razor">
 <meta property="og:description" content="Take part without publishing your work: commit-reveal priority and zero-knowledge submissions the registry checks without seeing the solution.">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="razor.css">
 </head>
@@ -26,10 +27,11 @@
   at the earlier time, and nobody can steal work they cannot see. With a <strong>zero-knowledge submission</strong>,
   you go further: you send a short cryptographic proof (a Groth16 proof, about 200 bytes) that you possess a
   valid solution. The registry can check this proof in milliseconds and learns nothing about the solution
-  itself — it is never sent. A hole becomes zk-solvable when someone attaches a <strong>zk route</strong> to it:
-  a verifying key for a circuit, plus a <strong>bridge</strong> establishing that satisfying the circuit means the
-  hole's pinned statement is true. There is one kind of hole; routes are attachments, several can coexist,
-  and a route is never edited.</p>
+  itself — it is never sent.</p>
+  <p class="lede">A hole becomes zk-solvable when someone attaches a <strong>zk route</strong> to it: a
+  verifying key for a circuit, plus a <strong>bridge</strong> establishing that satisfying the circuit means
+  the hole's pinned statement is true. There is one kind of hole; routes are attachments, several can
+  coexist, and a route is never edited.</p>
 </div>
 
 <section>
@@ -78,17 +80,17 @@
     hole at once: a program that runs the Lean proof checker, executed inside a proving system that attests
     to correct execution (a zkVM). Public inputs: a hash of the pinned proof-checking environment and the
     hole's statement. Private witness: the proof. An accepted proof means "someone possesses a proof the
-    checker accepts for this exact statement" - for any hole, with no per-hole circuit work.
-    Two facts about such a route, recorded plainly. First, its bridge can never be a theorem: "the checker
-    accepts a proof of a statement, therefore the statement is true" is Lean's own soundness, which Lean
-    cannot prove about itself. The bridge is instead an auditable claim - the hash of the checker binary and
-    of the environment - which is the same kind of trust every ordinary submission already places in the
-    checker, made explicit, plus trust in the proving system itself. Second, its cost is unmeasured: proving
-    a checker run inside a zkVM multiplies the work by a large factor, and whether a real check proves in
-    minutes or days is a benchmark nobody here has run. The registry records the route kind on every
-    zk-solved hole, so a reader always sees which trust chain admitted it: <strong>theorem</strong> (a
-    kernel-checked bridge, like the route below) or <strong>binary-hash</strong> (the universal route, when
-    someone builds and measures it).</p>
+    checker accepts for this exact statement" - for any hole, with no per-hole circuit work.</p>
+    <p class="prose">Two facts about such a route, recorded plainly. First, its bridge can never be a
+    theorem: "the checker accepts a proof of a statement, therefore the statement is true" is Lean's own
+    soundness, which Lean cannot prove about itself. The bridge is instead an auditable claim - the hash of
+    the checker binary and of the environment - which is the same kind of trust every ordinary submission
+    already places in the checker, made explicit, plus trust in the proving system itself. Second, its cost
+    is unmeasured: proving a checker run inside a zkVM multiplies the work by a large factor, and whether a
+    real check proves in minutes or days is a benchmark nobody here has run.</p>
+    <p class="prose">The registry records the route kind on every zk-solved hole, so a reader always sees
+    which trust chain admitted it: <strong>theorem</strong> (a kernel-checked bridge, like the route below)
+    or <strong>binary-hash</strong> (the universal route, when someone builds and measures it).</p>
   </div>
 </section>
 

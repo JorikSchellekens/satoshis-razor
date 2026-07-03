@@ -1401,6 +1401,7 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
                             Some("js") => "text/javascript",
                             Some("json") => "application/json",
                             Some("svg") => "image/svg+xml",
+                            Some("png") => "image/png",
                             Some("sh") => "text/plain",
                             _ => "application/octet-stream",
                         };

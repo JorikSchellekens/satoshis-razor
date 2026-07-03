@@ -220,6 +220,13 @@ footer .right { margin-left: auto; font-family: var(--mono); font-size: 12px; }
 .clump-member:first-of-type { border-top: 0; }
 .clump-member .prop-body { margin: 3px 0 0; }
 
+/* the terms glossary (index): one card per term instead of a wall of prose */
+dl.terms { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 14px; margin: 0; }
+dl.terms > div { background: var(--surface); border: 1px solid var(--faint); border-radius: 10px; padding: 14px 16px 12px; }
+dl.terms dt { font-family: var(--mono); font-size: 12.5px; color: var(--gold); letter-spacing: 0.04em; margin-bottom: 7px; }
+dl.terms dd { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.55; }
+dl.terms dd code { color: var(--chalk); }
+
 /* lean syntax highlighting (hiLean in razor.js) */
 .lk { color: #79A8CF; }
 .lc { color: var(--muted); font-style: italic; opacity: 0.85; }

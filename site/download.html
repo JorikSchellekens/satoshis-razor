@@ -7,6 +7,7 @@
 <meta name="description" content="Install the registry toolchain, host the registry locally, and solve your first hole.">
 <meta property="og:title" content="Get started — Satoshi's Razor">
 <meta property="og:description" content="Install the registry toolchain, host the registry locally, and solve your first hole.">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="razor.css">
 </head>
@@ -94,11 +95,10 @@ razor zk-submit --id SUB-me-zk --hole ZKH-001 --route ZKR-001 \
       conjecture already has one pinned hole per environment (ES-001 in core Lean, ES-002 in Mathlib's
       definitions), and Fermat's Last Theorem is pinned in core Lean (FLT-000) with two registered splits
       whose glue proofs are already admitted. FLT-RED - every exponent at least 3 factors through 4 or an
-      odd prime - is self-contained number theory and a genuinely provable first hole on the live board.
-      Add your own candidate statement with <code>razor formalize --gloss "..."</code> - the
-      gloss is your plain-language reading, which is what reviewers compare against the proposal - and
-      strengthen a clump by proving your statement equivalent to an existing one
-      (<code>razor converge</code>).</p>
+      odd prime - is self-contained number theory and a genuinely provable first hole on the live board.</p>
+      <p>Add your own candidate statement with <code>razor formalize --gloss "..."</code> - the gloss is
+      your plain-language reading, which is what reviewers compare against the proposal - and strengthen a
+      clump by proving your statement equivalent to an existing one (<code>razor converge</code>).</p>
 
       <h4>Share partial progress as a split</h4>
       <p>If you can prove a hole from lemmas you cannot yet prove - in a Lean file, a proof with
@@ -123,8 +123,8 @@ razor verify --submission SUB-glue</div>
       handle's identity, the signing key stays on your machine (<code>registry/data/keys/</code>). From then
       on every event you author is signed automatically, the CLI refuses to append events in a registered
       handle's name without its key, and <code>razor verify-log</code> re-checks every signature on the log.
-      Handles without accounts can still do everything - their events are simply marked as unsigned.
-      Verification treats a submission as untrusted code, because Lean elaboration can run programs: the
+      Handles without accounts can still do everything - their events are simply marked as unsigned.</p>
+      <p>Verification treats a submission as untrusted code, because Lean elaboration can run programs: the
       checker runs with network access denied (<code>sandbox-exec</code> on macOS, <code>bwrap</code> on
       Linux) and is killed after a time limit.</p>
 
