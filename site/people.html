@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>People — Satoshi's Razor</title>
+<meta name="description" content="Everyone who has done anything on the registry, with records derived entirely from the event log.">
+<meta property="og:title" content="People — Satoshi's Razor">
+<meta property="og:description" content="Everyone who has done anything on the registry, with records derived entirely from the event log.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="razor.css">
 <style>
   .person .sigil { font-size: 26px; line-height: 1; }
@@ -127,7 +131,12 @@ function draw() {
   people.sort((a, b) => (metric(b) - metric(a))
     || (b.account ? 1 : 0) - (a.account ? 1 : 0)
     || a.handle.localeCompare(b.handle));
-  $('people').innerHTML = people.map(personCard).join('') || '<p class="lede">Nobody matches.</p>';
+  // On a dataset with no registered accounts, say so honestly rather than
+  // presenting the seeding handle as a community.
+  const empty = !q && !Object.values(S.people || {}).some(p => p.account);
+  $('people').innerHTML = (empty
+    ? '<p class="lede wide" style="grid-column:1/-1">No one has registered a handle yet - the log is waiting for its first signature. <code>razor account new</code> claims one; the profile below is the seeding account that filed the corpora and flagship statements.</p>'
+    : '') + (people.map(personCard).join('') || '<p class="lede">Nobody matches.</p>');
 }
 
 loadData(S => {

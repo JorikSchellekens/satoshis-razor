@@ -1296,6 +1296,35 @@ fn export_string(log_path: &PathBuf, dataset: &str) -> (String, usize) {
     let index = lean_decl_index(&repo_root());
     for h in state.holes.values_mut() {
         h.lean_source = resolve_lean_sources(&index, &h.lean_type);
+        if h.env.as_deref() == Some("mathlib") {
+            // Identifiers in the pinned type that resolve in Mathlib rather
+            // than locally: the site links each to the Mathlib docs. When
+            // *nothing* in the type is local, the hole pins Mathlib's own
+            // statement - the strongest fidelity fact there is.
+            let idents = lean_idents(&h.lean_type);
+            h.fidelity.canonical = !idents.iter().any(|w| index.contains_key(w));
+            h.mathlib_names = idents.into_iter()
+                .filter(|w| !index.contains_key(w))
+                .filter(|w| w.chars().next().is_some_and(|c| c.is_uppercase()))
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter().collect();
+        }
+    }
+    // Attach each verdict's log position and the log hash through it, so a
+    // hole page can show the exact `razor recheck` / `razor cite` facts.
+    let verdict_seqs: std::collections::HashMap<String, u64> = state.events.iter()
+        .filter_map(|e| match &e.event {
+            Event::Verdict { submission, .. } => Some((submission.clone(), e.seq)),
+            _ => None,
+        })
+        .collect();
+    for h in state.holes.values_mut() {
+        for s in h.submissions.iter_mut() {
+            if let Some(&seq) = verdict_seqs.get(&s.id) {
+                s.verdict_seq = Some(seq);
+                s.log_hash = Some(log_hash_through(log_path, seq));
+            }
+        }
     }
     let mut json = serde_json::to_value(&state).unwrap();
     // Label which dataset this export came from so the site can say so:
@@ -1337,8 +1366,11 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
         if reader.read_line(&mut req_line).is_err() {
             continue;
         }
-        let path = req_line.split_whitespace().nth(1).unwrap_or("/");
-        let path = path.split('?').next().unwrap_or("/");
+        let full = req_line.split_whitespace().nth(1).unwrap_or("/");
+        let (path, query) = match full.split_once('?') {
+            Some((p, q)) => (p, Some(q)),
+            None => (full, None),
+        };
         let (status, ctype, body): (&str, &str, Vec<u8>) = if path == "/data.json" {
             let meta = std::fs::metadata(log_path).ok();
             let key = meta
@@ -1372,6 +1404,20 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
                             Some("sh") => "text/plain",
                             _ => "application/octet-stream",
                         };
+                        // Detail pages set their titles from data.json in the
+                        // browser, which link-preview crawlers never run. For
+                        // hole.html?id=X etc, stamp the entity's title and a
+                        // description into the served HTML so a shared link
+                        // shows the mathematics, not the generic page name.
+                        let bytes = match (ctype.starts_with("text/html"), query.and_then(query_id)) {
+                            (true, Some(id)) => match detail_meta(log_path, rel, &id) {
+                                Some((title, desc)) => stamp_meta(
+                                    String::from_utf8_lossy(&bytes).into_owned(), &title, &desc,
+                                ).into_bytes(),
+                                None => bytes,
+                            },
+                            _ => bytes,
+                        };
                         ("200 OK", ctype, bytes)
                     }
                     Err(_) => ("404 Not Found", "text/plain", b"not found".to_vec()),
@@ -1380,6 +1426,81 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
         };
         let _ = write!(stream, "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n", body.len());
         let _ = stream.write_all(&body);
+    }
+}
+
+/// The `id` value from a query string, minimally percent-decoded (entity
+/// ids are plain ASCII, but a linking page may still encode them).
+fn query_id(query: &str) -> Option<String> {
+    let raw = query.split('&').find_map(|kv| kv.strip_prefix("id="))?;
+    let mut out = String::new();
+    let mut chars = raw.chars();
+    while let Some(c) = chars.next() {
+        if c == '%' {
+            let hex: String = chars.by_ref().take(2).collect();
+            match u8::from_str_radix(&hex, 16) {
+                Ok(b) => out.push(b as char),
+                Err(_) => { out.push('%'); out.push_str(&hex); }
+            }
+        } else if c == '+' {
+            out.push(' ');
+        } else {
+            out.push(c);
+        }
+    }
+    Some(out)
+}
+
+/// Title and description for a detail page's entity, from a fold of the log.
+fn detail_meta(log_path: &PathBuf, rel: &str, id: &str) -> Option<(String, String)> {
+    let mut state = State::fold(load(log_path));
+    let brand = |t: String| format!("{t} — Satoshi's Razor");
+    match rel {
+        "hole.html" => state.holes.get(id).map(|h| (
+            brand(format!("{}: {}", h.id, h.title)),
+            format!("{} · a solution must prove exactly: {}", h.status, h.lean_type),
+        )),
+        "proposal.html" => state.proposals.get(id).map(|p| (
+            brand(format!("{}: {}", p.id, p.title)),
+            p.body.clone(),
+        )),
+        "statement.html" => state.statements.get(id).map(|st| (
+            brand(format!("{}: candidate Lean statement", st.id)),
+            if st.gloss.is_empty() { format!("declared as {}", st.decl) } else { st.gloss.clone() },
+        )),
+        "person.html" => {
+            state.aggregate_people();
+            state.people.get(id).map(|p| (
+                brand(format!("@{id}")),
+                format!("{} accepted proof{} — a profile derived entirely from the event log",
+                    p.solved, if p.solved == 1 { "" } else { "s" }),
+            ))
+        }
+        _ => None,
+    }
+}
+
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+}
+
+/// Replace the page's <title> and inject description + OpenGraph tags,
+/// dropping the page's own generic ones so nothing is duplicated.
+fn stamp_meta(html: String, title: &str, desc: &str) -> String {
+    let t = html_escape(title);
+    let d = html_escape(&desc.chars().take(200).collect::<String>());
+    let html: String = html.lines()
+        .filter(|l| !(l.contains("name=\"description\"")
+            || l.contains("property=\"og:title\"")
+            || l.contains("property=\"og:description\"")))
+        .collect::<Vec<_>>()
+        .join("\n");
+    match (html.find("<title>"), html.find("</title>")) {
+        (Some(a), Some(b)) if a < b => format!(
+            "{}<title>{t}</title>\n<meta name=\"description\" content=\"{d}\">\n<meta property=\"og:title\" content=\"{t}\">\n<meta property=\"og:description\" content=\"{d}\">{}",
+            &html[..a], &html[b + "</title>".len()..],
+        ),
+        _ => html,
     }
 }
 

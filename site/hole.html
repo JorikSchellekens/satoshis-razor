@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hole — Satoshi's Razor</title>
+<meta name="description" content="One hole: its pinned Lean statement, where it stands, every attempt, and every event touching it.">
+<meta property="og:title" content="Hole — Satoshi's Razor">
+<meta property="og:description" content="One hole: its pinned Lean statement, where it stands, every attempt, and every event touching it.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="razor.css">
 </head>
 <body>
@@ -18,6 +22,7 @@
 <div class="pagehead wrap detail-head">
   <div class="row1" id="chips"></div>
   <h2 id="title">Hole</h2>
+  <p class="informal" id="informal"></p>
   <p class="lede" id="lede"></p>
 </div>
 
@@ -78,7 +83,7 @@ loadData(S => {
   const h = S.holes[id];
   if (!h) {
     $('title').textContent = id ? `No hole named ${id}` : 'No hole selected';
-    $('lede').innerHTML = 'Pick one on <a href="frontier.html">the frontier</a>.';
+    $('lede').innerHTML = `Pick one on <a href="frontier.html">the frontier</a>. ${id ? datasetHint(S) : ''}`;
     return;
   }
   document.title = `${h.id} — Satoshi's Razor`;
@@ -87,11 +92,13 @@ loadData(S => {
   $('chips').innerHTML = [
     `<span class="hid">${esc(h.id)}</span>`,
     chip(h.status),
-    h.env === 'mathlib' ? '<span class="badge blue">Mathlib environment</span>' : '',
-    h.upstreamed ? `<span class="badge gold">↥ upstreamed</span>` : '',
-    h.pool ? `<span class="pool">bounty ${h.pool.toLocaleString()}</span>` : '',
+    h.env === 'mathlib' ? `<span class="badge blue"${tip('env')}>Mathlib environment</span>` : '',
+    h.upstreamed ? `<span class="badge gold"${tip('upstreamed')}>↥ upstreamed</span>` : '',
+    h.pool ? `<span class="pool"${tip('bounty')}>bounty ${h.pool.toLocaleString()}</span>` : '',
   ].join('');
-  $('title').textContent = h.title;
+  $('title').textContent = prettyMath(h.title);
+  const informal = informalOf(S, h);
+  if (informal) $('informal').textContent = prettyMath(informal);
   $('lede').innerHTML = [
     h.proposal ? `Pinned under proposal ${propLink(h.proposal)}.` : 'Pinned directly, without a proposal.',
     h.statement ? `Formalized as candidate statement ${stmtLink(h.statement)}.` : '',
@@ -99,11 +106,13 @@ loadData(S => {
     h.upstreamed ? `The admitted proof was carried to its home library: <a href="${esc(h.upstreamed)}">${esc(h.upstreamed)}</a>.` : '',
   ].filter(Boolean).join(' ');
 
-  $('pinned').textContent = h.lean_type;
+  $('pinned').innerHTML = hiLeanLinked(h.lean_type, h.mathlib_names);
   $('unfolded').innerHTML = (h.lean_source || [])
-    .map(([name, src]) => `<div class="leandef"><div class="name">${esc(name)}</div><pre>${esc(src)}</pre></div>`)
+    .map(([name, src]) => `<div class="leandef"><div class="name">${esc(name)}</div><pre>${hiLeanLinked(src, h.mathlib_names)}</pre></div>`)
     .join('')
-    || '<p class="prose">No definitions to unfold: the pinned type is written out in full above.</p>';
+    || ((h.mathlib_names || []).length
+      ? `<p class="prose">Nothing local to unfold: the pinned type resolves in Mathlib itself — ${h.mathlib_names.map(n => `<a class="mlink" href="${MATHLIB_DOC(n)}">${esc(n)}</a>`).join(', ')} (each link opens the Mathlib documentation).</p>`
+      : '<p class="prose">No definitions to unfold: the pinned type is written out in full above.</p>');
 
   // standing: metrics, curations, supersession marks, split membership
   const curs = curatorsOf(S, h.id);
@@ -113,11 +122,13 @@ loadData(S => {
     ['statement fidelity', (() => {
       const f = h.fidelity || {};
       const parts = [
-        f.converged
-          ? `<span class="ok">${f.authors} independent formalizations, proven equivalent by kernel check</span> — two people read the same words and their Lean agrees, the strongest mechanical evidence the statement is faithful`
-          : f.authors === 1
-            ? 'one formalization author, unconverged — no independent formalization has been proven equivalent yet; filing one is attributed work'
-            : 'pinned directly, without a formalization trail on the log',
+        f.canonical
+          ? `<span style="color:var(--gold)">pins Mathlib's own statement</span> — the pinned type is the home library's canonical wording of this theorem, not a local translation; there is no fidelity gap to bridge`
+          : f.converged
+            ? `<span class="ok">${f.authors} independent formalizations, proven equivalent by kernel check</span> — two people read the same words and their Lean agrees, the strongest mechanical evidence the statement is faithful`
+            : f.authors === 1
+              ? 'one formalization author, unconverged — no independent formalization has been proven equivalent yet; filing one is attributed work'
+              : 'pinned directly, without a formalization trail on the log',
         f.certificates ? `${f.certificates} sanity certificate${f.certificates > 1 ? 's' : ''}` : '',
         f.repins ? `${f.repins} wording migration${f.repins > 1 ? 's' : ''} survived, each equivalence kernel-checked` : '',
       ].filter(Boolean);
@@ -175,17 +186,29 @@ loadData(S => {
         const cost = (S.events.find(e => e.type === 'verdict' && e.submission === s.id) || {}).cost_ms;
         const state = !s.revealed ? '<span class="chip open">🔒 sealed commitment</span>'
           : !s.verdict ? '<span class="chip open">· unverified</span>'
-          : s.verdict[0] ? '<span class="chip solved">✓ admitted</span>' : '<span class="chip voided-x" style="color:var(--danger);border-color:var(--danger)">✕ rejected</span>';
+          : s.verdict[0] ? '<span class="chip solved">✓ admitted</span>' : '<span class="chip bad">✕ rejected</span>';
         const detail = !s.revealed ? `sha256(file ‖ salt) = ${esc((s.commitment || '').slice(0, 24))}…`
           : !s.verdict ? `claims ${esc(s.decl)}`
           : s.verdict[0] ? `${esc(s.decl)} — axioms: ${esc((s.verdict[1] || []).join(', ') || 'none')}${cost ? ` — kernel check ${cost} ms` : ''}`
           : esc(s.verdict[2].includes('sorryAx') ? 'proof contains sorry' : s.verdict[2].split(':')[0]);
-        return `<article class="card"><div class="row1"><span class="hid">${esc(s.id)}</span>${state}</div>
-          <h4>by ${personLink(s.solver)}</h4><div class="meta"><span>${detail}</span></div></article>`;
+        // Nothing on this page has to be trusted: the verdict is a recorded
+        // fact anyone can re-derive with one read-only command.
+        const verify = s.verdict && s.verdict_seq ? `<details class="hist verify">
+          <summary>verify this yourself — do not take this page's word for it</summary>
+          <div class="codeblock">razor recheck --submission ${esc(s.id)}</div>
+          <div class="note">replays the kernel check against the statement pinned before the attempt, audits
+          the Ed25519 signature on the claim, and compares with verdict event #${s.verdict_seq} on the log.</div>
+          <div class="codeblock">razor cite ${esc(s.id)}</div>
+          <div class="note">emits a citation pinning this proof to its event number and the log hash below —
+          checkable by anyone with a checkout of the log.</div>
+          <div class="note">log sha256 through the verdict: ${esc(s.log_hash || '')}</div>
+        </details>` : '';
+        return `<article class="card wide"><div class="row1"><span class="hid">${esc(s.id)}</span>${state}</div>
+          <h4>by ${personLink(s.solver)}</h4><div class="meta"><span>${detail}</span></div>${verify}</article>`;
       }),
       ...zsubs.map(z => {
         const state = !z.verdict ? '<span class="chip open">· unverified</span>'
-          : z.verdict[0] ? '<span class="chip solved">✓ proof verified</span>' : '<span class="chip" style="color:var(--danger);border-color:var(--danger)">✕ forged</span>';
+          : z.verdict[0] ? '<span class="chip solved">✓ proof verified</span>' : '<span class="chip bad">✕ forged</span>';
         return `<article class="card"><div class="row1"><span class="hid">${esc(z.id)}</span>${state}<span class="badge blue">zero-knowledge</span></div>
           <h4>by ${personLink(z.solver)}</h4>
           <div class="meta"><span>via route ${esc(z.route)} — public input ${esc(z.public.slice(0, 16))}…, proof ${esc(z.proof_prefix)}… — the witness was never sent</span></div></article>`;

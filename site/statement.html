@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Statement — Satoshi's Razor</title>
+<meta name="description" content="One candidate Lean statement: its author's plain-language gloss, its certificates, and its machine-checked equivalences.">
+<meta property="og:title" content="Statement — Satoshi's Razor">
+<meta property="og:description" content="One candidate Lean statement: its author's plain-language gloss, its certificates, and its machine-checked equivalences.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="razor.css">
 </head>
 <body>
@@ -64,14 +68,14 @@ loadData(S => {
   const st = S.statements[id];
   if (!st) {
     $('title').textContent = id ? `No statement named ${id}` : 'No statement selected';
-    $('lede').innerHTML = 'Pick one on <a href="frontier.html">the frontier</a>.';
+    $('lede').innerHTML = `Pick one on <a href="frontier.html">the frontier</a>. ${id ? datasetHint(S) : ''}`;
     return;
   }
   document.title = `${st.id} — Satoshi's Razor`;
   $('chips').innerHTML = `<span class="hid">${esc(st.id)}</span><span class="badge">by ${personLink(st.author)}</span>`;
-  $('title').textContent = st.gloss || st.decl;
-  $('lede').innerHTML = `A Lean formalization of proposal ${propLink(st.proposal)}, declared as <code>${esc(st.decl)}</code>.${st.notes ? ` ${esc(st.notes)}` : ''}`;
-  $('gloss').innerHTML = st.gloss ? `“${esc(st.gloss)}”` : 'No gloss was filed with this statement.';
+  $('title').textContent = prettyMath(st.gloss || st.decl);
+  $('lede').innerHTML = `A Lean formalization of proposal ${propLink(st.proposal)}, declared as <code>${esc(st.decl)}</code>.${st.notes ? ` ${esc(prettyMath(st.notes))}` : ''}`;
+  $('gloss').innerHTML = st.gloss ? `“${esc(prettyMath(st.gloss))}”` : 'No gloss was filed with this statement.';
 
   const rows = [
     ['declaration', `<code>${esc(st.decl)}</code>`],

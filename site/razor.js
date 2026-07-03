@@ -69,6 +69,73 @@ const chip = (status) => {
   return `<span class="chip ${esc(status)}">${g} ${l}</span>`;
 };
 
+// Typography for prose and titles ONLY - never for Lean code, where the
+// pinned statement is exact character for character.
+const prettyMath = (s) => String(s)
+  .replace(/ >= /g, ' ≥ ').replace(/ <= /g, ' ≤ ')
+  .replace(/ != /g, ' ≠ ').replace(/ <-> /g, ' ↔ ').replace(/ -> /g, ' → ');
+
+// Minimal Lean syntax highlighting: comments, strings, sorry, keywords.
+// Takes raw source, returns escaped HTML.
+function hiLean(src) {
+  const re = /(\/--[\s\S]*?-\/|\/-[\s\S]*?-\/|--[^\n]*)|("(?:[^"\\]|\\.)*")|\b(sorry)\b|\b(theorem|lemma|example|def|abbrev|structure|inductive|instance|class|where|deriving|import|namespace|end|open|section|universe|variable|by|fun|let|have|show|from|match|with|do|then|else|if|calc|Prop|Type|Sort)\b/g;
+  let out = '', last = 0;
+  for (let m; (m = re.exec(src)); ) {
+    out += esc(src.slice(last, m.index));
+    const cls = m[1] ? 'lc' : m[2] ? 'lstr' : m[3] ? 'lsorry' : 'lk';
+    out += `<span class="${cls}">${esc(m[0])}</span>`;
+    last = m.index + m[0].length;
+  }
+  return out + esc(src.slice(last));
+}
+
+// Highlighted Lean with each Mathlib-resolved identifier linked to the
+// Mathlib documentation.
+const MATHLIB_DOC = (n) => `https://leanprover-community.github.io/mathlib4_docs/find/?pattern=${encodeURIComponent(n)}#doc`;
+function hiLeanLinked(src, mathlibNames) {
+  let html = hiLean(src);
+  for (const n of (mathlibNames || [])) {
+    const re = new RegExp(`\\b${esc(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+    html = html.replace(re, `<a class="mlink" href="${MATHLIB_DOC(n)}" title="open ${esc(n)} in the Mathlib documentation">${esc(n)}</a>`);
+  }
+  return html;
+}
+
+// The informal reading of a hole: the statement author's gloss if there is
+// one, else the proposal's plain-language body.
+function informalOf(S, h) {
+  const st = h.statement && S.statements?.[h.statement];
+  const p = h.proposal && S.proposals?.[h.proposal];
+  return (st && st.gloss) || (p && p.body) || '';
+}
+
+// One-line definitions, attached to badges as hover text so the site's
+// vocabulary travels with the reader.
+const TIP = {
+  fidelity: 'Recorded facts about how much independent scrutiny the pinned statement has survived. The registry never judges a statement; these are what the log knows.',
+  canonical: "The pinned type is Mathlib's own statement of the theorem - not a local translation of it.",
+  clump: 'Statements proven equivalent by machine-checked proof form a clump; its weight counts distinct authors.',
+  dominant: 'The unique heaviest clump with at least two independent authors - the reading the community has converged on.',
+  proven: 'Some member of the clump has an admitted proof; proving one member proves them all.',
+  curation: "Public, attributed picks of problems worth working on, weighted by the curator's admitted work.",
+  convergence: "Machine-checked equivalence proofs on this hole's statement.",
+  lineage: 'Earlier wordings whose supersession marks point here: how many times this problem has been re-stated.',
+  superseded: "An attributed note that a better wording exists. It closes nothing; it is weighted by the filer's admitted work.",
+  splits: 'Registered plans reducing this hole to child holes, each with a machine-checked glue proof that the children suffice.',
+  submissions: 'Claimed solutions, each checked by the Lean kernel.',
+  attention: 'Bounty credits plus fixed weights for each community signal, minus supersession marks. A reading aid, not a judgment.',
+  bounty: 'Credits attached to this exact statement. The first admitted proof is paid, with no adjudication.',
+  env: "Stated using Mathlib's definitions and checked in the Mathlib environment.",
+  upstreamed: 'The admitted proof was carried to its home library; the pull request is recorded on the log.',
+};
+const tip = (k) => TIP[k] ? ` title="${esc(TIP[k])}"` : '';
+
+// Shown on a detail page when an id resolves to nothing: the most common
+// cause is a link that lives in the other dataset.
+const datasetHint = (S) => S.dataset === 'demo'
+  ? 'This site is currently showing the <b>demo dataset</b>. If you followed a link to a live-registry entity, run <code>./seed.sh</code> and reload.'
+  : 'This site is currently showing the <b>live registry</b>. If you followed a link from the demo walkthrough, run <code>./demo.sh</code> and reload.';
+
 // Curation weight of a target: each curation counts 1 plus the curator's
 // admitted work, so taste from people with a verified record counts more.
 function curationWeight(S, target) {

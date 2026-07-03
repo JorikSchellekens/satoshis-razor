@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Proposal — Satoshi's Razor</title>
+<meta name="description" content="One proposal: a problem in plain language, its candidate Lean statements grouped by proven equivalence, and its holes.">
+<meta property="og:title" content="Proposal — Satoshi's Razor">
+<meta property="og:description" content="One proposal: a problem in plain language, its candidate Lean statements grouped by proven equivalence, and its holes.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="razor.css">
 </head>
 <body>
@@ -20,6 +24,17 @@
   <h2 id="title">Proposal</h2>
   <p class="lede" id="lede"></p>
 </div>
+
+<section id="sec-claim" style="display:none">
+  <div class="wrap">
+    <div class="sec-head"><h3>No one has formalized this yet</h3><span class="note">filing the first candidate statement is attributed, timestamped work</span></div>
+    <div class="prose">
+      <p>This proposal has no candidate Lean statement. Whoever pins the first faithful one is on the log
+      as its formalizer, permanently. Write the statement in Lean, then:</p>
+      <div class="codeblock" id="claim-cmd"></div>
+    </div>
+  </div>
+</section>
 
 <section id="sec-cur" style="display:none">
   <div class="wrap">
@@ -56,7 +71,7 @@ loadData(S => {
   const p = S.proposals[id];
   if (!p) {
     $('title').textContent = id ? `No proposal named ${id}` : 'No proposal selected';
-    $('lede').innerHTML = 'Pick one on <a href="frontier.html">the frontier</a>.';
+    $('lede').innerHTML = `Pick one on <a href="frontier.html">the frontier</a>. ${id ? datasetHint(S) : ''}`;
     return;
   }
   document.title = `${p.id} — Satoshi's Razor`;
@@ -66,8 +81,16 @@ loadData(S => {
     p.statements.length ? `<span class="badge blue">${p.statements.length} candidate statement${p.statements.length > 1 ? 's' : ''}</span>`
       : '<span class="chip open">○ needs a formal statement</span>',
   ].join('');
-  $('title').textContent = p.title;
-  $('lede').textContent = p.body;
+  $('title').textContent = prettyMath(p.title);
+  $('lede').innerHTML = esc(prettyMath(p.body))
+    // Bare URLs in a proposal body (catalogue background and source links)
+    // become real links.
+    .replace(/(https?:\/\/[^\s<]+?)([.,;)]?)(\s|$)/g, '<a href="$1">$1</a>$2$3');
+  if (!(p.statements || []).length) {
+    $('sec-claim').style.display = '';
+    $('claim-cmd').textContent = `razor formalize --id STM-yours --proposal ${p.id} --author you \\
+  --decl Your.Lean.Name --gloss "your plain-language reading of the statement"`;
+  }
 
   const curs = curatorsOf(S, p.id);
   if (curs.length) {
@@ -89,7 +112,7 @@ loadData(S => {
         const st = S.statements[mid] || {};
         return `<div class="clump-member" style="margin-top:8px">
           ${stmtLink(mid)} <span style="color:var(--muted)">by ${esc(st.author || '?')}</span>
-          ${st.gloss ? `<div class="prop-body">“${esc(st.gloss)}”</div>` : ''}
+          ${st.gloss ? `<div class="prop-body">“${esc(prettyMath(st.gloss))}”</div>` : ''}
         </div>`;
       }).join('')}
     </article>`).join('');

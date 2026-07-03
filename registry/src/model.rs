@@ -294,6 +294,13 @@ pub struct Submission {
     pub solver: String,
     pub decl: String,
     pub verdict: Option<(bool, Vec<String>, String)>,
+    /// Filled at export time: the log seq of the verdict event, and the
+    /// sha256 of the log through it - what `razor recheck` and `razor cite`
+    /// pin, shown on the site so a reader can re-derive the verdict.
+    #[serde(default)]
+    pub verdict_seq: Option<u64>,
+    #[serde(default)]
+    pub log_hash: Option<String>,
     /// Present on private submissions: the sha256 commitment.
     pub commitment: Option<String>,
     /// Lean module the revealed file was installed as (private path only).
@@ -340,6 +347,11 @@ pub struct Hole {
     /// without a checkout. (name, source) pairs, pinned name first.
     #[serde(default)]
     pub lean_source: Vec<(String, String)>,
+    /// Filled at export time, Mathlib-environment holes only: identifiers in
+    /// the pinned type that resolve in Mathlib rather than locally, so the
+    /// site can link each one to the Mathlib documentation.
+    #[serde(default)]
+    pub mathlib_names: Vec<String>,
     /// Derived, filled by `aggregate_splits`: every registered way of
     /// reducing this hole to child holes.
     pub splits: Vec<SplitView>,
@@ -367,6 +379,11 @@ pub struct Fidelity {
     /// Wording migrations survived, each one a kernel-checked equivalence
     /// to the previous wording (see `Repin`).
     pub repins: usize,
+    /// The pinned type resolves entirely to the home library's own names
+    /// (e.g. Mathlib's `FermatLastTheorem`): the statement is not a local
+    /// translation at all, it is the library's canonical wording. Filled at
+    /// export time, since deciding it needs the local declaration index.
+    pub canonical: bool,
 }
 
 /// A split, as recorded on the log.
@@ -582,7 +599,8 @@ impl State {
                     id, title, statement, lean_type, allowed_axioms, proposal, env,
                     status: "open".into(), solved_by: None, repins: vec![],
                     fidelity: Fidelity::default(), upstreamed: None, superseded_by: vec![],
-                    zk_routes: vec![], zk_submissions: vec![], lean_source: vec![],
+                    zk_routes: vec![], zk_submissions: vec![],
+                    lean_source: vec![], mathlib_names: vec![],
                     submissions: vec![], splits: vec![], part_of: vec![],
                     pool: 0,
                 });
@@ -594,6 +612,7 @@ impl State {
                 if let Some(h) = self.holes.get_mut(&hole) {
                     h.submissions.push(Submission {
                         id, hole: h.id.clone(), solver, decl, verdict: None,
+                        verdict_seq: None, log_hash: None,
                         commitment: None, module, revealed: true,
                     });
                 }
@@ -608,6 +627,7 @@ impl State {
                 if let Some(h) = self.holes.get_mut(&hole) {
                     h.submissions.push(Submission {
                         id, hole: h.id.clone(), solver, decl: String::new(), verdict: None,
+                        verdict_seq: None, log_hash: None,
                         commitment: Some(commitment), module: None, revealed: false,
                     });
                 }
@@ -986,6 +1006,7 @@ impl State {
                         converged: c.weight >= 2,
                         certificates,
                         repins: h.repins.len(),
+                        canonical: false,
                     }
                 }
                 None => Fidelity {
@@ -994,6 +1015,7 @@ impl State {
                     certificates: self.statements.get(&h.statement)
                         .map(|s| s.certificates.len()).unwrap_or(0),
                     repins: h.repins.len(),
+                    canonical: false,
                 },
             };
             per_hole.push((h.id.clone(), f));

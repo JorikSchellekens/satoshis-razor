@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The frontier — Satoshi's Razor</title>
+<meta name="description" content="Every precisely stated open problem in the registry, with the exact Lean statement a solution must prove and what it would take to close each one.">
+<meta property="og:title" content="The frontier — Satoshi's Razor">
+<meta property="og:description" content="Every precisely stated open problem in the registry, with the exact Lean statement a solution must prove and what it would take to close each one.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="razor.css">
 </head>
 <body>
@@ -17,15 +21,20 @@
 
 <div class="pagehead wrap">
   <h2>The frontier</h2>
-  <p class="lede">Every hole in the registry — that is, every precisely stated open problem, together with
-  the ones already solved. Each card shows the exact Lean statement a solution must prove, any
-  bounty attached to that exact statement, who has curated it and why, every attempt made so far with the
-  checker's verdict and how long the kernel check took, and the full event history. The
-  <strong>attention</strong> number is one sortable estimate of how much a hole currently matters: bounty
-  credits, plus fixed weights for each community signal - people independently writing equivalent statements,
-  curations (counting more from people with accepted proofs), earlier wordings replaced, registered splits,
-  and attempts - with a small bump while it is open, minus the weight of any supersession marks (attributed
-  notes that a better wording exists). It is a reading aid: every input is listed on the hole's own page.</p>
+  <p class="lede">Every precisely stated open problem in the registry, together with the ones already
+  solved: what each hole asks, the exact Lean statement a solution must prove, and what it would take to
+  close it.</p>
+  <details class="lede">
+    <summary>What the numbers on each card mean</summary>
+    <p style="margin-top:8px">Each card shows any bounty attached to the exact statement, who has curated it
+    and why, every attempt with the checker's verdict, and the full event history. The
+    <strong>attention</strong> sort is one estimate of how much a hole currently matters: bounty credits,
+    plus fixed weights for each community signal - people independently writing equivalent statements,
+    curations (counting more from people with accepted proofs), earlier wordings replaced, registered
+    splits, and attempts - with a small bump while it is open, minus the weight of any supersession marks
+    (attributed notes that a better wording exists). It is a reading aid: every input is listed on the
+    hole's own page, and hovering any badge explains it.</p>
+  </details>
 </div>
 
 <section>
@@ -79,8 +88,10 @@
   <div class="wrap">
     <div class="sec-head"><h3>The backlog</h3><span class="note">catalogued theorems awaiting a formal statement</span></div>
     <p class="prose">Proposals ingested from sourced catalogues (the 1000+ theorems list) that no one
-    has formalized yet. Each needs a pinned statement in the Mathlib environment before it is a solvable
-    hole - filing that statement is itself attributed work on the log. Every entry links to its source.</p>
+    has formalized yet: a to-do list for formalized mathematics. Each needs a pinned statement in the
+    Mathlib environment before it is a solvable hole - filing that statement is itself attributed,
+    timestamped work on the log. To claim one: open it, read the background, then
+    <code>razor formalize --gloss "your plain-language reading"</code>.</p>
     <div class="controls">
       <input id="backlog-search" type="search" placeholder="search the backlog" aria-label="search backlog">
       <span class="note" id="backlog-count"></span>
@@ -110,7 +121,7 @@
 <script>
 let STATE = null;
 
-function card(S, h) {
+function card(S, h, sort) {
   const m = holeMetrics(S, h);
   const [glyph, label] = CHIP[h.status];
   const marks = (h.superseded_by || []).map(([by, r, note]) =>
@@ -122,32 +133,42 @@ function card(S, h) {
   const partOf = (h.part_of || []).length ? `<span>serves in split${h.part_of.length > 1 ? 's' : ''} ${h.part_of.map(esc).join(', ')}</span>` : '';
   const curs = curatorsOf(S, h.id);
   const f = h.fidelity || {};
-  const fidelity = f.converged
-    ? `<span class="badge gold">statement fidelity: ${f.authors} independent formalizations, equivalence kernel-checked</span>`
-    : f.authors === 1
-      ? `<span class="badge">statement fidelity: one author, unconverged</span>`
-      : `<span class="badge">statement fidelity: pinned directly</span>`;
+  const fidelity = f.canonical
+    ? `<span class="badge gold"${tip('canonical')}>pins Mathlib's own statement</span>`
+    : f.converged
+      ? `<span class="badge gold"${tip('fidelity')}>statement fidelity: ${f.authors} independent formalizations, equivalence kernel-checked</span>`
+      : f.authors === 1
+        ? `<span class="badge"${tip('fidelity')}>statement fidelity: one author, unconverged</span>`
+        : `<span class="badge"${tip('fidelity')}>statement fidelity: pinned directly</span>`;
   const badges = [
     fidelity,
-    m.clump ? `<span class="badge ${m.dominant ? 'gold' : ''}">clump weight ${m.clump}${m.dominant ? ' · dominant' : ''}${m.proven ? ' · proven' : ''}</span>` : '',
-    m.curation ? `<span class="badge gold">curation ${m.curation}</span>` : '',
-    m.convergence ? `<span class="badge blue">convergence ×${m.convergence}</span>` : '',
-    m.lineage ? `<span class="badge red">lineage ${m.lineage}</span>` : '',
-    m.superseded ? `<span class="badge red">marked superseded · weight ${m.superseded}</span>` : '',
-    m.splits ? `<span class="badge blue">${m.splits} split${m.splits > 1 ? 's' : ''}</span>` : '',
-    m.subs ? `<span class="badge">${m.subs} submission${m.subs > 1 ? 's' : ''}${m.rejected ? `, ${m.rejected} rejected` : ''}</span>` : '',
-    `<span class="badge">attention ${m.attention.toLocaleString()}</span>`,
+    m.clump ? `<span class="badge ${m.dominant ? 'gold' : ''}"${tip('clump')}>clump weight ${m.clump}${m.dominant ? ' · dominant' : ''}${m.proven ? ' · proven' : ''}</span>` : '',
+    m.curation ? `<span class="badge gold"${tip('curation')}>curation ${m.curation}</span>` : '',
+    m.convergence ? `<span class="badge blue"${tip('convergence')}>convergence ×${m.convergence}</span>` : '',
+    m.lineage ? `<span class="badge red"${tip('lineage')}>lineage ${m.lineage}</span>` : '',
+    m.superseded ? `<span class="badge red"${tip('superseded')}>marked superseded · weight ${m.superseded}</span>` : '',
+    m.splits ? `<span class="badge blue"${tip('splits')}>${m.splits} split${m.splits > 1 ? 's' : ''}</span>` : '',
+    m.subs ? `<span class="badge"${tip('submissions')}>${m.subs} submission${m.subs > 1 ? 's' : ''}${m.rejected ? `, ${m.rejected} rejected` : ''}</span>` : '',
+    sort === 'attention' ? `<span class="badge"${tip('attention')}>attention ${m.attention.toLocaleString()}</span>` : '',
   ].join('');
+  const informal = informalOf(S, h);
+  // The mathematics first: the informal statement, then the Lean. When the
+  // pinned type is a bare name, show what it unfolds to instead of the name.
+  const bareName = !/\s/.test(h.lean_type.trim()) && (h.lean_source || []).length;
+  const lean = bareName
+    ? hiLeanLinked(h.lean_source[0][1], h.mathlib_names)
+    : hiLeanLinked(h.lean_type, h.mathlib_names);
   return `<article class="card">
     <div class="row1">
       ${holeLink(h.id)}
       <span class="chip ${h.status}">${glyph} ${label}</span>
-      ${h.env === 'mathlib' ? '<span class="badge blue">Mathlib environment</span>' : ''}
-      ${h.upstreamed ? `<span class="badge gold">↥ upstreamed</span>` : ''}
-      ${m.pool ? `<span class="pool">bounty ${m.pool.toLocaleString()}</span>` : ''}
+      ${h.env === 'mathlib' ? `<span class="badge blue"${tip('env')}>Mathlib environment</span>` : ''}
+      ${h.upstreamed ? `<span class="badge gold"${tip('upstreamed')}>↥ upstreamed</span>` : ''}
+      ${m.pool ? `<span class="pool"${tip('bounty')}>bounty ${m.pool.toLocaleString()}</span>` : ''}
     </div>
-    <h4><a class="cardlink" href="hole.html?id=${encodeURIComponent(h.id)}">${esc(h.title)}</a></h4>
-    <pre>${esc(h.lean_type)}</pre>
+    <h4><a class="cardlink" href="hole.html?id=${encodeURIComponent(h.id)}">${esc(prettyMath(h.title))}</a></h4>
+    ${informal ? `<p class="informal">${esc(prettyMath(informal.length > 220 ? informal.slice(0, 220) + '…' : informal))}</p>` : ''}
+    <pre>${lean}</pre>
     <div>${badges}</div>
     ${marks || splits || routes || partOf || curs.length ? `<div class="meta">${marks}${partOf}${splits}${routes}${curs.map(([who, , note]) => `<span class="ok">☆ curated by ${esc(who)}${note ? `: “${esc(note)}”` : ''}</span>`).join('')}</div>` : ''}
     <a class="go" href="hole.html?id=${encodeURIComponent(h.id)}">full record: the Lean unfolded, every attempt, every event →</a>
@@ -165,7 +186,7 @@ function draw() {
   holes.sort((a, b) => sort === 'id'
     ? a.h.id.localeCompare(b.h.id)
     : (b.m[sort] ?? b.m.attention) - (a.m[sort] ?? a.m.attention));
-  $('holes').innerHTML = holes.map(({ h }) => card(S, h)).join('')
+  $('holes').innerHTML = holes.map(({ h }) => card(S, h, sort)).join('')
     || (Object.keys(S.holes).length
       ? '<p class="lede">Nothing matches.</p>'
       : '<p class="lede">No holes yet: nothing has been formalized into a pinned Lean statement. The open work is in the proposals below — formalizing one creates the registry\'s first hole.</p>');
@@ -212,6 +233,7 @@ function renderGraph(S) {
     const h = byId[id], p = pos[id];
     const [glyph] = CHIP[h.status];
     svg += `<a href="hole.html?id=${encodeURIComponent(id)}"><g class="gnode">
+      <title>${esc(prettyMath(h.title))}</title>
       <ellipse cx="${p.x}" cy="${p.y}" rx="64" ry="26" fill="var(--bg)" stroke="${color[h.status]}" stroke-width="1.8"/>
       <text x="${p.x}" y="${p.y - 1}" text-anchor="middle">${esc(id)}</text>
       <text class="sub" x="${p.x}" y="${p.y + 13}" text-anchor="middle">${glyph} ${h.status}</text>
@@ -237,7 +259,7 @@ function renderProposals(S) {
         const st = S.statements[id] || {};
         return `<div class="clump-member">
           ${stmtLink(id)} <span>by ${esc(st.author || '?')}</span>
-          ${st.gloss ? `<div class="prop-body">"${esc(st.gloss)}"</div>` : ''}
+          ${st.gloss ? `<div class="prop-body">"${esc(prettyMath(st.gloss))}"</div>` : ''}
           ${(st.certificates || []).length ? `<div class="prop-body">certificates: ${st.certificates.map(([k]) => esc(k)).join(', ')}</div>` : ''}
           ${(st.implies || []).map(([b]) => `<div class="prop-body">proven to imply ${esc(b)} (converse unproven: ${esc(b)} may be strictly weaker)</div>`).join('')}
         </div>`;
@@ -254,8 +276,8 @@ function renderProposals(S) {
         ${p.statements.length ? `<span class="badge blue">${p.statements.length} candidate statement${p.statements.length > 1 ? 's' : ''}</span>`
           : '<span class="chip open">○ needs a formal statement</span>'}
       </div>
-      <h4><a class="cardlink" href="proposal.html?id=${encodeURIComponent(p.id)}">${esc(p.title)}</a></h4>
-      <p class="prop-body">${esc(p.body)}</p>
+      <h4><a class="cardlink" href="proposal.html?id=${encodeURIComponent(p.id)}">${esc(prettyMath(p.title))}</a></h4>
+      <p class="prop-body">${esc(prettyMath(p.body))}</p>
       ${curatorsOf(S, p.id).map(([who, , note]) => `<div class="prop-body">☆ curated by ${esc(who)}${note ? `: “${esc(note)}”` : ''}</div>`).join('')}
       ${clumps}
       <div class="meta"><span>proposed by ${esc(p.author)}</span></div>
@@ -271,10 +293,12 @@ function renderBacklog(backlog) {
     $('backlog-count').textContent = q
       ? `${hits.length} of ${backlog.length}`
       : `${backlog.length} awaiting formalization`;
-    $('backlog').innerHTML = hits.map(p =>
-      `<div class="clump-member">${propLink(p.id)}
-        <a class="cardlink" href="proposal.html?id=${encodeURIComponent(p.id)}">${esc(p.title)}</a></div>`
-    ).join('') || '<p class="lede">Nothing matches.</p>';
+    $('backlog').innerHTML = hits.map(p => {
+      const bg = ((p.body || '').match(/Background: (\S+)/) || [])[1]?.replace(/\.$/, '');
+      return `<div class="backlog-row">${propLink(p.id)}
+        <a class="cardlink" href="proposal.html?id=${encodeURIComponent(p.id)}">${esc(prettyMath(p.title))}</a>
+        ${bg ? `<a class="src-link" href="${esc(bg)}">background ↗</a>` : ''}</div>`;
+    }).join('') || '<p class="lede">Nothing matches.</p>';
   };
   $('backlog-search').addEventListener('input', draw);
   draw();
@@ -282,6 +306,13 @@ function renderBacklog(backlog) {
 
 loadData(S => {
   STATE = S;
+  // Offer only the sorts this dataset can distinguish by: a metric that is
+  // zero for every hole sorts nothing and just adds noise to the menu.
+  const ms = Object.values(S.holes).map(h => holeMetrics(S, h));
+  for (const opt of [...$('sort').options]) {
+    if (opt.value === 'attention' || opt.value === 'id') continue;
+    if (!ms.some(m => (m[opt.value] || 0) > 0)) opt.remove();
+  }
   draw();
   renderProposals(S);
   renderGraph(S);

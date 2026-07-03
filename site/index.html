@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Satoshi's Razor — the frontier registry</title>
+<meta name="description" content="A public registry of open formal problems, checked by machine instead of by committee. Anyone - human or AI - can attempt a hole; admission is a kernel check, recorded on an append-only log.">
+<meta property="og:title" content="Satoshi's Razor — the frontier registry">
+<meta property="og:description" content="A public registry of open formal problems, checked by machine instead of by committee. Anyone - human or AI - can attempt a hole; admission is a kernel check, recorded on an append-only log.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="razor.css">
 </head>
 <body>
@@ -26,6 +30,13 @@
   append-only log of events; every page on this site is computed from that log.</p>
   <div class="stats" id="stats"></div>
 </div>
+
+<section id="sec-featured" style="display:none">
+  <div class="wrap">
+    <div class="sec-head"><h3>One problem, up close</h3><span class="note">the hole with the largest registered reduction into subproblems</span></div>
+    <div class="featured" id="featured"></div>
+  </div>
+</section>
 
 <section>
   <div class="wrap">
@@ -188,15 +199,46 @@ loadData(S => {
   const holes = Object.values(S.holes);
   const pool = holes.reduce((a, h) => a + h.pool, 0)
     + Object.values(S.challenges).reduce((a, c) => a + c.pool + Object.values(c.arch_pools || {}).reduce((x, y) => x + y, 0), 0);
+  // Lead with the numbers this dataset can actually back; a zero is not a
+  // headline, so zero-valued stats are dropped rather than displayed.
+  const backlogN = Object.values(S.proposals || {})
+    .filter(p => !(p.statements || []).length && !curationWeight(S, p.id)).length;
   $('stats').innerHTML = [
     [S.events.length, 'events on the log'],
     [Object.keys(S.proposals || {}).length, 'proposals'],
-    [holes.filter(h => h.status === 'solved').length, 'holes solved'],
+    [backlogN, 'theorems awaiting formalization'],
     [holes.filter(h => h.status === 'open').length, 'holes open'],
-    [holes.filter(h => (h.superseded_by || []).length).length, 'statements marked superseded'],
+    [holes.filter(h => h.status === 'solved').length, 'holes solved'],
     [(S.curations || []).length, 'curations filed'],
-    [pool.toLocaleString(), 'credits in bounties'],
-  ].map(([b, l]) => `<div class="stat"><b>${b}</b>${l}</div>`).join('');
+    [holes.filter(h => (h.superseded_by || []).length).length, 'statements marked superseded'],
+    [pool, 'credits in bounties'],
+  ].filter(([b]) => b > 0)
+   .map(([b, l]) => `<div class="stat"><b>${b.toLocaleString()}</b>${l}</div>`).join('');
+
+  // ── featured problem: the hole with the largest registered reduction ──
+  const featured = holes
+    .filter(h => (h.splits || []).length)
+    .map(h => ({ h, size: h.splits.reduce((a, sp) => a + sp.children.length, 0) }))
+    .sort((a, b) => b.size - a.size)[0]?.h;
+  if (featured) {
+    const sp = featured.splits.slice().sort((a, b) => b.children.length - a.children.length)[0];
+    const parts = [...sp.children.map(([c, st]) => [c, st, '']), [sp.glue[0], sp.glue[1], ' (the glue: children jointly imply the parent)']];
+    const done = parts.filter(([, st]) => st === 'solved').length;
+    const informal = informalOf(S, featured);
+    $('sec-featured').style.display = '';
+    $('featured').innerHTML = `
+      <div class="row1">${holeLink(featured.id)} ${chip(featured.status)}
+        ${featured.env === 'mathlib' ? '<span class="badge blue">Mathlib environment</span>' : ''}</div>
+      <h3>${esc(prettyMath(featured.title))}</h3>
+      ${informal ? `<p class="informal">${esc(prettyMath(informal))}</p>` : ''}
+      <p class="prose">Split ${esc(sp.id)}${sp.author ? ` by ${esc(sp.author)}` : ''} reduces it to
+      ${sp.children.length} subproblem${sp.children.length > 1 ? 's' : ''} plus a machine-checked glue proof
+      — ${done} of ${parts.length} part${parts.length > 1 ? 's' : ''} solved so far. Each part is a hole
+      anyone can attack on its own:</p>
+      <div class="parts">${parts.map(([c, st, note]) =>
+        `<a class="part ${esc(st)}" href="hole.html?id=${encodeURIComponent(c)}" title="${esc((S.holes[c] || {}).title || c)}${esc(note)}">${st === 'solved' ? '✓' : '○'} ${esc(c)}</a>`).join('')}</div>
+      <a class="go" href="hole.html?id=${encodeURIComponent(featured.id)}">the full record: the exact statement, every split, every attempt →</a>`;
+  }
 
   const corpora = Object.values(S.corpora || {});
   $('corpora').innerHTML = corpora.map(c => `<article class="card">
@@ -295,6 +337,7 @@ loadData(S => {
       const h = byId[id], p = pos[id];
       const [glyph] = CHIP[h.status];
       svg += `<a href="hole.html?id=${encodeURIComponent(id)}"><g class="gnode">
+        <title>${esc(prettyMath(h.title))}</title>
         <ellipse cx="${p.x}" cy="${p.y}" rx="64" ry="26" fill="var(--bg)" stroke="${color[h.status]}" stroke-width="1.8"/>
         <text x="${p.x}" y="${p.y - 1}" text-anchor="middle">${esc(id)}</text>
         <text class="sub" x="${p.x}" y="${p.y + 13}" text-anchor="middle">${glyph} ${h.status}</text>

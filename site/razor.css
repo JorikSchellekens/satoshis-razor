@@ -220,6 +220,43 @@ footer .right { margin-left: auto; font-family: var(--mono); font-size: 12px; }
 .clump-member:first-of-type { border-top: 0; }
 .clump-member .prop-body { margin: 3px 0 0; }
 
+/* lean syntax highlighting (hiLean in razor.js) */
+.lk { color: #79A8CF; }
+.lc { color: var(--muted); font-style: italic; opacity: 0.85; }
+.lstr { color: var(--gold); }
+.lsorry { color: var(--danger); font-weight: 600; }
+a.mlink { color: var(--solved); text-decoration: underline dotted; text-underline-offset: 3px; }
+a.mlink:hover { text-decoration-style: solid; text-decoration-color: var(--solved); }
+
+/* rejected / forged chips */
+.chip.bad { color: var(--danger); border-color: var(--danger); }
+
+/* the informal statement, shown before the Lean */
+.informal { color: var(--chalk); font-size: 15px; line-height: 1.5; max-width: 46em; }
+.card .informal { color: var(--muted); font-size: 14px; }
+
+/* featured problem (index) */
+.featured { background: var(--surface); border: 1px solid var(--faint); border-radius: 10px; padding: 22px 24px 18px; margin-top: 26px; }
+.featured h3 { font-size: 24px; font-weight: 500; font-style: italic; margin: 4px 0 8px; }
+.featured .informal { margin: 8px 0 14px; }
+.featured .parts { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+.featured .part { font-family: var(--mono); font-size: 11.5px; border: 1px solid var(--faint); border-radius: 6px; padding: 4px 9px; color: var(--muted); text-decoration: none; }
+.featured .part.solved { color: var(--solved); border-color: var(--solved); }
+.featured .part.open { color: var(--open); border-color: var(--open); }
+.featured .go { font-family: var(--mono); font-size: 12.5px; color: var(--gold); text-decoration: none; }
+.featured .go:hover { text-decoration: underline; }
+
+/* verify-it-yourself box on hole pages */
+.verify { margin-top: 10px; }
+.verify .codeblock { margin: 8px 0 6px; }
+.verify .note { font-size: 12.5px; color: var(--muted); font-family: var(--mono); overflow-wrap: anywhere; }
+
+/* backlog rows on the frontier */
+.backlog-row { display: flex; align-items: baseline; gap: 10px; padding: 7px 0 5px; border-top: 1px dashed var(--faint); }
+.backlog-row:first-of-type { border-top: 0; }
+.backlog-row .cardlink { flex: 1; }
+.backlog-row .src-link { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+
 /* splits: registered plans reducing a hole to child holes + a glue hole */
 .card .split { border: 1px solid var(--faint); border-left: 3px solid var(--open); border-radius: 6px;
   padding: 8px 12px; margin: 10px 0 0; display: flex; flex-direction: column; gap: 3px;

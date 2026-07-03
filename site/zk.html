@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Zero-knowledge — Satoshi's Razor</title>
+<meta name="description" content="Take part without publishing your work: commit-reveal priority and zero-knowledge submissions the registry checks without seeing the solution.">
+<meta property="og:title" content="Zero-knowledge — Satoshi's Razor">
+<meta property="og:description" content="Take part without publishing your work: commit-reveal priority and zero-knowledge submissions the registry checks without seeing the solution.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="razor.css">
 </head>
 <body>
@@ -121,8 +125,8 @@ loadData(S => {
         ${chip(h.status)}
         ${h.pool ? `<span class="pool">pool ${h.pool.toLocaleString()}</span>` : ''}
       </div>
-      <h4><a class="cardlink" href="hole.html?id=${encodeURIComponent(h.id)}">${esc(h.title)}</a></h4>
-      <pre>${esc(h.lean_type)}</pre>
+      <h4><a class="cardlink" href="hole.html?id=${encodeURIComponent(h.id)}">${esc(prettyMath(h.title))}</a></h4>
+      <pre>${hiLeanLinked(h.lean_type, h.mathlib_names)}</pre>
       <div class="meta">
         ${routes}
         ${subs}
