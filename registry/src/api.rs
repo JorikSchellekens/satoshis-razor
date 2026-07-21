@@ -502,9 +502,13 @@ pub fn spawn_mirror(root: PathBuf) {
                 .unwrap_or((false, "spawn failed".into()))
         };
         let seq = [
-            "git add registry/data/events.jsonl lean/Razor/Submissions lean-mathlib/RazorMathlib/Submissions 2>/dev/null; true",
+            // Add each path on its own - one missing directory must not
+            // abort staging the log itself.
+            "git add registry/data/events.jsonl; \
+             for d in lean/Razor/Submissions lean-mathlib/RazorMathlib/Submissions; do \
+               [ -d \"$d\" ] && git add \"$d\"; done; true",
             "git -c user.name='razor mirror' -c user.email='razor@mempoolsurfer.com' commit -q -m 'registry: append events' || true",
-            "git pull --rebase -q",
+            "git pull --rebase --autostash -q",
             "git push -q",
         ];
         for cmd in seq {
