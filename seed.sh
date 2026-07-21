@@ -149,6 +149,17 @@ $RAZOR hole --id ES-002 --proposal PRP-002 --statement STM-ES-RAT --env mathlib 
   --title "Erdos-Straus (rationals, in the Mathlib environment)" \
   --lean-type "RazorMathlib.ErdosStrausRat"
 
+# A real challenge window: both readings above are one author's (the
+# registry's), so the proposal has no independent convergence evidence at
+# all. The window invites sealed readings - statements committed as hashes
+# before any is revealed - because two readings sealed before one another's
+# reveals are *provably* written blind, and equivalence between them is the
+# strongest fidelity evidence a statement can earn. Dates are absolute so
+# replaying this seed reproduces the same log content.
+$RAZOR round --id RND-ES-1 --proposal PRP-002 --author "registry" \
+  --closes-at 1786665600 --reveal-by 1787270400 \
+  --note "seal your own Lean reading of Erdos-Straus by 2026-08-14, reveal by 2026-08-21. Both existing statements are the registry's own; a sealed reading that bridges to either is the first independent convergence evidence this proposal can get."
+
 # ─────────────────────────────────────────────────────────────────────
 step "The Mathlib environment is the default for new holes"
 # ─────────────────────────────────────────────────────────────────────

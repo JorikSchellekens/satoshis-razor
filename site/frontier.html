@@ -249,8 +249,10 @@ function renderProposals(S) {
   const all = Object.values(S.proposals || {});
   // Proposals with any activity (statements, curation) get full cards;
   // ingested catalogue entries with none yet form the searchable backlog.
-  const props = all.filter(p => (p.statements || []).length || curationWeight(S, p.id));
-  const backlog = all.filter(p => !((p.statements || []).length || curationWeight(S, p.id)));
+  const active = (p) => (p.statements || []).length || curationWeight(S, p.id)
+    || (p.rounds || []).length || (p.seals || []).length;
+  const props = all.filter(active);
+  const backlog = all.filter(p => !active(p));
   renderBacklog(backlog);
   $('proposals').innerHTML = props.map(p => {
     const clumps = (p.clumps || []).map(c => {
@@ -261,19 +263,24 @@ function renderProposals(S) {
         const st = S.statements[id] || {};
         return `<div class="clump-member">
           ${stmtLink(id)} <span>by ${esc(st.author || '?')}</span>
+          ${st.sealed_seq != null ? `<span class="badge"${tip('sealed')}>⏣ sealed</span>` : ''}
           ${st.gloss ? `<div class="prop-body">"${esc(prettyMath(st.gloss))}"</div>` : ''}
           ${(st.certificates || []).length ? `<div class="prop-body">certificates: ${st.certificates.map(([k]) => esc(k)).join(', ')}</div>` : ''}
           ${(st.implies || []).map(([b]) => `<div class="prop-body">proven to imply ${esc(b)} (converse unproven: ${esc(b)} may be strictly weaker)</div>`).join('')}
         </div>`;
       }).join('');
       return `<div class="clump">
-        <div class="row1">${tag}${proven}<span class="badge">weight ${c.weight} (${c.weight === 1 ? '1 author' : c.weight + ' independent authors'})</span></div>
+        <div class="row1">${tag}${proven}<span class="badge">weight ${c.weight} (${c.weight === 1 ? '1 author' : c.weight + ' independent authors'})</span>${c.independent >= 2 ? `<span class="badge gold"${tip('blind')}>⏣ ${c.independent} written blind</span>` : ''}</div>
         ${members}
       </div>`;
     }).join('');
+    const round = activeRound(S, p);
+    const pending = pendingSeals(S, p).length;
     return `<article class="card wide">
       <div class="row1">
         ${propLink(p.id)}
+        ${round ? `<span class="badge gold"${tip('window')}>◷ ${round.phase === 'sealing' ? `challenge window open — seal a reading by ${fmtDay(round.closes_at)}` : `reveals due by ${fmtDay(round.reveal_by)}`}</span>` : ''}
+        ${pending ? `<span class="badge"${tip('sealed')}>⏣ ${pending} sealed reading${pending > 1 ? 's' : ''} pending</span>` : ''}
         ${curationWeight(S, p.id) ? `<span class="badge gold">curation ${curationWeight(S, p.id)}</span>` : ''}
         ${p.statements.length ? `<span class="badge blue">${p.statements.length} candidate statement${p.statements.length > 1 ? 's' : ''}</span>`
           : '<span class="chip open">○ needs a formal statement</span>'}

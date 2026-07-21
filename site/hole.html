@@ -93,6 +93,7 @@ loadData(S => {
   $('chips').innerHTML = [
     `<span class="hid">${esc(h.id)}</span>`,
     chip(h.status),
+    h.bridge ? `<span class="badge blue"${tip('bridge')}>bridge hole</span>` : '',
     h.env === 'mathlib' ? `<span class="badge blue"${tip('env')}>Mathlib environment</span>` : '',
     h.upstreamed ? `<span class="badge gold"${tip('upstreamed')}>↥ upstreamed</span>` : '',
     h.pool ? `<span class="pool"${tip('bounty')}>bounty ${h.pool.toLocaleString()}</span>` : '',
@@ -102,6 +103,9 @@ loadData(S => {
   if (informal) $('informal').textContent = prettyMath(informal);
   $('lede').innerHTML = [
     h.proposal ? `Pinned under proposal ${propLink(h.proposal)}.` : 'Pinned directly, without a proposal.',
+    h.bridge ? `A <b>bridge hole</b>: its statement is the equivalence of ${stmtLink(h.bridge[0])} and ${stmtLink(h.bridge[1])},
+      composed mechanically from their declarations. An admitted proof is a kernel-checked fact that the two
+      readings state the same problem — their clumps then merge.` : '',
     h.statement ? `Formalized as candidate statement ${stmtLink(h.statement)}.` : '',
     h.solved_by ? `Solved by submission <b>${esc(h.solved_by)}</b>.` : '',
     h.upstreamed ? `The admitted proof was carried to its home library: <a href="${esc(h.upstreamed)}">${esc(h.upstreamed)}</a>.` : '',
@@ -130,6 +134,7 @@ loadData(S => {
             : f.authors === 1
               ? 'one formalization author, unconverged — no independent formalization has been proven equivalent yet; filing one is attributed work'
               : 'pinned directly, without a formalization trail on the log',
+        f.independent >= 2 ? `<span class="ok">${f.independent} written blind</span> — sealed before one another's reveals, so their independence is a recorded fact, not an assumption` : '',
         f.certificates ? `${f.certificates} sanity certificate${f.certificates > 1 ? 's' : ''}` : '',
         f.repins ? `${f.repins} wording migration${f.repins > 1 ? 's' : ''} survived, each equivalence kernel-checked` : '',
       ].filter(Boolean);

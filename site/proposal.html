@@ -37,6 +37,14 @@
   </div>
 </section>
 
+<section id="sec-round" style="display:none">
+  <div class="wrap">
+    <div class="sec-head"><h3 id="round-title">Challenge window</h3><span class="note">file your reading sealed; statements sealed before one another's reveals are provably independent</span></div>
+    <div class="prose" id="round-body"></div>
+    <div class="kv" id="round-seals"></div>
+  </div>
+</section>
+
 <section id="sec-cur" style="display:none">
   <div class="wrap">
     <div class="sec-head"><h3>Curation</h3><span class="note">public, attributed, weighted by the curator's verified work</span></div>
@@ -60,7 +68,7 @@
 
 <footer>
   <div class="wrap">
-    <span>Add your own reading: <code>razor formalize --gloss "…"</code>.</span>
+    <span>Add your own reading: <code>razor formalize --gloss "…"</code> — or seal it first (<code>razor seal-statement</code>), so its independence is provable.</span>
     <span class="right"><a href="frontier.html">← back to the frontier</a></span>
   </div>
 </footer>
@@ -93,6 +101,38 @@ loadData(S => {
   --decl Your.Lean.Name --gloss "your plain-language reading of the statement"`;
   }
 
+  // Challenge window: the latest round still in its sealing or reveal
+  // phase, plus any seals awaiting reveal (shown even after a window ends -
+  // an unrevealed seal is a fact worth seeing).
+  const round = activeRound(S, p);
+  const pending = pendingSeals(S, p);
+  if (round || pending.length) {
+    $('sec-round').style.display = '';
+    if (round) {
+      $('round-title').innerHTML = `Challenge window <span class="badge gold"${tip('window')}>${round.phase === 'sealing' ? 'open — sealed readings invited' : 'reveal phase'}</span>`;
+      $('round-body').innerHTML = round.phase === 'sealing'
+        ? `<p>Window <b>${esc(round.id)}</b>, opened by ${personLink(round.author)}: seal your own Lean reading of this
+           proposal before <b>${fmtDay(round.closes_at)}</b>, reveal it by <b>${fmtDay(round.reveal_by)}</b>.
+           Readings sealed before one another's reveals are <b>provably written blind</b> — the strongest
+           independence evidence a clump can carry.${round.note ? ` <span class="note">“${esc(round.note)}”</span>` : ''}</p>
+           <p>To take part: write your statement in Lean, then</p>
+           <div class="codeblock">razor seal --file your-statement.lean --salt &lt;your-salt&gt;
+razor seal-statement --id SEAL-you --proposal ${esc(p.id)} --author you --commitment &lt;the hash&gt;</div>
+           <p>Keep the file and salt private until you reveal:</p>
+           <div class="codeblock">razor reveal-statement --seal SEAL-you --id STM-you --file your-statement.lean --salt &lt;your-salt&gt; \\
+  --decl Your.Lean.Name --gloss "your plain-language reading"</div>`
+        : `<p>Window <b>${esc(round.id)}</b> has closed for sealing; reveals are due by
+           <b>${fmtDay(round.reveal_by)}</b>. After the reveals, equivalence proofs between the readings
+           (<code>razor bridge</code>, then an ordinary proof) merge them into clumps.</p>`;
+    } else {
+      $('round-title').textContent = 'Sealed readings';
+      $('round-body').innerHTML = '';
+    }
+    $('round-seals').innerHTML = pending.map(s =>
+      `<div class="k">⏣ ${esc(s.id)}</div><div class="v">sealed by ${personLink(s.author)} at event #${s.seq}
+       <span style="color:var(--muted)">— sha256 ${esc(s.commitment.slice(0, 16))}…, awaiting reveal</span></div>`).join('');
+  }
+
   const curs = curatorsOf(S, p.id);
   if (curs.length) {
     $('sec-cur').style.display = '';
@@ -108,11 +148,13 @@ loadData(S => {
         ${c.dominant ? '<span class="chip solved">✓ dominant</span>' : '<span class="chip open">○ candidate</span>'}
         ${c.proven ? '<span class="badge">proven true</span>' : ''}
         <span class="badge">weight ${c.weight} (${c.weight === 1 ? '1 author' : c.weight + ' independent authors'})</span>
+        ${c.independent >= 2 ? `<span class="badge gold"${tip('blind')}>⏣ ${c.independent} written blind — provably independent</span>` : ''}
       </div>
       ${c.members.map(mid => {
         const st = S.statements[mid] || {};
         return `<div class="clump-member" style="margin-top:8px">
           ${stmtLink(mid)} <span style="color:var(--muted)">by ${esc(st.author || '?')}</span>
+          ${st.sealed_seq != null ? `<span class="badge"${tip('sealed')}>⏣ sealed at #${st.sealed_seq}</span>` : ''}
           ${st.gloss ? `<div class="prop-body">“${esc(prettyMath(st.gloss))}”</div>` : ''}
         </div>`;
       }).join('')}
@@ -123,9 +165,9 @@ loadData(S => {
   if (holes.length) {
     $('sec-holes').style.display = '';
     $('holes').innerHTML = holes.map(h => `<article class="card">
-      <div class="row1">${holeLink(h.id)}${chip(h.status)}${h.pool ? `<span class="pool">bounty ${h.pool.toLocaleString()}</span>` : ''}</div>
+      <div class="row1">${holeLink(h.id)}${chip(h.status)}${h.bridge ? `<span class="badge blue"${tip('bridge')}>bridge</span>` : ''}${h.pool ? `<span class="pool">bounty ${h.pool.toLocaleString()}</span>` : ''}</div>
       <h4>${esc(h.title)}</h4>
-      <div class="meta"><span>attention ${holeMetrics(S, h).attention.toLocaleString()}</span></div>
+      <div class="meta"><span>${h.bridge ? `proving it merges ${esc(h.bridge[0])} ≡ ${esc(h.bridge[1])} · ` : ''}attention ${holeMetrics(S, h).attention.toLocaleString()}</span></div>
     </article>`).join('');
   }
 });

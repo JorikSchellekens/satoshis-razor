@@ -95,19 +95,75 @@ strongest evidence available that both are faithful, so the protocol treats
 duplicate formalization as a feature: a proposal can fund several statement efforts
 plus the equivalence proofs between their outputs.
 
-Independence is the load-bearing assumption, and the registry supports defending
-it: commit-reveal (already part of the protocol) lets authors seal a formalization
-before seeing others', and definitional diversity - clump members built on
-different underlying definitions - counts for more than raw head-count. With no
-money at stake, sybil identities cost nothing to create, so weight should count
-authors with verified work histories - identities that were expensive to build the
-only way this system respects, by doing checkable work. The same applies to
-curation weight. This reliance on reputation is an assumption, and it is named
-here rather than hidden.
+Independence is the load-bearing assumption, and the registry turns as much of
+it as possible into recorded fact (see "Challenge windows" below): a statement
+can be filed *sealed* - a hash commitment first, the reveal later - and two
+statements each sealed before the other was revealed were provably written
+blind to each other. A clump therefore carries two counts: its **weight**
+(distinct authors - claimed independence) and its **written-blind count** (the
+largest set of distinct authors whose statements are pairwise sealed before one
+another's reveals - proven independence). Definitional diversity - clump
+members built on different underlying definitions - counts for more than raw
+head-count. What sealing cannot rule out is off-platform collusion, so with no
+money at stake, sybil identities cost nothing to create, and weight should
+count authors with verified work histories - identities that were expensive to
+build the only way this system respects, by doing checkable work. The same
+applies to curation weight. This residual reliance on reputation is an
+assumption, and it is named here rather than hidden.
 
 One-way **implication proofs** are recorded too: a proof of A → B with no converse
 mechanically exposes B as no stronger than A, and often as strictly weaker. This
 orders competing readings without any adjudication.
+
+### Challenge windows and sealed readings
+
+Convergence is only as strong as the independence behind it, and by default
+nothing produces independence: the second formalizer can simply read the first
+candidate statement and paraphrase it. The registry's answer is sealing, the
+same commit-reveal scheme private proof submissions already use, applied to
+statements:
+
+- A **challenge window** (`razor round`) is a dated invitation on a proposal:
+  seal your reading by one date, reveal it by another. The window is a
+  coordination signal, not a gate - the registry never enforces it, and a late
+  seal or reveal simply carries its own timestamps.
+- A **sealed reading** (`razor seal-statement`) puts sha256(statement file ‖
+  salt) on the log now; the file and salt stay on the author's machine. The
+  reveal (`razor reveal-statement`) is checked against the commitment before
+  it is appended, and the statement enters the funnel as an ordinary candidate
+  carrying its seal's provenance.
+- The trust fact is **pairwise mutual blindness**, computed from event order
+  alone: statements X and Y are mutually blind when X was sealed before Y was
+  revealed *and* Y was sealed before X was revealed - neither author could
+  have seen the other's Lean. An unsealed statement's filing is its reveal, so
+  two unsealed statements are never provably blind; a sealed statement can be
+  provably blind even to statements filed later. No window membership is
+  consulted: the dates exist to coordinate people, the math reads the log.
+
+When mutually blind statements later prove equivalent, the funnel's strongest
+evidence gets an upgrade: independent convergence where the independence is
+itself on the record. Sealing cannot prevent authors from colluding off the
+log, which is why reputation-weighted counting remains; it removes the default
+contamination channel - reading each other's filings - entirely.
+
+### Bridge holes
+
+An equivalence between two candidate statements can be recorded two ways. The
+direct way (`razor converge`) attaches a named equivalence declaration as an
+edge. The stronger way pins the obligation itself: `razor bridge` registers a
+**bridge hole** whose statement is composed mechanically from the two
+declarations - `(a's decl) ↔ (b's decl)` - exactly as split glue is composed
+from pinned types, so there is nothing for the filer to get subtly wrong. The
+bridge is then an ordinary hole: solved through submit/verify (the equivalence
+is kernel-checked, which `converge` alone does not do), attributed to whoever
+proves it, curatable, and fundable - a proposer who wants convergence evidence
+can put a bounty on the bridge. An admitted bridge proof merges the two
+statements' clumps.
+
+Equivalence work is a first-class contribution here, deliberately: between two
+independently written formalizations the bridge proof is often harder than
+either statement, and it is exactly the labor that turns a pile of readings
+into a dominant clump.
 
 ### Dominance
 The unique heaviest clump with **at least two independent members** is

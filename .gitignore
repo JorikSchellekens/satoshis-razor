@@ -13,3 +13,4 @@ upstream/
 *.wasm
 .DS_Store
 zk/keys/
+site/.vercel/

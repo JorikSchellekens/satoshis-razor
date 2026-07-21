@@ -65,8 +65,13 @@ locally; `git checkout registry/data/events.jsonl` restores the live one.)
 - **From words to a hole.** A problem enters as a plain-language proposal;
   candidate Lean statements are filed against it; statements proven equivalent
   by machine-checked proof clump together. Two independent authors converging
-  is the strongest evidence a formalization is faithful. The full pipeline is
-  specified in [FUNNEL.md](FUNNEL.md).
+  is the strongest evidence a formalization is faithful - and a challenge
+  window makes the independence checkable: authors file readings *sealed*
+  (hash first, reveal later), so readings sealed before one another's reveals
+  were provably written blind. The equivalence obligation between two readings
+  can itself be pinned as a solvable hole (a bridge), so proving it is
+  attributed, fundable, kernel-checked work. The full pipeline is specified in
+  [FUNNEL.md](FUNNEL.md).
 - **Solving.** `razor submit --file proof.lean` takes a single Lean file; the
   verifier checks the named declaration against the hole's exact pinned
   statement - no `sorry`, no extra axioms - inside a no-network sandbox.

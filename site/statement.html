@@ -57,7 +57,7 @@
 
 <footer>
   <div class="wrap">
-    <span>Strengthen a clump: prove your statement equivalent to this one with <code>razor converge</code>.</span>
+    <span>Strengthen a clump: pin the equivalence as a solvable hole with <code>razor bridge</code>, then prove it like any other.</span>
     <span class="right"><a href="frontier.html">← back to the frontier</a></span>
   </div>
 </footer>
@@ -73,13 +73,16 @@ loadData(S => {
     return;
   }
   document.title = `${st.id} — Satoshi's Razor`;
-  $('chips').innerHTML = `<span class="hid">${esc(st.id)}</span><span class="badge">by ${personLink(st.author)}</span>`;
+  $('chips').innerHTML = `<span class="hid">${esc(st.id)}</span><span class="badge">by ${personLink(st.author)}</span>${st.sealed_seq != null ? `<span class="badge gold"${tip('sealed')}>⏣ sealed reading</span>` : ''}`;
   $('title').textContent = prettyMath(st.gloss || st.decl);
   $('lede').innerHTML = `A Lean formalization of proposal ${propLink(st.proposal)}, declared as <code>${esc(st.decl)}</code>.${st.notes ? ` ${esc(prettyMath(st.notes))}` : ''}`;
   $('gloss').innerHTML = st.gloss ? `“${esc(prettyMath(st.gloss))}”` : 'No gloss was filed with this statement.';
 
+  const blind = blindPeersOf(S, st);
   const rows = [
     ['declaration', `<code>${esc(st.decl)}</code>`],
+    st.sealed_seq != null ? ['sealed provenance', `committed as ${esc(st.seal || '?')} at event #${st.sealed_seq}, revealed at event #${st.filed_seq} — the reveal hashed to the commitment, so this exact reading provably existed, unseen, at #${st.sealed_seq}`] : null,
+    blind.length ? ['written blind to', blind.map(o => `${stmtLink(o.id)} by ${esc(o.author)}`).join('<br>') + ` <span style="color:var(--muted)">— each was sealed before the other was revealed; neither author could have seen the other's Lean</span>`] : null,
     st.certificates.length ? ['certificates', st.certificates.map(([k, d, n]) => `<b>${esc(k)}</b> — <code>${esc(d)}</code>${n ? ` — ${esc(n)}` : ''}`).join('<br>')] : null,
     st.convergences.length ? ['proven equivalent to', st.convergences.map(([o, d]) => `${stmtLink(o)} <span style="color:var(--muted)">(via <code>${esc(d)}</code>)</span>`).join('<br>')] : null,
     st.implies.length ? ['proven to imply', st.implies.map(([b, d]) => `${stmtLink(b)} <span style="color:var(--muted)">(via <code>${esc(d)}</code>; the converse is unproven — ${esc(b)} may be strictly weaker)</span>`).join('<br>')] : null,
@@ -96,6 +99,7 @@ loadData(S => {
         ${c.dominant ? '<span class="chip solved">✓ dominant</span>' : '<span class="chip open">○ candidate</span>'}
         ${c.proven ? '<span class="badge">proven true</span>' : ''}
         <span class="badge">weight ${c.weight} (${c.weight === 1 ? '1 author' : c.weight + ' independent authors'})</span>
+        ${c.independent >= 2 ? `<span class="badge gold"${tip('blind')}>⏣ ${c.independent} written blind</span>` : ''}
       </div>
       <div class="meta">${c.members.map(mid => `<span>${mid === st.id ? `<b>${esc(mid)}</b>` : stmtLink(mid)} by ${esc(S.statements[mid]?.author || '?')}</span>`).join('')}</div>
     </article>`;
@@ -112,6 +116,8 @@ loadData(S => {
 
   $('history').innerHTML = timeline(S.events.filter(e =>
     (e.type === 'formalize' && e.id === st.id)
+    || (e.type === 'seal_statement' && e.id === st.seal)
+    || (e.type === 'reveal_statement' && e.statement === st.id)
     || (e.type === 'certify' && e.statement === st.id)
     || ((e.type === 'converge' || e.type === 'implies') && (e.a === st.id || e.b === st.id))
     || (e.type === 'curate' && e.target === st.id)));

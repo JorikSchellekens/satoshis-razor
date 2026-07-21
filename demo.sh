@@ -88,22 +88,55 @@ $RAZOR verify --submission SUB-103
 # the party who chose to trust an unconverged statement, and the lesson is
 # public: fund a statement after a clump forms around it, not before.
 
-step "Convergence: alice and bob formalize the corrected statement independently"
-$RAZOR formalize --id STM-102A --proposal PRP-100 --author alice \
+step "A challenge window opens: the corrected statement, formalized blind"
+# Sealed readings turn independence from an assumption into a recorded fact:
+# alice and bob each commit a hash of their statement file before either
+# reveals, so neither could have seen the other's Lean. The window dates are
+# an invitation, not a gate - the blindness math reads event order alone.
+$RAZOR round --id RND-100 --proposal PRP-100 --author alice --days 7 --reveal-days 2 \
+  --note "dave's wording fell to a two-line proof - seal your own reading of the corrected statement"
+
+WINDOW=$(mktemp -d)
+cat > "$WINDOW/alice.lean" <<'EOF'
+-- alice's sealed reading of PRP-100 (registered as Razor.Sorting.V2Statement)
+def V2Statement : Prop :=
+  ∃ f : List Nat → List Nat, ∀ l : List Nat, SortedChain (f l) ∧ Perm l (f l)
+EOF
+cat > "$WINDOW/bob.lean" <<'EOF'
+-- bob's sealed reading of PRP-100 (registered as Razor.Sorting.V2StatementPairs)
+def V2StatementPairs : Prop :=
+  ∃ f : List Nat → List Nat, ∀ l : List Nat, SortedPairs (f l) ∧ Perm l (f l)
+EOF
+$RAZOR seal-statement --id SEAL-102A --proposal PRP-100 --author alice \
+  --commitment "$($RAZOR seal --file "$WINDOW/alice.lean" --salt alice-window-salt)"
+$RAZOR seal-statement --id SEAL-102B --proposal PRP-100 --author bob \
+  --commitment "$($RAZOR seal --file "$WINDOW/bob.lean" --salt bob-window-salt)"
+
+step "Reveals: each file hashes to its commitment - the readings are provably mutually blind"
+$RAZOR reveal-statement --seal SEAL-102A --id STM-102A --file "$WINDOW/alice.lean" --salt alice-window-salt \
   --decl Razor.Sorting.V2Statement \
   --gloss "the output is sorted AND is a rearrangement of the input; sortedness as an inductive chain" \
   --notes "∃ f, ∀ l, SortedChain (f l) ∧ Perm l (f l)"
-$RAZOR formalize --id STM-102B --proposal PRP-100 --author bob \
+$RAZOR reveal-statement --seal SEAL-102B --id STM-102B --file "$WINDOW/bob.lean" --salt bob-window-salt \
   --decl Razor.Sorting.V2StatementPairs \
   --gloss "same reading, sortedness written as: every earlier element ≤ every later one" \
-  --notes "written without seeing STM-102A (indexed SortedPairs definition)"
+  --notes "sealed before STM-102A was revealed (indexed SortedPairs definition)"
 $RAZOR certify --statement STM-102A --kind non-vacuity \
   --decl Razor.Certificates.sorted_nonvacuous \
   --notes "sorted lists of length ≥ 3 exist"
 $RAZOR certify --statement STM-102A --kind falsifiability \
   --decl Razor.Certificates.sorted_falsifiable \
   --notes "unsorted lists exist: the predicate is not vacuous"
-$RAZOR converge --a STM-102A --b STM-102B --decl Razor.Sorting.v2_convergence
+
+step "The bridge: their equivalence, pinned as its own hole and kernel-checked"
+# razor converge records an equivalence edge directly; a bridge hole is the
+# stronger path - the obligation (V2Statement ↔ V2StatementPairs) is composed
+# mechanically and the proof goes through the ordinary verifier. grace's
+# admitted proof merges the two sealed readings into one clump: independent
+# convergence whose independence is itself on the log.
+$RAZOR bridge --id BRG-102 --a STM-102A --b STM-102B
+$RAZOR submit --id SUB-BRG102 --hole BRG-102 --solver grace --decl Razor.Sorting.v2_convergence
+$RAZOR verify --submission SUB-BRG102
 
 step "The implication order: the clump's statement is strictly stronger than dave's"
 $RAZOR implies --a STM-102A --b STM-101 --decl Razor.Sorting.v2_implies_v1

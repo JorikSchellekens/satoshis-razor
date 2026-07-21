@@ -47,7 +47,12 @@ fn main() {
             allowed_axioms: multi(&args, "--allow-axiom"),
             proposal: opt(&args, "--proposal"),
             env: opt(&args, "--env"),
+            bridge: None,
         }),
+        "round" => cmd_round(&log_path, &args),
+        "seal-statement" => cmd_seal_statement(&log_path, &args),
+        "reveal-statement" => cmd_reveal_statement(&log_path, &args),
+        "bridge" => cmd_bridge(&log_path, &args),
         "split" => cmd_split(&log_path, &args),
         "submit" => cmd_submit(&root, &log_path, &args),
         "repin" => cmd_repin(&root, &log_path, &args),
@@ -184,7 +189,11 @@ fn print_help(cmd: &str) {
             ("formalize", "file a candidate Lean statement for a proposal"),
             ("certify", "attach a sanity certificate to a statement"),
             ("converge", "prove two statements equivalent (they clump)"),
+            ("bridge", "pin the equivalence of two statements as its own hole"),
             ("implies", "prove one statement implies another"),
+            ("round", "open a challenge window: sealed readings until a deadline"),
+            ("seal-statement", "commit a hash of your statement file - a reading, sealed"),
+            ("reveal-statement", "open a statement seal; it enters the funnel with provenance"),
             ("hole", "pin an exact Lean statement as a solvable hole"),
             ("split", "reduce a hole to children plus a glue hole"),
             ("repin", "migrate a hole's wording (needs an equivalence proof)"),
@@ -458,6 +467,146 @@ fn cmd_reveal(root: &PathBuf, log_path: &PathBuf, submission: &str, file: &str, 
         module,
     });
     ui::step(&format!("revealed {} razor verify --submission {submission}", ui::dim("- next:")));
+}
+
+/// Open a challenge window on a proposal: a dated invitation for sealed
+/// readings. Nothing is enforced - a late seal or reveal simply carries its
+/// own timestamps, and the blindness math reads event order, not the dates.
+fn cmd_round(log_path: &PathBuf, args: &[String]) {
+    let proposal = req(args, "--proposal");
+    let state = State::fold(load(log_path));
+    if !state.proposals.contains_key(&proposal) {
+        ui::die(&format!("unknown proposal: {proposal}"));
+    }
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+    let closes_at: u64 = match (opt(args, "--closes-at"), opt(args, "--days")) {
+        (Some(t), _) => t.parse().expect("--closes-at (unix seconds)"),
+        (None, Some(d)) => now + d.parse::<u64>().expect("--days") * 86_400,
+        (None, None) => ui::die("give --closes-at <unix seconds> or --days <n>"),
+    };
+    let reveal_by: u64 = match (opt(args, "--reveal-by"), opt(args, "--reveal-days")) {
+        (Some(t), _) => t.parse().expect("--reveal-by (unix seconds)"),
+        (None, Some(d)) => closes_at + d.parse::<u64>().expect("--reveal-days") * 86_400,
+        (None, None) => closes_at + 7 * 86_400,
+    };
+    if reveal_by < closes_at {
+        ui::die("--reveal-by is before --closes-at");
+    }
+    let id = req(args, "--id");
+    append(log_path, Event::OpenRound {
+        id: id.clone(), proposal: proposal.clone(), author: req(args, "--author"),
+        closes_at, reveal_by, note: opt(args, "--note").unwrap_or_default(),
+    });
+    ui::step(&format!("challenge window {} open on {}", ui::bold(&id), ui::cyan(&proposal)));
+    ui::kv("sealing", &format!("until unix {closes_at} ({})", ui::dim(&days_from(now, closes_at))));
+    ui::kv("reveals", &format!("by unix {reveal_by} ({})", ui::dim(&days_from(now, reveal_by))));
+    ui::kv("next", &ui::dim("participants: razor seal --file your-statement.lean --salt <salt>, then razor seal-statement"));
+}
+
+fn days_from(now: u64, ts: u64) -> String {
+    if ts <= now { return "past".into() }
+    format!("{} days from now", (ts - now + 86_399) / 86_400)
+}
+
+/// File a sealed reading: the commitment (from `razor seal`) goes on the
+/// log now; the statement file and salt stay on the author's machine until
+/// `razor reveal-statement`.
+fn cmd_seal_statement(log_path: &PathBuf, args: &[String]) {
+    let proposal = req(args, "--proposal");
+    let state = State::fold(load(log_path));
+    if !state.proposals.contains_key(&proposal) {
+        ui::die(&format!("unknown proposal: {proposal}"));
+    }
+    let id = req(args, "--id");
+    append(log_path, Event::SealStatement {
+        id: id.clone(), proposal: proposal.clone(),
+        author: req(args, "--author"), commitment: req(args, "--commitment"),
+    });
+    ui::step(&format!("sealed {} {}", ui::bold(&id),
+        ui::dim(&format!("- your reading of {proposal} is timestamped, unseen. Keep the file and salt; next: razor reveal-statement --seal {id}"))));
+}
+
+/// Open a statement seal: check the file+salt against the commitment, then
+/// file the reading as an ordinary candidate statement carrying its seal's
+/// provenance. Statements revealed this way can be *provably* mutually
+/// blind: each sealed before the other was revealed.
+fn cmd_reveal_statement(log_path: &PathBuf, args: &[String]) {
+    let seal_id = req(args, "--seal");
+    let file = req(args, "--file");
+    let salt = req(args, "--salt");
+    let state = State::fold(load(log_path));
+    let Some(seal) = state.seals.get(&seal_id) else {
+        ui::die(&format!("unknown seal: {seal_id}"));
+    };
+    if let Some(stm) = &seal.statement {
+        ui::die(&format!("{seal_id} is already revealed as {stm}"));
+    }
+    let actual = commitment_of(&file, &salt);
+    if actual != seal.commitment {
+        ui::verdict(false, &format!("file+salt hashes to {actual}, committed was {}", seal.commitment));
+        std::process::exit(1);
+    }
+    ui::step(&format!("commitment verified {}",
+        ui::dim(&format!("sha256(file ‖ salt) matches {}…", &seal.commitment[..16]))));
+    let statement = req(args, "--id");
+    append(log_path, Event::RevealStatement {
+        seal: seal_id.clone(),
+        statement: statement.clone(),
+        author: seal.author.clone(),
+        decl: req(args, "--decl"),
+        gloss: opt(args, "--gloss").unwrap_or_default(),
+        notes: opt(args, "--notes").unwrap_or_default(),
+    });
+    ui::step(&format!("revealed {} {}", ui::bold(&statement),
+        ui::dim(&format!("- in the funnel with sealed provenance (committed at event {})", seal.seq))));
+}
+
+/// Pin the equivalence of two candidate statements as its own hole. The
+/// pinned type is composed mechanically - `(a's decl) ↔ (b's decl)` - so
+/// there is nothing to get subtly wrong, and the proof goes through the
+/// ordinary submit/verify path: kernel-checked, attributed, fundable. An
+/// admitted proof merges the two statements' clumps.
+fn cmd_bridge(log_path: &PathBuf, args: &[String]) {
+    let a = req(args, "--a");
+    let b = req(args, "--b");
+    if a == b {
+        ui::die("a statement is trivially equivalent to itself");
+    }
+    let state = State::fold(load(log_path));
+    let (Some(sa), Some(sb)) = (state.statements.get(&a), state.statements.get(&b)) else {
+        ui::die("both --a and --b must be filed candidate statements");
+    };
+    if sa.proposal != sb.proposal {
+        ui::die(&format!("{a} and {b} read different proposals - a bridge joins two readings of the same one"));
+    }
+    // The bridge verifies in one environment, which must define both decls.
+    let env_a = state.holes.values().find(|h| h.statement == a).and_then(|h| h.env.clone());
+    let env_b = state.holes.values().find(|h| h.statement == b).and_then(|h| h.env.clone());
+    let env = opt(args, "--env").or_else(|| match (&env_a, &env_b) {
+        (Some(x), Some(y)) if x != y => ui::die(&format!(
+            "{a} and {b} verify in different environments ({x} vs {y}); a bridge needs one \
+             environment defining both decls - restate one side there, then pass --env")),
+        (x, y) => x.clone().or_else(|| y.clone()),
+    });
+    let id = req(args, "--id");
+    let lean_type = format!("({}) ↔ ({})", sa.decl, sb.decl);
+    append(log_path, Event::RegisterHole {
+        id: id.clone(),
+        title: opt(args, "--title")
+            .unwrap_or_else(|| format!("bridge: {a} and {b} state the same problem")),
+        statement: String::new(),
+        lean_type: lean_type.clone(),
+        allowed_axioms: multi(args, "--allow-axiom"),
+        proposal: Some(sa.proposal.clone()),
+        env,
+        bridge: Some((a.clone(), b.clone())),
+    });
+    ui::step(&format!("bridge {} registered  {} {} {}",
+        ui::bold(&id), ui::cyan(&a), ui::dim("≡?"), ui::cyan(&b)));
+    ui::kv("pinned", &lean_type);
+    ui::kv("next", &ui::dim(&format!(
+        "prove it like any hole: razor submit --hole {id} … - an admitted proof merges the clumps")));
 }
 
 /// The verification environment a hole was registered with: the Lean
@@ -1127,6 +1276,7 @@ fn cmd_split(log_path: &PathBuf, args: &[String]) {
         allowed_axioms: parent.allowed_axioms.clone(),
         proposal: parent.proposal.clone(),
         env: parent.env.clone(),
+        bridge: None,
     });
     append(log_path, Event::Split {
         id: id.clone(), parent: parent_id.clone(), author,
@@ -1155,9 +1305,31 @@ fn cmd_status(log_path: &PathBuf) {
         .partition(|p| !p.statements.is_empty());
     let window = 12usize.saturating_sub(active.len());
     let hidden = idle.len().saturating_sub(window);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
     for p in active.iter().chain(idle.iter().take(window)) {
         println!("  {}  {}  {}", ui::cyan(&format!("{:<9}", p.id)), p.title,
             ui::dim(&format!("[{} statements]", p.statements.len())));
+        for rid in &p.rounds {
+            let Some(r) = state.rounds.get(rid) else { continue };
+            let phase = if now < r.closes_at {
+                format!("{} {}", ui::gold("◷ challenge window open"),
+                    ui::dim(&format!("- sealed readings invited, closes {}", days_from(now, r.closes_at))))
+            } else if now < r.reveal_by {
+                format!("{} {}", ui::gold("◷ reveal phase"),
+                    ui::dim(&format!("- reveals due {}", days_from(now, r.reveal_by))))
+            } else {
+                ui::dim(&format!("◷ window {rid} closed"))
+            };
+            println!("             {phase}");
+        }
+        let pending = p.seals.iter()
+            .filter(|s| state.seals.get(*s).is_some_and(|x| x.statement.is_none()))
+            .count();
+        if pending > 0 {
+            println!("             {}", ui::gold(&format!("⏣ {pending} sealed reading{} awaiting reveal",
+                if pending == 1 { "" } else { "s" })));
+        }
         for c in &p.clumps {
             let tag = match (c.dominant, c.proven) {
                 (true, true) => format!("{} {}", ui::gold("◆ dominant"), ui::green("· proven")),
@@ -1165,7 +1337,10 @@ fn cmd_status(log_path: &PathBuf) {
                 (false, true) => format!("{} {}", ui::dim("◇ clump"), ui::green("· proven")),
                 (false, false) => ui::dim("◇ clump"),
             };
-            println!("             {tag}  {}  {}",
+            let blind = if c.independent >= 2 {
+                format!(" {}", ui::green(&format!("· {} written blind", c.independent)))
+            } else { String::new() };
+            println!("             {tag}  {}{blind}  {}",
                 ui::dim(&format!("weight {}", c.weight)), c.members.join(&format!(" {} ", ui::dim("≡"))));
         }
     }

@@ -112,6 +112,10 @@ function informalOf(S, h) {
 // One-line definitions, attached to badges as hover text so the site's
 // vocabulary travels with the reader.
 const TIP = {
+  window: 'A dated invitation to file sealed readings of this proposal. Nothing is enforced: a late seal simply carries its own timestamps.',
+  sealed: 'This statement was filed as a hash commitment before it was shown to anyone; the reveal matched the hash. It is provably blind to every statement revealed after its seal.',
+  blind: 'The largest set of authors in this clump whose statements were each sealed before any of the others was revealed: none could have seen another’s Lean. Weight counts claimed independence; this counts proof.',
+  bridge: 'A hole whose pinned statement is the equivalence of two candidate statements. An admitted proof is a kernel-checked fact that they state the same problem, and their clumps merge.',
   fidelity: 'Recorded facts about how much independent scrutiny the pinned statement has survived. The registry never judges a statement; these are what the log knows.',
   canonical: "The pinned type is Mathlib's own statement of the theorem - not a local translation of it.",
   clump: 'Statements proven equivalent by machine-checked proof form a clump; its weight counts distinct authors.',
@@ -135,6 +139,41 @@ const tip = (k) => TIP[k] ? ` title="${esc(TIP[k])}"` : '';
 const datasetHint = (S) => S.dataset === 'demo'
   ? 'This site is currently showing the <b>demo dataset</b>. If you followed a link to a live-registry entity, run <code>./seed.sh</code> and reload.'
   : 'This site is currently showing the <b>live registry</b>. If you followed a link from the demo walkthrough, run <code>./demo.sh</code> and reload.';
+
+// ── challenge windows and sealed readings ────────────────────────
+const fmtDay = (ts) => new Date(ts * 1000).toLocaleDateString(undefined,
+  { year: 'numeric', month: 'short', day: 'numeric' });
+
+// The proposal's currently relevant window, if any: the latest one whose
+// reveal deadline has not passed ("sealing" or "revealing"), else null.
+function activeRound(S, p) {
+  const now = Date.now() / 1000;
+  const rounds = (p.rounds || []).map(id => S.rounds?.[id]).filter(Boolean);
+  const live = rounds.filter(r => now < r.reveal_by);
+  if (!live.length) return null;
+  const r = live[live.length - 1];
+  return { ...r, phase: now < r.closes_at ? 'sealing' : 'revealing' };
+}
+
+// Seals on a proposal that have not been revealed yet.
+const pendingSeals = (S, p) => (p.seals || [])
+  .map(id => S.seals?.[id]).filter(s => s && !s.statement);
+
+// Two statements are mutually blind when each was committed (sealed - or,
+// unsealed, filed) before the other was revealed: neither author could
+// have seen the other's Lean. This is the pairwise fact behind a clump's
+// "written blind" count.
+function mutuallyBlind(x, y) {
+  const c = (s) => s.sealed_seq ?? s.filed_seq;
+  return c(x) < y.filed_seq && c(y) < x.filed_seq;
+}
+function blindPeersOf(S, st) {
+  const p = S.proposals?.[st.proposal];
+  return (p?.statements || [])
+    .filter(id => id !== st.id)
+    .map(id => S.statements[id])
+    .filter(o => o && o.author !== st.author && mutuallyBlind(st, o));
+}
 
 // Curation weight of a target: each curation counts 1 plus the curator's
 // admitted work, so taste from people with a verified record counts more.
@@ -207,6 +246,8 @@ function holeHistory(S, h) {
       case 'zk_route': case 'zk_submit': return e.hole === h.id;
       case 'split': return e.parent === h.id || (e.children || []).includes(h.id) || e.glue === h.id;
       case 'formalize': return h.statement && e.id === h.statement;
+      case 'seal_statement': return h.statement && S.statements[h.statement]?.seal === e.id;
+      case 'reveal_statement': return h.statement && e.statement === h.statement;
       case 'certify': return h.statement && e.statement === h.statement;
       case 'converge': case 'implies': return h.statement && (e.a === h.statement || e.b === h.statement);
       default: return false;

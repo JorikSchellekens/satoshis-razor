@@ -27,6 +27,25 @@ pub enum Event {
     /// `decl` proves a -> b. Together with the converse's absence this
     /// mechanically exposes "b is strictly weaker" - no adjudication needed.
     Implies { a: String, b: String, decl: String },
+    /// A challenge window on a proposal: a dated invitation to file *sealed*
+    /// candidate statements (hash commitments) until `closes_at`, then
+    /// reveal them by `reveal_by`. The window is a coordination signal, not
+    /// a gate - the registry never enforces it and a late seal or reveal
+    /// simply carries its own timestamps. What sealing buys is a checkable
+    /// fact: two statements each committed before the other was revealed
+    /// were written blind to each other, which turns the funnel's
+    /// independence assumption into a recorded fact.
+    OpenRound { id: String, proposal: String, author: String, closes_at: u64, reveal_by: u64, #[serde(default)] note: String },
+    /// A sealed candidate statement: sha256(file ‖ salt) of a statement
+    /// file the author keeps on their own machine - the same commitment
+    /// scheme as private proof submissions. Establishes when the reading
+    /// existed without showing it to the other formalizers.
+    SealStatement { id: String, proposal: String, author: String, commitment: String },
+    /// Opens a statement seal: the revealed file hashed to the commitment
+    /// (checked by the CLI before this event is appended), and the reading
+    /// it contains enters the funnel as candidate statement `statement` -
+    /// an ordinary Formalize, plus the provenance of its seal.
+    RevealStatement { seal: String, statement: String, author: String, decl: String, #[serde(default)] gloss: String, #[serde(default)] notes: String },
     /// A ratified hole: a pinned Lean statement waiting for a proof.
     RegisterHole {
         id: String,
@@ -44,6 +63,14 @@ pub enum Event {
         /// the lean-mathlib package - see mathlib-env.sh).
         #[serde(default)]
         env: Option<String>,
+        /// Set on a bridge hole: the two candidate statements whose
+        /// equivalence this hole pins. The CLI composes the pinned type
+        /// mechanically - `(a's decl) ↔ (b's decl)` - so an admitted proof
+        /// is a kernel-checked equivalence, and the two statements' clumps
+        /// merge. This is `converge` routed through the ordinary
+        /// submit/verify path: attributed, fundable, and checked.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bridge: Option<(String, String)>,
     },
     /// Stage 3: a split - one named way of reducing a parent hole to child
     /// holes plus a glue hole. The glue hole's pinned statement is exactly
@@ -216,6 +243,9 @@ impl Event {
         match self {
             Event::Propose { author, .. } => Some(author),
             Event::Formalize { author, .. } => Some(author),
+            Event::OpenRound { author, .. } => Some(author),
+            Event::SealStatement { author, .. } => Some(author),
+            Event::RevealStatement { author, .. } => Some(author),
             Event::Split { author, .. } => Some(author),
             Event::Repin { author, .. } => Some(author),
             Event::Upstream { by, .. } => Some(by),
@@ -258,6 +288,39 @@ pub struct Proposal {
     pub statements: Vec<String>,
     /// Derived: candidate statements grouped by machine-checked equivalence.
     pub clumps: Vec<Clump>,
+    /// Challenge windows opened on this proposal, in log order.
+    #[serde(default)]
+    pub rounds: Vec<String>,
+    /// Statement seals filed on this proposal, in log order (revealed or not).
+    #[serde(default)]
+    pub seals: Vec<String>,
+}
+
+/// A challenge window, as recorded on the log. Never enforced: it is a
+/// dated invitation, and the trust math (mutual blindness of seals) is
+/// computed from event order, not from these dates.
+#[derive(Serialize, Clone, Debug)]
+pub struct Round {
+    pub id: String,
+    pub proposal: String,
+    pub author: String,
+    pub closes_at: u64,
+    pub reveal_by: u64,
+    pub note: String,
+    pub opened_ts: u64,
+}
+
+/// A statement seal: a commitment to a reading that may or may not have
+/// been revealed yet. `statement` is filled when the reveal lands.
+#[derive(Serialize, Clone, Debug)]
+pub struct Seal {
+    pub id: String,
+    pub proposal: String,
+    pub author: String,
+    pub commitment: String,
+    pub seq: u64,
+    pub ts: u64,
+    pub statement: Option<String>,
 }
 
 /// A clump: candidate statements of one proposal proven pairwise equivalent.
@@ -274,6 +337,13 @@ pub struct Clump {
     pub weight: usize,
     pub dominant: bool,
     pub proven: bool,
+    /// The strongest independence fact on record: the size of the largest
+    /// set of distinct-author members that are pairwise mutually blind -
+    /// each sealed (or filed) before every other was revealed, so none
+    /// could have seen another's Lean. Weight counts *claimed* independence
+    /// (distinct authors); this counts *provable* independence.
+    #[serde(default)]
+    pub independent: usize,
 }
 
 #[derive(Serialize, Default, Clone, Debug)]
@@ -288,6 +358,17 @@ pub struct Statement {
     pub convergences: Vec<(String, String)>,         // other statement, decl
     pub implies: Vec<(String, String)>,              // weaker statement, decl
     pub implied_by: Vec<(String, String)>,           // stronger statement, decl
+    /// Log seq of the event that made this statement public (its Formalize,
+    /// or its RevealStatement). Blindness math reads event order, not walls.
+    #[serde(default)]
+    pub filed_seq: u64,
+    /// Log seq of the seal commitment, for sealed statements: proof the
+    /// reading existed - unseen - at that point in the log.
+    #[serde(default)]
+    pub sealed_seq: Option<u64>,
+    /// The seal this statement was revealed from, if it was sealed.
+    #[serde(default)]
+    pub seal: Option<String>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -321,6 +402,10 @@ pub struct Hole {
     pub allowed_axioms: Vec<String>,
     pub proposal: Option<String>,
     pub env: Option<String>,
+    /// Set on a bridge hole: the two statements whose equivalence it pins.
+    /// When it is solved, the two statements' clumps merge.
+    #[serde(default)]
+    pub bridge: Option<(String, String)>,
     pub status: String, // open | solved
     pub solved_by: Option<String>,
     /// Statement migrations, oldest first: (old type, new type, equivalence
@@ -377,6 +462,12 @@ pub struct Fidelity {
     /// kernel check. The strongest mechanical evidence a formalization is
     /// faithful: two people read the same words and their Lean agrees.
     pub converged: bool,
+    /// Provably independent authors in the clump: the largest set of
+    /// distinct-author members pairwise sealed before one another's
+    /// reveals. `authors` counts claimed independence; this counts what
+    /// the log can prove.
+    #[serde(default)]
+    pub independent: usize,
     /// Sanity certificates attached across the clump.
     pub certificates: usize,
     /// Wording migrations survived, each one a kernel-checked equivalence
@@ -534,6 +625,10 @@ pub struct Rig {
 pub struct State {
     pub proposals: BTreeMap<String, Proposal>,
     pub statements: BTreeMap<String, Statement>,
+    /// Challenge windows, by id.
+    pub rounds: BTreeMap<String, Round>,
+    /// Statement seals, by id - revealed and pending alike.
+    pub seals: BTreeMap<String, Seal>,
     pub holes: BTreeMap<String, Hole>,
     pub challenges: BTreeMap<String, Challenge>,
     pub rigs: BTreeMap<String, Rig>,
@@ -563,10 +658,12 @@ impl State {
     }
 
     fn apply(&mut self, entry: Entry) {
+        let (seq, ts) = (entry.seq, entry.ts);
         match entry.event {
             Event::Propose { id, title, body, author } => {
                 self.proposals.insert(id.clone(), Proposal {
                     id, title, body, author, statements: vec![], clumps: vec![],
+                    rounds: vec![], seals: vec![],
                 });
             }
             Event::Formalize { id, proposal, author, decl, notes, gloss } => {
@@ -577,6 +674,40 @@ impl State {
                     id, proposal, author, decl, notes, gloss,
                     certificates: vec![], convergences: vec![],
                     implies: vec![], implied_by: vec![],
+                    filed_seq: seq, sealed_seq: None, seal: None,
+                });
+            }
+            Event::OpenRound { id, proposal, author, closes_at, reveal_by, note } => {
+                if let Some(p) = self.proposals.get_mut(&proposal) {
+                    p.rounds.push(id.clone());
+                }
+                self.rounds.insert(id.clone(), Round {
+                    id, proposal, author, closes_at, reveal_by, note, opened_ts: ts,
+                });
+            }
+            Event::SealStatement { id, proposal, author, commitment } => {
+                if let Some(p) = self.proposals.get_mut(&proposal) {
+                    p.seals.push(id.clone());
+                }
+                self.seals.insert(id.clone(), Seal {
+                    id, proposal, author, commitment, seq, ts, statement: None,
+                });
+            }
+            Event::RevealStatement { seal, statement, decl, gloss, notes, .. } => {
+                // The statement inherits the seal's proposal and author: the
+                // sealed commitment is the priority claim, and the CLI
+                // checked the revealed file against it before appending.
+                let Some(s) = self.seals.get_mut(&seal) else { return };
+                let (proposal, author, sealed_seq) = (s.proposal.clone(), s.author.clone(), s.seq);
+                s.statement = Some(statement.clone());
+                if let Some(p) = self.proposals.get_mut(&proposal) {
+                    p.statements.push(statement.clone());
+                }
+                self.statements.insert(statement.clone(), Statement {
+                    id: statement, proposal, author, decl, notes, gloss,
+                    certificates: vec![], convergences: vec![],
+                    implies: vec![], implied_by: vec![],
+                    filed_seq: seq, sealed_seq: Some(sealed_seq), seal: Some(seal),
                 });
             }
             Event::Certify { statement, kind, decl, notes } => {
@@ -600,9 +731,9 @@ impl State {
                     st.implied_by.push((a, decl));
                 }
             }
-            Event::RegisterHole { id, title, statement, lean_type, allowed_axioms, proposal, env } => {
+            Event::RegisterHole { id, title, statement, lean_type, allowed_axioms, proposal, env, bridge } => {
                 self.holes.insert(id.clone(), Hole {
-                    id, title, statement, lean_type, allowed_axioms, proposal, env,
+                    id, title, statement, lean_type, allowed_axioms, proposal, env, bridge,
                     status: "open".into(), solved_by: None, repins: vec![],
                     fidelity: Fidelity::default(), upstreamed: None, superseded_by: vec![],
                     zk_routes: vec![], zk_submissions: vec![],
@@ -782,6 +913,25 @@ impl State {
                     touch(&mut people, author, seq);
                     people.get_mut(author).unwrap().statements.push(id.clone());
                 }
+                Event::OpenRound { author, .. } => {
+                    touch(&mut people, author, seq);
+                }
+                Event::SealStatement { id, proposal, author, .. } => {
+                    touch(&mut people, author, seq);
+                    people.get_mut(author).unwrap().submissions.push(
+                        (seq, id.clone(), proposal.clone(), "statement-seal".into(), "sealed".into()));
+                }
+                Event::RevealStatement { seal, statement, author, .. } => {
+                    touch(&mut people, author, seq);
+                    people.get_mut(author).unwrap().statements.push(statement.clone());
+                    for p in people.values_mut() {
+                        for s in p.submissions.iter_mut() {
+                            if s.1 == *seal && s.3 == "statement-seal" {
+                                s.4 = "revealed".into();
+                            }
+                        }
+                    }
+                }
                 Event::Submit { id, hole, solver, .. } => {
                     touch(&mut people, solver, seq);
                     people.get_mut(solver).unwrap().submissions.push(
@@ -937,6 +1087,33 @@ impl State {
     /// Group each proposal's candidate statements into clumps: connected
     /// components under machine-checked equivalence. Call after fold.
     pub fn aggregate_clumps(&mut self) {
+        // A solved bridge hole is a kernel-checked equivalence of its two
+        // statements: inject it as a convergence edge on both (the decl is
+        // the admitted proof), so clumps merge exactly as a converge event
+        // would - except this edge went through the verifier.
+        let bridge_edges: Vec<(String, String, String)> = self.holes.values()
+            .filter(|h| h.status == "solved")
+            .filter_map(|h| {
+                let (a, b) = h.bridge.clone()?;
+                let decl = h.solved_by.as_ref()
+                    .and_then(|sid| h.submissions.iter().find(|s| &s.id == sid))
+                    .map(|s| s.decl.clone())
+                    .unwrap_or_else(|| format!("bridge {}", h.id));
+                Some((a, b, decl))
+            })
+            .collect();
+        for (a, b, decl) in bridge_edges {
+            if let Some(st) = self.statements.get_mut(&a) {
+                if !st.convergences.iter().any(|(o, _)| o == &b) {
+                    st.convergences.push((b.clone(), decl.clone()));
+                }
+            }
+            if let Some(st) = self.statements.get_mut(&b) {
+                if !st.convergences.iter().any(|(o, _)| o == &a) {
+                    st.convergences.push((a.clone(), decl));
+                }
+            }
+        }
         for prop in self.proposals.values_mut() {
             let ids: Vec<String> = prop.statements.clone();
             if ids.is_empty() { continue; }
@@ -971,7 +1148,12 @@ impl State {
                     .collect();
                 let proven = self.holes.values().any(|h|
                     h.status == "solved" && members.contains(&h.statement));
-                Clump { members, weight: authors.len(), dominant: false, proven }
+                let meta: Vec<(String, u64, u64)> = members.iter()
+                    .filter_map(|m| self.statements.get(m))
+                    .map(|s| (s.author.clone(), s.sealed_seq.unwrap_or(s.filed_seq), s.filed_seq))
+                    .collect();
+                let independent = max_mutually_blind(&meta);
+                Clump { members, weight: authors.len(), dominant: false, proven, independent }
             }).collect();
             // dominant: unique heaviest clump with >= 2 independent members
             // (a singleton is never dominant)
@@ -1010,6 +1192,7 @@ impl State {
                     Fidelity {
                         authors: c.weight,
                         converged: c.weight >= 2,
+                        independent: c.independent,
                         certificates,
                         repins: h.repins.len(),
                         canonical: false,
@@ -1018,6 +1201,7 @@ impl State {
                 None => Fidelity {
                     authors: if self.statements.contains_key(&h.statement) { 1 } else { 0 },
                     converged: false,
+                    independent: if self.statements.contains_key(&h.statement) { 1 } else { 0 },
                     certificates: self.statements.get(&h.statement)
                         .map(|s| s.certificates.len()).unwrap_or(0),
                     repins: h.repins.len(),
@@ -1052,4 +1236,36 @@ impl State {
             }
         }
     }
+}
+
+/// The largest set of distinct-author statements that are pairwise
+/// mutually blind - each one committed (sealed) before every other was
+/// revealed, so neither author could have seen the other's Lean. Input is
+/// (author, commit_seq, reveal_seq) per statement; an unsealed statement
+/// has commit_seq == reveal_seq (its filing made it public instantly), so
+/// two unsealed statements are never provably blind to each other.
+///
+/// Exact over the first 16 members - clumps are small, and truncation can
+/// only undercount independence, never overstate it.
+fn max_mutually_blind(members: &[(String, u64, u64)]) -> usize {
+    let n = members.len().min(16);
+    if n == 0 {
+        return 0;
+    }
+    let blind = |x: &(String, u64, u64), y: &(String, u64, u64)| x.1 < y.2 && y.1 < x.2;
+    let mut best = 1;
+    for mask in 1u32..(1u32 << n) {
+        let idx: Vec<usize> = (0..n).filter(|i| mask & (1 << i) != 0).collect();
+        if idx.len() <= best {
+            continue;
+        }
+        let mut authors = std::collections::BTreeSet::new();
+        let ok = idx.iter().all(|&i| authors.insert(members[i].0.as_str()))
+            && idx.iter().enumerate().all(|(k, &i)|
+                idx[k + 1..].iter().all(|&j| blind(&members[i], &members[j])));
+        if ok {
+            best = idx.len();
+        }
+    }
+    best
 }
