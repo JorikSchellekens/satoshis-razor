@@ -79,7 +79,7 @@
 
 <footer>
   <div class="wrap">
-    <span>With the CLI installed, the command above publishes here directly, signed by your key.</span>
+    <span id="foot-hint">With the CLI installed, participation commands publish here directly, signed by your key.</span>
     <span class="right"><a href="download.html">get started</a> · <a href="frontier.html">← back to the frontier</a></span>
   </div>
 </footer>
@@ -235,6 +235,7 @@ loadData(S => {
   // command filled in so it can be pasted as-is.
   $('sec-attempt').style.display = '';
   if (h.env === 'mathlib') {
+    $('foot-hint').textContent = 'A locally admitted proof is still attributed: the verdict lands on your local log, and razor recheck lets anyone reproduce it.';
     $('attempt-note').textContent = 'checked on your own machine - this registry cannot verify Mathlib-environment proofs remotely yet';
     $('attempt-hint').innerHTML =
       `<p>Write the proof in a <code>.lean</code> file under
