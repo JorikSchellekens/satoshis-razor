@@ -27,7 +27,7 @@
   stated precisely in the Lean proof language. Anyone can attempt one, and a claimed solution is checked
   automatically by the Lean proof checker - accepting it requires no trust in whoever sent it.</p>
   <p class="lede">Holes are stated using the definitions of Mathlib, the Lean community's mathematical
-  library, so an admitted proof is one the rest of formal mathematics can build on. The registry itself is a
+  library, so an accepted proof is one the rest of formal mathematics can build on. The registry itself is a
   single append-only log of events; every page on this site is computed from that log.</p>
   <div class="stats" id="stats"></div>
 </div>
@@ -107,7 +107,7 @@
       <div><dt>bridge hole</dt>
         <dd>The equivalence of two candidate statements, pinned as a solvable hole in its own right. The
         statement is composed mechanically from the two declarations, and the proof goes through the same
-        kernel check as any other solve - attributed, fundable, and checked. An admitted bridge proof
+        kernel check as any other solve - attributed, fundable, and checked. A proven bridge
         merges the two readings' clumps.</dd></div>
       <div><dt>clump · dominant</dt>
         <dd>Statements proven equivalent form a clump. Its weight counts distinct authors: two people who
@@ -117,10 +117,11 @@
       <div><dt>hole</dt>
         <dd>A statement pinned for solving. It fixes the exact Lean statement a solution must prove,
         character for character, and the environment it is checked in (core Lean, or Mathlib).</dd></div>
-      <div><dt>submission</dt>
+      <div><dt>submission · admitted</dt>
         <dd>A claimed solution, checked automatically: the proof must have exactly the required statement,
-        contain no unfinished parts (Lean's <code>sorry</code>), and rely on no unapproved axioms. A failed
-        check is a rejection, and the rejection is recorded.</dd></div>
+        contain no unfinished parts (Lean's <code>sorry</code>), and rely on no unapproved axioms. A
+        submission that passes is <strong>admitted</strong> - the checker's word for accepted, used
+        everywhere on this site. A failed check is a rejection, and the rejection is recorded.</dd></div>
       <div><dt>split · glue</dt>
         <dd>Partial progress made public: a plan reducing a hole to smaller child holes, plus a glue hole
         whose statement is, mechanically, "the children jointly imply the parent". Each gap becomes its own
@@ -213,7 +214,7 @@
 <footer>
   <div class="wrap">
     <span>Satoshi's Razor — a registry for machine-checked mathematics and verified software.</span>
-    <span class="right"><a href="download.html">get started</a> · <code>./seed.sh</code> live registry · <code>./demo.sh</code> scripted walkthrough</span>
+    <span class="right"><a href="download.html">get started</a> · <code>./demo.sh</code> scripted walkthrough</span>
   </div>
 </footer>
 
@@ -233,6 +234,7 @@ loadData(S => {
     [backlogN, 'theorems awaiting formalization'],
     [holes.filter(h => h.status === 'open').length, 'holes open'],
     [holes.filter(h => h.status === 'solved').length, 'holes solved'],
+    [Object.values(S.proposals || {}).filter(p => activeRound(S, p)).length, 'challenge windows open'],
     [(S.curations || []).length, 'curations filed'],
     [holes.filter(h => (h.superseded_by || []).length).length, 'statements marked superseded'],
     [pool, 'credits in bounties'],

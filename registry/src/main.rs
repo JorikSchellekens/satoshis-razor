@@ -57,7 +57,12 @@ fn main() {
         "submit" => cmd_submit(&root, &log_path, &args),
         "repin" => cmd_repin(&root, &log_path, &args),
         "propose-batch" => cmd_propose_batch(&log_path, &args),
-        "cite" => cmd_cite(&log_path, args.get(1).map(String::as_str).unwrap_or("")),
+        // The id is positional, but the flag spellings every sibling command
+        // uses are accepted too.
+        "cite" => cmd_cite(&log_path, &opt(&args, "--submission")
+            .or_else(|| opt(&args, "--hole"))
+            .or_else(|| args.get(1).filter(|a| !a.starts_with("--")).cloned())
+            .unwrap_or_default()),
         "supersede" => append(&log_path, Event::Supersede {
             hole: req(&args, "--hole"), by: req(&args, "--by"),
             replacement: req(&args, "--replacement"),
@@ -700,7 +705,8 @@ fn cmd_repin(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
     ui::kv("new", &new_type);
     ui::kv("equiv", &equiv);
     let iff_type = format!("({new_type}) ↔ ({old_type})");
-    let v = verify::verify(&lean_dir, root_import, &iff_type, &equiv, &hole.allowed_axioms, None);
+    let module = find_decl_module(&lean_dir, root_import, &equiv);
+    let v = verify::verify(&lean_dir, root_import, &iff_type, &equiv, &hole.allowed_axioms, module.as_deref());
     ui::verdict(v.admitted, if v.admitted {
         "wordings are provably equivalent; hole repinned"
     } else {
@@ -913,8 +919,10 @@ fn cmd_verify(root: &PathBuf, log_path: &PathBuf, submission: &str) {
     // Pick the verification environment the hole was registered with.
     let (lean_dir, root_import) = env_of(root, hole);
     require_env_ready(&lean_dir, root_import);
+    let module = sub.module.clone()
+        .or_else(|| find_decl_module(&lean_dir, root_import, &sub.decl));
     let t0 = std::time::Instant::now();
-    let v = verify::verify(&lean_dir, root_import, &hole.lean_type, &sub.decl, &hole.allowed_axioms, sub.module.as_deref());
+    let v = verify::verify(&lean_dir, root_import, &hole.lean_type, &sub.decl, &hole.allowed_axioms, module.as_deref());
     let cost_ms = t0.elapsed().as_millis() as u64;
     ui::kv("axioms", &if v.axioms.is_empty() { ui::dim("none") } else { v.axioms.join(", ") });
     ui::kv("kernel", &format!("{cost_ms} ms"));
@@ -939,6 +947,11 @@ fn cmd_verify(root: &PathBuf, log_path: &PathBuf, submission: &str) {
             amount: pool,
             reason: format!("first admitted proof of {hole_id}, exactly as pinned"),
         });
+    }
+    // The rejection is recorded either way; the exit code lets scripts and
+    // CI read the verdict without parsing output.
+    if !v.admitted {
+        std::process::exit(1);
     }
 }
 
@@ -1014,13 +1027,19 @@ fn cmd_recheck(root: &PathBuf, log_path: &PathBuf, submission: &str) {
             ui::dim(&format!("- Ed25519 by @{}, event {claim_seq}", sub.solver))),
         Some(false) => format!("{} {}", ui::red("INVALID"),
             ui::dim("- the claim is not signed by the solver's registered key")),
-        None => ui::dim(&format!("none - @{} never registered an account (open participation)", sub.solver)),
+        None => ui::dim(&if state.accounts.contains_key(&sub.solver) {
+            format!("none - the claim predates @{}'s account registration (unsigned)", sub.solver)
+        } else {
+            format!("none - @{} has no registered account (open participation)", sub.solver)
+        }),
     });
     let (lean_dir, root_import) = env_of(root, hole);
     require_env_ready(&lean_dir, root_import);
+    let module = sub.module.clone()
+        .or_else(|| find_decl_module(&lean_dir, root_import, &sub.decl));
     let t0 = std::time::Instant::now();
     let v = verify::verify(&lean_dir, root_import, &hole.lean_type, &sub.decl,
-        &hole.allowed_axioms, sub.module.as_deref());
+        &hole.allowed_axioms, module.as_deref());
     ui::kv("axioms", &if v.axioms.is_empty() { ui::dim("none") } else { v.axioms.join(", ") });
     ui::kv("kernel", &format!("{} ms", t0.elapsed().as_millis()));
     ui::verdict(v.admitted, if v.admitted { "" } else { &v.detail });
@@ -1365,7 +1384,7 @@ fn cmd_status(log_path: &PathBuf) {
         let f = &h.fidelity;
         let certs = if f.certificates > 0 { format!(" · {} certificates", f.certificates) } else { String::new() };
         if f.converged {
-            println!("      {} {}", ui::green(&format!("⚖ {} independent formalizations, equivalence kernel-checked", f.authors)), ui::dim(&certs));
+            println!("      {} {}", ui::green(&format!("⚖ {} formalization authors, equivalence kernel-checked", f.authors)), ui::dim(&certs));
         } else if f.authors == 1 {
             println!("      {}", ui::dim(&format!("⚖ one formalization author - unconverged{certs}")));
         } else {
@@ -1570,6 +1589,14 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
                 cache = Some((key.0, key.1, json));
             }
             ("200 OK", "application/json", cache.as_ref().unwrap().2.clone().into_bytes())
+        } else if path == "/install.sh" {
+            // The installer lives at the repo root - the single source of
+            // truth CI and checkouts use. Serving a copy from site/ once let
+            // the two drift.
+            match std::fs::read(root.join("install.sh")) {
+                Ok(bytes) => ("200 OK", "text/plain", bytes),
+                Err(_) => ("404 Not Found", "text/plain", b"not found".to_vec()),
+            }
         } else {
             let rel = if path == "/" { "index.html" } else { path.trim_start_matches('/') };
             if rel.contains("..") {
@@ -1696,6 +1723,37 @@ fn stamp_meta(html: String, title: &str, desc: &str) -> String {
 // definitions it mentions, transitively.
 
 const LEAN_DECL_KEYWORDS: [&str; 6] = ["def ", "theorem ", "abbrev ", "structure ", "inductive ", "lemma "];
+
+/// The module that defines `decl` inside the package at `lean_dir`, so the
+/// checker can import it. The package builds every module under its glob,
+/// but the generated check file only imports the root module - a decl in a
+/// file nothing imports would otherwise be invisible to verification, and
+/// contributors should not need to know that.
+fn find_decl_module(lean_dir: &PathBuf, root_import: &str, decl: &str) -> Option<String> {
+    fn walk(dir: &PathBuf, lean_dir: &PathBuf, decl: &str) -> Option<String> {
+        for entry in std::fs::read_dir(dir).ok()?.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Some(m) = walk(&path, lean_dir, decl) {
+                    return Some(m);
+                }
+            } else if path.extension().is_some_and(|e| e == "lean") {
+                let mut idx = std::collections::BTreeMap::new();
+                scan_lean_file(&path, &mut idx);
+                if idx.contains_key(decl) {
+                    let rel = path.strip_prefix(lean_dir).ok()?.with_extension("");
+                    return Some(rel.components()
+                        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                        .collect::<Vec<_>>()
+                        .join("."));
+                }
+            }
+        }
+        None
+    }
+    walk(&lean_dir.join(root_import), lean_dir, decl)
+        .filter(|m| m != root_import)
+}
 
 fn lean_decl_index(root: &PathBuf) -> std::collections::BTreeMap<String, (String, String)> {
     let mut index = std::collections::BTreeMap::new();

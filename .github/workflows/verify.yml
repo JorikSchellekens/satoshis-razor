@@ -22,6 +22,10 @@ jobs:
         run: cargo build --release -p razor-registry
       - name: Audit every signature on the committed log
         run: ./target/release/razor verify-log
+      - name: Guard against a committed demo log
+        # demo.sh overwrites the log with the fictional walkthrough dataset;
+        # the live log starts by recognizing the Mathlib corpus.
+        run: head -1 registry/data/events.jsonl | grep -q '"id":"mathlib"'
       - name: Replay the live seed (kernel-checks every glue proof)
         run: ./seed.sh
       - name: Audit every signature on the replayed log

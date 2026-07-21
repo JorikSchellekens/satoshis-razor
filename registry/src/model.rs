@@ -956,6 +956,14 @@ impl State {
                     for p in people.values_mut() {
                         for s in p.submissions.iter_mut() {
                             if s.1 == *submission {
+                                // A re-verification supersedes the earlier
+                                // verdict: each submission counts once, by
+                                // its latest verdict.
+                                match s.4.as_str() {
+                                    "admitted" => p.solved = p.solved.saturating_sub(1),
+                                    "rejected" => p.rejected = p.rejected.saturating_sub(1),
+                                    _ => {}
+                                }
                                 s.4 = if *admitted { "admitted".into() } else { "rejected".into() };
                                 if *admitted { p.solved += 1 } else { p.rejected += 1 }
                             }

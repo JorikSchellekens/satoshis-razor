@@ -49,7 +49,7 @@
         <option value="clump">clump weight (independent authors)</option>
         <option value="splits">splits (registered reduction plans)</option>
         <option value="lineage">earlier wordings replaced</option>
-        <option value="convergence">independent formalizations</option>
+        <option value="convergence">formalization authors</option>
         <option value="subs">number of attempts</option>
         <option value="id">id</option>
       </select>
@@ -138,7 +138,7 @@ function card(S, h, sort) {
   const fidelity = f.canonical
     ? `<span class="badge gold"${tip('canonical')}>pins Mathlib's own statement</span>`
     : f.converged
-      ? `<span class="badge gold"${tip('fidelity')}>statement fidelity: ${f.authors} independent formalizations, equivalence kernel-checked</span>`
+      ? `<span class="badge gold"${tip('fidelity')}>statement fidelity: ${f.authors} formalization authors, equivalence kernel-checked</span>`
       : f.authors === 1
         ? `<span class="badge"${tip('fidelity')}>statement fidelity: one author, unconverged</span>`
         : `<span class="badge"${tip('fidelity')}>statement fidelity: pinned directly</span>`;

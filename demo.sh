@@ -204,7 +204,8 @@ $RAZOR curate --curator alice --target RZR-104 \
 $RAZOR curate --curator heidi --target RZR-106 \
   --note "idempotence is a good first hole for newcomers"
 $RAZOR submit --id SUB-104x --hole RZR-104 --solver mallory --decl Razor.Sorting.merge_sorted
-$RAZOR verify --submission SUB-104x
+# The rejection is the point of this step; verify exits nonzero on REJECTED.
+$RAZOR verify --submission SUB-104x || true
 
 # ─────────────────────────────────────────────────────────────────────
 step "Statement rot: the wording refactors, the hole survives (repin)"

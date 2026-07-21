@@ -40,19 +40,40 @@ everything locally:
 
 ```sh
 ./install.sh       # checks the toolchain, builds, puts razor / anvil-harness / zk-prover on PATH
-./seed.sh          # loads the live registry: real corpora and real open problems
-./demo.sh          # OR a scripted walkthrough of every mechanism, with fictional participants
-razor serve        # browse at http://localhost:8420
+razor serve        # browse the live registry at http://localhost:8420
+./demo.sh          # optional: a scripted walkthrough of every mechanism, with fictional participants
 ./mathlib-env.sh   # once, if you want to verify Mathlib-environment holes locally (several GB)
 ```
 
 `razor help` lists every command. The registry's entire state is one file,
-`registry/data/events.jsonl`. The site, the leaderboards, and every profile
-are computed from it. The log is committed to this repository, so anyone
+`registry/data/events.jsonl`, committed to this repository - a fresh clone
+already contains the live registry, so there is nothing to load. The site,
+the leaderboards, and every profile are computed from that file, anyone
 with a checkout can verify a citation without trusting a server, and CI
 compiles every pinned Mathlib statement on every push. (demo.sh overwrites
 the log locally; restore the real one with
-`git checkout registry/data/events.jsonl`.)
+`git checkout registry/data/events.jsonl`. `./seed.sh` regenerates the
+live dataset from scratch with fresh timestamps - a maintenance tool, not
+a setup step.)
+
+## Participate in the hosted registry
+
+The hosted site serves the log on this repository's master branch, so
+publishing your work is a pull request:
+
+1. Fork the repository and run `./install.sh`.
+2. Optionally run `razor account new` so your later events are signed.
+3. Work with the CLI as usual - `razor formalize`, `razor seal-statement`,
+   `razor submit`, `razor verify`, and so on. Every command appends to your
+   local `registry/data/events.jsonl`.
+4. Commit the appended events together with any Lean files they reference,
+   and open a pull request against master.
+
+CI re-checks every signature on the log for every pull request, and a
+maintainer re-runs the kernel checks (`razor recheck`) before merging.
+Once merged, the hosted site updates within a few minutes. Order on the
+shared log is the order after the merge; for sealed readings that is the
+order the independence facts are computed from.
 
 ## What is in the registry
 

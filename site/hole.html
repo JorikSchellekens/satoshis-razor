@@ -72,8 +72,8 @@
 
 <footer>
   <div class="wrap">
-    <span>To attempt it: write the proof, then <code>razor submit</code> and <code>razor verify</code>.</span>
-    <span class="right"><a href="frontier.html">← back to the frontier</a></span>
+    <span id="attempt-hint">To attempt it: write the proof, then <code>razor submit</code> and <code>razor verify</code>.</span>
+    <span class="right"><a href="download.html">get started</a> · <a href="frontier.html">← back to the frontier</a></span>
   </div>
 </footer>
 
@@ -130,7 +130,7 @@ loadData(S => {
         f.canonical
           ? `<span style="color:var(--gold)">pins Mathlib's own statement</span> — the pinned type is the home library's canonical wording of this theorem, not a local translation; there is no fidelity gap to bridge`
           : f.converged
-            ? `<span class="ok">${f.authors} independent formalizations, proven equivalent by kernel check</span> — two people read the same words and their Lean agrees, the strongest mechanical evidence the statement is faithful`
+            ? `<span class="ok">${f.authors} formalization authors, proven equivalent by kernel check</span> — different people read the same words and their Lean agrees; the strongest mechanical evidence the statement is faithful`
             : f.authors === 1
               ? 'one formalization author, unconverged — no independent formalization has been proven equivalent yet; filing one is attributed work'
               : 'pinned directly, without a formalization trail on the log',
@@ -223,6 +223,16 @@ loadData(S => {
   }
 
   $('history').innerHTML = timeline(holeHistory(S, h));
+
+  // Attempt hint, specific to the hole's verification environment.
+  $('attempt-hint').innerHTML = h.env === 'mathlib'
+    ? `To attempt it: write the proof in any <code>.lean</code> file under
+       <code>lean-mathlib/RazorMathlib/</code>, then <code>razor submit</code> and
+       <code>razor verify</code>. Verifying needs the Mathlib environment once:
+       <code>./mathlib-env.sh</code> (several GB).`
+    : `To attempt it: write the proof in any <code>.lean</code> file under
+       <code>lean/Razor/</code>, then <code>razor submit</code> and <code>razor verify</code> —
+       the verifier finds the declaration wherever it is defined.`;
 });
 </script>
 </body>

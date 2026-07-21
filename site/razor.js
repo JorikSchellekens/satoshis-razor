@@ -11,11 +11,18 @@ const NAV = [
   ['download.html', 'get started'],
 ];
 
+const REPO = 'https://github.com/jorikschellekens/satoshis-razor';
+
 function renderNav() {
   const here = location.pathname.split('/').pop() || 'index.html';
   const el = document.querySelector('nav.pages');
   if (el) el.innerHTML = NAV.map(([href, label]) =>
     `<a href="${href}" class="${href === here ? 'here' : ''}">${label}</a>`).join('');
+  // Every page links the source: the site is computed from the repository's
+  // log, and participating means sending a pull request to it.
+  const right = document.querySelector('footer .right');
+  if (right && !right.querySelector('a[href^="https://github"]'))
+    right.insertAdjacentHTML('beforeend', ` · <a href="${REPO}">source on GitHub</a>`);
 }
 
 function loadData(render) {
@@ -278,13 +285,27 @@ function timeline(events) {
   }).join('') + `</div>`;
 }
 
-function renderLedgerInto(id, events) {
+function renderLedgerInto(id, events, limit = 100) {
   const el = $(id);
   if (!el) return;
-  el.innerHTML = events.map(e => {
+  const row = e => {
     const { seq, type, detail } = evLine(e);
     let k = type;
     if (type === 'verdict') k += `-${e.admitted}`;
     return `<div class="l"><span class="seq">${seq}</span><span class="k ${esc(type)} ${esc(k)}">${esc(type)}</span><span>${esc(detail)}</span></div>`;
-  }).join('');
+  };
+  // The whole log on one page is thousands of lines; show the recent tail
+  // and expand on demand. The full file is always one click away anyway
+  // (registry/data/events.jsonl in the repository).
+  const all = el.dataset.expanded === '1' || events.length <= limit;
+  const shown = all ? events : events.slice(-limit);
+  const expander = all ? '' :
+    `<div class="l"><span class="seq">…</span><span class="k"></span><span><a href="#" id="${id}-more">${(events.length - shown.length).toLocaleString()} earlier events collapsed — show the whole log</a></span></div>`;
+  el.innerHTML = expander + shown.map(row).join('');
+  const more = $(id + '-more');
+  if (more) more.onclick = (ev) => {
+    ev.preventDefault();
+    el.dataset.expanded = '1';
+    renderLedgerInto(id, events, limit);
+  };
 }

@@ -40,27 +40,29 @@
     <div class="overview">
       <div class="card">
         <h4>1 · The cryptographic proof</h4>
-        <p>A zero-knowledge circuit is a set of equations (here, 829 of them). A valid Groth16 proof
-        establishes one thing: the prover knows values that satisfy all of the equations. It does not reveal
-        those values, and it cannot be forged — a tampered proof fails verification, as mallory's does
-        below.</p>
+        <p>A zero-knowledge circuit is a set of equations (the demo's sorting circuit has 829 of them).
+        A valid Groth16 proof establishes one thing: the prover knows values that satisfy all of the
+        equations. It does not reveal those values, and it cannot be forged — a tampered proof fails
+        verification, as the demo dataset's mallory finds out.</p>
       </div>
       <div class="card">
         <h4>2 · The bridge: what the equations mean</h4>
         <p>Satisfying a set of equations only matters if the equations say the right thing. Each route
-        carries a bridge tying its circuit to the hole's pinned statement. The route below carries a
-        <strong>theorem bridge</strong>: <code>Razor.Zk.network_sound</code> (solved hole ZKS-001 on
-        <a href="frontier.html">the frontier</a>), a kernel-checked proof that any values satisfying the
-        equations really do describe a correctly sorted copy of the hidden list. This approach — prove the
-        circuit's meaning in Lean rather than trusting its author — comes from the zkGolf project.</p>
+        carries a bridge tying its circuit to the hole's pinned statement. The strongest kind is a
+        <strong>theorem bridge</strong>, itself a kernel-checked proof. The demo dataset
+        (<code>./demo.sh</code>) shows one: <code>Razor.Zk.network_sound</code>, proving that any
+        values satisfying its sorting circuit really do describe a correctly sorted copy of the hidden
+        list. This approach — prove the circuit's meaning in Lean rather than trusting its author —
+        comes from the zkGolf project.</p>
       </div>
       <div class="card">
         <h4>3 · What is not yet covered</h4>
-        <p>Three known gaps, stated plainly. The Lean model uses ordinary integers while the circuit uses
-        modular arithmetic; the proof that this difference is harmless is an open proposal (PRP-200). The
-        hash function used for commitments is a simplified one, fine for a demonstration but not audited for
-        production. And the cryptographic setup was generated from a fixed, public seed so that anyone can
-        reproduce it; a real deployment would generate it in a multi-party ceremony.</p>
+        <p>Three known gaps in the demo route, stated plainly. Its Lean model uses ordinary integers
+        while the circuit uses modular arithmetic; the proof that this difference is harmless is left
+        open (the demo files it as proposal PRP-200). The hash function used for commitments is a
+        simplified one, fine for a demonstration but not audited for production. And the cryptographic
+        setup was generated from a fixed, public seed so that anyone can reproduce it; a real
+        deployment would generate it in a multi-party ceremony.</p>
       </div>
     </div>
   </div>

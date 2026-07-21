@@ -31,20 +31,29 @@
   <div class="wrap">
     <div class="sec-head"><h3>Install</h3></div>
     <div class="prose">
-      <div class="codeblock">curl -sSf http://localhost:8420/install.sh | bash
-<span class="c"># or, from a checkout:</span>
-./install.sh</div>
+      <div class="codeblock">curl -sSf <span id="install-origin">http://localhost:8420</span>/install.sh | bash
+<span class="c"># or, from a clone of the repository:</span>
+git clone https://github.com/jorikschellekens/satoshis-razor
+cd satoshis-razor &amp;&amp; ./install.sh</div>
+      <script>
+        // The command should name this page's own host, wherever it is served.
+        if (location.protocol.startsWith('http'))
+          document.getElementById('install-origin').textContent = location.origin;
+      </script>
       <p>The script checks for <strong>git</strong> and <strong>rust</strong> (via rustup); installs
       <strong>elan</strong> (the Lean toolchain manager) and the <strong>wasm32</strong> compile target if they are missing;
       builds everything; and links the three tools into <code>~/.cargo/bin</code>.
       <a href="install.sh">Read the script before you run it</a> — you should not have to trust this page's word
-      about what it does.</p>
+      about what it does. The source of everything, this site included, is
+      <a href="https://github.com/jorikschellekens/satoshis-razor">github.com/jorikschellekens/satoshis-razor</a>.</p>
 
       <h4>Host the registry locally</h4>
-      <div class="codeblock">./seed.sh     <span class="c"># the live registry: real corpora, real open problems (or ./demo.sh for the walkthrough)</span>
-razor serve   <span class="c"># browse it at http://localhost:8420</span></div>
-      <p><code>razor serve</code> re-derives <code>data.json</code> from the log on every request - append an
-      event from the CLI and every open page updates within a few seconds.</p>
+      <div class="codeblock">razor serve   <span class="c"># browse it at http://localhost:8420</span></div>
+      <p>The clone already contains the live log (<code>registry/data/events.jsonl</code>), so there is
+      nothing to load: <code>razor serve</code> re-derives <code>data.json</code> from it on every
+      request - append an event from the CLI and every open page updates within a few seconds. To see
+      the scripted walkthrough with fictional participants instead, run <code>./demo.sh</code> first
+      (and restore afterwards with <code>git checkout registry/data/events.jsonl</code>).</p>
 
       <h4>What you have afterwards</h4>
       <p>Three commands on your PATH (linked into <code>~/.cargo/bin</code>, so a rebuild updates them in
@@ -60,11 +69,47 @@ site/data.json              <span class="c"># everything above, folded into one 
 
 <section>
   <div class="wrap">
+    <div class="sec-head"><h3>Get your events onto the public registry</h3><span class="note">the hosted site serves the log on the repository's master branch</span></div>
+    <div class="prose">
+      <p>Every <code>razor</code> command appends to your local copy of
+      <code>registry/data/events.jsonl</code>. The public registry at
+      <a href="https://razor.mempoolsurfer.com">razor.mempoolsurfer.com</a> serves the copy of that
+      file on the master branch of
+      <a href="https://github.com/jorikschellekens/satoshis-razor">github.com/jorikschellekens/satoshis-razor</a>.
+      So publishing your work is a pull request:</p>
+      <div class="codeblock"><span class="c"># fork the repository on GitHub, then work in your fork</span>
+razor account new           <span class="c"># optional but recommended: your later events are signed</span>
+<span class="c"># … razor seal-statement / formalize / submit / verify / … as documented on this page …</span>
+git add registry/data/events.jsonl lean/ lean-mathlib/
+git commit -m "my events"   <span class="c"># the appended events + any Lean files they reference</span>
+<span class="c"># open a pull request against master</span></div>
+      <p>CI re-checks every signature on the log for every pull request, and a maintainer re-runs the
+      kernel checks (<code>razor recheck</code>) before merging. Once the pull request merges, the
+      hosted site updates within a few minutes. Your position on the shared log is your events' order
+      after the merge — for sealed readings that is the order that the blindness facts are computed
+      from, so a seal establishes independence as long as it merges before the other readings'
+      reveals.</p>
+      <p>Two things to avoid in a pull request. Do not commit a log produced by
+      <code>./demo.sh</code> — that is the fictional walkthrough dataset. And do not run
+      <code>./seed.sh</code> before contributing — it regenerates the whole log from scratch with
+      fresh timestamps and signatures, so your diff would rewrite history instead of appending to it.
+      The clone already contains the live log; append to it as it is. If you ran either script,
+      restore first: <code>git checkout registry/data/events.jsonl</code>.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
     <div class="sec-head"><h3>Solve your first hole</h3><span class="note">the whole loop, five commands</span></div>
     <div class="prose">
       <p>The demo dataset keeps two holes open for exactly this purpose: RZR-104 (merge preserves
       sortedness) and RZR-105 (merge preserves counts). Run <code>./demo.sh</code>, prove one in
       <code>lean/Razor/Holes/Open.lean</code> (replace the <code>sorry</code>), then:</p>
+      <p>Proofs can also live in a new file: put any <code>.lean</code> file under
+      <code>lean/Razor/</code> (or <code>lean-mathlib/RazorMathlib/</code> for Mathlib-environment
+      holes) - the build picks it up automatically, and the verifier finds the declaration wherever
+      it is defined.</p>
       <div class="codeblock"><span class="c"># check your proof builds</span>
 cd lean &amp;&amp; lake build &amp;&amp; cd ..
 
@@ -126,7 +171,9 @@ razor verify --submission SUB-glue</div>
       Handles without accounts can still do everything - their events are simply marked as unsigned.</p>
       <p>Verification treats a submission as untrusted code, because Lean elaboration can run programs: the
       checker runs with network access denied (<code>sandbox-exec</code> on macOS, <code>bwrap</code> on
-      Linux) and is killed after a time limit.</p>
+      Linux) and is killed after a time limit. Linux does not ship <code>bwrap</code> by default —
+      install it with <code>sudo apt install bubblewrap</code>; without it the checker warns and runs
+      unsandboxed.</p>
 
       <h4>Proofs that use Mathlib</h4>
       <p>Holes registered with <code>--env mathlib</code> pin statements written with Mathlib's definitions

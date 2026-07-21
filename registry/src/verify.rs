@@ -47,7 +47,13 @@ pub fn verify(
         .stderr(std::process::Stdio::piped());
     let timeout_s: u64 = std::env::var("RAZOR_VERIFY_TIMEOUT")
         .ok().and_then(|v| v.parse().ok()).unwrap_or(300);
-    let mut child = cmd.spawn().expect("run checker");
+    let mut child = cmd.spawn().unwrap_or_else(|e| {
+        let _ = std::fs::remove_file(&path);
+        crate::ui::die(&format!(
+            "cannot run the Lean toolchain ({}: {e})\n  install elan (./install.sh does), or add ~/.elan/bin to PATH, then retry",
+            cmd.get_program().to_string_lossy()
+        ));
+    });
     let start = std::time::Instant::now();
     let out = loop {
         match child.try_wait().expect("wait on checker") {
@@ -143,7 +149,11 @@ fn checker_command(lean_dir: &std::path::Path) -> Command {
             }
         }
         eprintln!("  {} {}", crate::ui::gold("⚠"),
-            crate::ui::dim("no sandbox found (sandbox-exec / bwrap) - checker runs unsandboxed"));
+            crate::ui::dim(if cfg!(target_os = "linux") {
+                "no sandbox found - checker runs unsandboxed (fix: sudo apt install bubblewrap)"
+            } else {
+                "no sandbox found (sandbox-exec / bwrap) - checker runs unsandboxed"
+            }));
     }
     let mut c = Command::new("lake");
     c.args(["env", "lean", ".razor-check.lean"]);
