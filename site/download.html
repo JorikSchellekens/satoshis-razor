@@ -40,9 +40,11 @@ cd satoshis-razor &amp;&amp; ./install.sh</div>
         if (location.protocol.startsWith('http'))
           document.getElementById('install-origin').textContent = location.origin;
       </script>
-      <p>The script checks for <strong>git</strong> and <strong>rust</strong> (via rustup); installs
-      <strong>elan</strong> (the Lean toolchain manager) and the <strong>wasm32</strong> compile target if they are missing;
-      builds everything; and links the three tools into <code>~/.cargo/bin</code>.
+      <p>The script checks for <strong>git</strong>; installs <strong>rust</strong> (via rustup),
+      <strong>elan</strong> (the Lean toolchain manager), and the <strong>wasm32</strong> compile target
+      if they are missing; builds everything; and links the three tools into <code>~/.cargo/bin</code>.
+      It clones into <code>./satoshis-razor</code>, and <code>razor</code> runs from inside that
+      checkout. (The demo and zk walkthrough additionally need <strong>python3</strong>.)
       <a href="install.sh">Read the script before you run it</a> — you should not have to trust this page's word
       about what it does. The source of everything, this site included, is
       <a href="https://github.com/jorikschellekens/satoshis-razor">github.com/jorikschellekens/satoshis-razor</a>.</p>
@@ -99,7 +101,9 @@ razor submit --id SUB-you --hole FLT-RED --solver you \
     <div class="sec-head"><h3>Solve your first hole</h3><span class="note">the whole loop, five commands</span></div>
     <div class="prose">
       <p>The demo dataset keeps two holes open for exactly this purpose: RZR-104 (merge preserves
-      sortedness) and RZR-105 (merge preserves counts). Run <code>./demo.sh</code>, prove one in
+      sortedness) and RZR-105 (merge preserves counts). They exist only in your clone's local log,
+      so these commands take <code>--local</code> - practice stays on your machine, and the public
+      registry never sees it. Run <code>./demo.sh</code>, prove one in
       <code>lean/Razor/Holes/Open.lean</code> (replace the <code>sorry</code>), then:</p>
       <p>Proofs can also live in a new file: put any <code>.lean</code> file under
       <code>lean/Razor/</code> (or <code>lean-mathlib/RazorMathlib/</code> for Mathlib-environment
@@ -109,28 +113,30 @@ razor submit --id SUB-you --hole FLT-RED --solver you \
 cd lean &amp;&amp; lake build &amp;&amp; cd ..
 
 <span class="c"># submit and verify (the kernel is the referee)</span>
-razor submit --id SUB-me --hole RZR-104 \
+razor submit --local --id SUB-me --hole RZR-104 \
   --solver you --decl Razor.Sorting.merge_sorted
-razor verify --submission SUB-me
-
-<span class="c"># regenerate the site</span>
-razor export --out site/data.json</div>
+razor verify --local --submission SUB-me</div>
+      <p>Every open page of your local <code>razor serve</code> updates within a few seconds of a
+      verdict - there is no export step.</p>
 
       <h4>Prefer to work in private?</h4>
       <div class="codeblock"><span class="c"># commit a hash first (priority without exposure) …</span>
 razor seal --file my-proof.lean --salt my-secret
-razor commit --id SUB-me --hole RZR-104 --solver you --commitment &lt;hash&gt;
+razor commit --local --id SUB-me --hole RZR-104 --solver you --commitment &lt;hash&gt;
 <span class="c"># … reveal when ready</span>
-razor reveal --submission SUB-me --file my-proof.lean \
+razor reveal --local --submission SUB-me --file my-proof.lean \
   --salt my-secret --decl Razor.Private.You.merge_sorted
 
 <span class="c"># or go full zero-knowledge: solve through a hole's zk route (see the zk page)</span>
 zk-prover prove --list 42,7,255,7
-razor zk-submit --id SUB-me-zk --hole ZKH-001 --route ZKR-001 \
+razor zk-submit --local --id SUB-me-zk --hole ZKH-001 --route ZKR-001 \
   --solver you --public &lt;hex&gt; --proof &lt;hex&gt;</div>
+      <p class="note">On the public registry, commit-reveal works without <code>--local</code> too:
+      <code>razor commit</code> posts the hash there, and <code>razor submit --file</code> reveals
+      when you are ready.</p>
 
       <h4>Work on the live registry</h4>
-      <p>The live registry (<code>./seed.sh</code>) carries real open problems from the Lean community's
+      <p>The live registry - this one - carries real open problems from the Lean community's
       current frontier. Most are still proposals waiting for a formal statement; the Erdos-Straus
       conjecture already has one pinned hole per environment (ES-001 in core Lean, ES-002 in Mathlib's
       definitions), and Fermat's Last Theorem is pinned in core Lean (FLT-000) with two registered splits
@@ -145,14 +151,14 @@ razor zk-submit --id SUB-me-zk --hole ZKH-001 --route ZKR-001 \
       <code>sorry</code> in the gaps - register the gaps as holes and the reduction as a split. The CLI
       composes the glue statement mechanically from the pinned types, so there is nothing to get subtly
       wrong:</p>
-      <div class="codeblock"><span class="c"># state each gap as its own hole …</span>
+      <div class="codeblock"><span class="c"># state each gap as its own hole … (the CLI elaborates the statement before pinning)</span>
 razor hole --id MY-LEMMA-1 --title "..." --lean-type "..."
 <span class="c"># … tie them to the parent; this pins MY-SPLIT-glue to (lemma 1) → … → parent</span>
-razor split --id MY-SPLIT --parent RZR-104 --author you \
-  --child MY-LEMMA-1 --note "induction on the left list"
+razor split --id MY-SPLIT --parent FLT-000 --author you \
+  --child MY-LEMMA-1 --note "why this reduction"
 <span class="c"># prove the glue like any hole - checkable while every child is still open</span>
-razor submit --id SUB-glue --hole MY-SPLIT-glue --solver you --decl You.my_glue
-razor verify --submission SUB-glue</div>
+razor submit --id SUB-glue --hole MY-SPLIT-glue --solver you \
+  --decl You.my_glue --file glue.lean</div>
       <p>When all children and the glue are admitted, the split reads <em>complete</em>: the parent is
       provable by composition, which in your original file is just replacing each <code>sorry</code> with
       the admitted proof. If the plan turns out wrong, register a better split next to it - splits are
@@ -160,7 +166,9 @@ razor verify --submission SUB-glue</div>
 
       <h4>Accounts, signatures, and the sandbox</h4>
       <p><code>razor account new</code> generates an Ed25519 keypair: the public key goes on the log as your
-      handle's identity, the signing key stays on your machine (<code>registry/data/keys/</code>). From then
+      handle's identity, the signing key stays on your machine, in <code>~/.config/razor/keys/</code> -
+      outside the clone, so no script or checkout surgery can touch it. <strong>Back that file up</strong>:
+      it signs everything you do and cannot be regenerated. From then
       on every event you author is signed automatically, the CLI refuses to append events in a registered
       handle's name without its key, and <code>razor verify-log</code> re-checks every signature on the log.
       Handles without accounts can still do everything - their events are simply marked as unsigned.</p>

@@ -70,9 +70,16 @@
   </div>
 </section>
 
+<section id="sec-attempt" style="display:none">
+  <div class="wrap">
+    <div class="sec-head"><h3>Attempt it</h3><span class="note" id="attempt-note"></span></div>
+    <div class="prose" id="attempt-hint"></div>
+  </div>
+</section>
+
 <footer>
   <div class="wrap">
-    <span id="attempt-hint">To attempt it: write the proof, then <code>razor submit</code> and <code>razor verify</code>.</span>
+    <span>With the CLI installed, the command above publishes here directly, signed by your key.</span>
     <span class="right"><a href="download.html">get started</a> · <a href="frontier.html">← back to the frontier</a></span>
   </div>
 </footer>
@@ -224,15 +231,25 @@ loadData(S => {
 
   $('history').innerHTML = timeline(holeHistory(S, h));
 
-  // Attempt hint, specific to the hole's verification environment.
-  $('attempt-hint').innerHTML = h.env === 'mathlib'
-    ? `To attempt it: write the proof in any <code>.lean</code> file under
-       <code>lean-mathlib/RazorMathlib/</code>, then <code>razor submit</code> and
-       <code>razor verify</code>. Verifying needs the Mathlib environment once:
-       <code>./mathlib-env.sh</code> (several GB).`
-    : `To attempt it: write the proof in any <code>.lean</code> file under
-       <code>lean/Razor/</code>, then <code>razor submit</code> and <code>razor verify</code> —
-       the verifier finds the declaration wherever it is defined.`;
+  // Attempt hint, specific to the hole's verification environment, with the
+  // command filled in so it can be pasted as-is.
+  $('sec-attempt').style.display = '';
+  if (h.env === 'mathlib') {
+    $('attempt-note').textContent = 'checked on your own machine - this registry cannot verify Mathlib-environment proofs remotely yet';
+    $('attempt-hint').innerHTML =
+      `<p>Write the proof in a <code>.lean</code> file under
+       <code>lean-mathlib/RazorMathlib/</code> in your clone. Verification needs the Mathlib
+       environment once: <code>./mathlib-env.sh</code> (several GB). Then:</p>
+       <div class="codeblock">razor submit --local --id SUB-you --hole ${esc(h.id)} --solver you --decl Your.Lean.Name
+razor verify --local --submission SUB-you</div>`;
+  } else {
+    $('attempt-note').textContent = 'one command - the kernel check runs here and the verdict comes back';
+    $('attempt-hint').innerHTML =
+      `<p>Write the proof in a <code>.lean</code> file — any file; the verifier finds the
+       declaration wherever it is defined. Then:</p>
+       <div class="codeblock">razor submit --id SUB-you --hole ${esc(h.id)} --solver you \\
+  --decl Your.Lean.Name --file your-proof.lean</div>`;
+  }
 });
 </script>
 </body>

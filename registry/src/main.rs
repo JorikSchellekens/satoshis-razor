@@ -46,15 +46,25 @@ fn main() {
         "implies" => append(&log_path, Event::Implies {
             a: req(&args, "--a"), b: req(&args, "--b"), decl: req(&args, "--decl"),
         }),
-        "hole" => append(&log_path, Event::RegisterHole {
-            id: req(&args, "--id"), title: req(&args, "--title"),
-            statement: opt(&args, "--statement").unwrap_or_default(),
-            lean_type: req(&args, "--lean-type"),
-            allowed_axioms: multi(&args, "--allow-axiom"),
-            proposal: opt(&args, "--proposal"),
-            env: opt(&args, "--env"),
-            bridge: None,
-        }),
+        "hole" => {
+            let lean_type = req(&args, "--lean-type");
+            let env = opt(&args, "--env");
+            // A pin is permanent, so catch a malformed statement now, not
+            // at the first submission: elaborate the type in the hole's
+            // environment when the toolchain is available.
+            if !has_flag(&args, "--unchecked") {
+                precheck_lean_type(&root, env.as_deref(), &lean_type);
+            }
+            append(&log_path, Event::RegisterHole {
+                id: req(&args, "--id"), title: req(&args, "--title"),
+                statement: opt(&args, "--statement").unwrap_or_default(),
+                lean_type,
+                allowed_axioms: multi(&args, "--allow-axiom"),
+                proposal: opt(&args, "--proposal"),
+                env,
+                bridge: None,
+            });
+        }
         "round" => cmd_round(&log_path, &args),
         "seal-statement" => cmd_seal_statement(&log_path, &args),
         "reveal-statement" => cmd_reveal_statement(&log_path, &args),
@@ -70,8 +80,13 @@ fn main() {
             .or_else(|| opt(&args, "--hole"))
             .or_else(|| args.get(1).filter(|a| !a.starts_with("--")).cloned())
             .unwrap_or_default()),
+        // The filer flag is --author like every sibling command; --by is
+        // kept as an alias (it is the event's field name on the log).
         "supersede" => append(&log_path, Event::Supersede {
-            hole: req(&args, "--hole"), by: req(&args, "--by"),
+            hole: req(&args, "--hole"),
+            by: opt(&args, "--author").or_else(|| opt(&args, "--by")).unwrap_or_else(|| {
+                ui::die("missing --author (who files the mark; --by works too)");
+            }),
             replacement: req(&args, "--replacement"),
             note: opt(&args, "--note").unwrap_or_default(),
         }),
@@ -89,8 +104,12 @@ fn main() {
             curator: req(&args, "--curator"), target: req(&args, "--target"),
             note: opt(&args, "--note").unwrap_or_default(),
         }),
+        // --target is canonical (a bounty can fund a challenge too);
+        // --hole is accepted because it is what people type.
         "fund" => append(&log_path, Event::Fund {
-            target: req(&args, "--target"),
+            target: opt(&args, "--target").or_else(|| opt(&args, "--hole")).unwrap_or_else(|| {
+                ui::die("missing --target (the hole or challenge the bounty attaches to)");
+            }),
             amount: req(&args, "--amount").parse().expect("--amount"),
             funder: req(&args, "--funder"),
             arch: opt(&args, "--arch"),
@@ -294,15 +313,19 @@ fn ask(prompt: &str, default: Option<&str>) -> String {
 fn cmd_account(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
     match args.get(1).map(String::as_str) {
         Some("new") => {
+            use std::io::IsTerminal;
             let state = State::fold(load(log_path));
+            // Without a terminal there is nobody to re-prompt: a bad or
+            // missing handle is fatal, not a retry loop.
+            let scripted = !std::io::stdin().is_terminal();
             let handle = loop {
                 let h = opt(args, "--handle").unwrap_or_else(|| ask("handle (lowercase, dashes ok):", None));
                 if h.is_empty() || !h.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
                     eprintln!("  {} handles are lowercase letters, digits, and dashes", ui::red("✕"));
-                    if opt(args, "--handle").is_some() { std::process::exit(2); }
+                    if scripted || opt(args, "--handle").is_some() { std::process::exit(2); }
                 } else if state.accounts.contains_key(&h) {
                     eprintln!("  {} '{h}' is taken", ui::red("✕"));
-                    if opt(args, "--handle").is_some() { std::process::exit(2); }
+                    if scripted || opt(args, "--handle").is_some() { std::process::exit(2); }
                 } else {
                     break h;
                 }
@@ -319,10 +342,14 @@ fn cmd_account(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
             // cannot be impersonated (razor verify-log checks the chain).
             let sk = generate_signing_key();
             let pubkey = hex_of(sk.verifying_key().as_bytes());
-            let keydir = root.join("registry/data/keys");
+            // The key goes to the per-user directory (~/.config/razor/keys
+            // unless RAZOR_KEYS_DIR overrides it): it is your identity, so
+            // it must survive demo runs and even deleting the clone.
+            let keydir = keys_dirs(log_path).into_iter().next().expect("keys dir");
             std::fs::create_dir_all(&keydir).ok();
             let keyfile = keydir.join(format!("{handle}.secret"));
             std::fs::write(&keyfile, hex_of(&sk.to_bytes())).expect("write key");
+            let _ = root;
 
             let sigil = sigil_of(&handle);
             append(log_path, Event::RegisterAccount {
@@ -335,6 +362,8 @@ fn cmd_account(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
                  format!("{sigil}  {} {}", ui::bold(&display), ui::dim(&format!("(@{handle})")))),
                 ("welcome to the frontier.".into(), "welcome to the frontier.".into()),
                 (format!("key   {key}"), format!("{}   {}", ui::dim("key"), ui::dim(&key))),
+                ("back it up - the key signs everything you do and cannot be regenerated".into(),
+                 ui::dim("back it up - the key signs everything you do and cannot be regenerated")),
                 (format!("next  razor profile {handle}"),
                  format!("{}  razor profile {handle}", ui::dim("next"))),
             ];
@@ -650,6 +679,55 @@ fn require_env_ready(lean_dir: &PathBuf, root_import: &str) {
     }
 }
 
+/// A hole's pinned statement is permanent, so `razor hole` elaborates the
+/// type before appending anything: a typo caught here is a typo that never
+/// reaches the log. Skipped with --unchecked, when the environment is not
+/// fetched, or when the toolchain is missing (the pin is then taken as
+/// written, exactly as before).
+fn precheck_lean_type(root: &PathBuf, env: Option<&str>, lean_type: &str) {
+    let (lean_dir, root_import) = match env {
+        Some("mathlib") => (root.join("lean-mathlib"), "RazorMathlib"),
+        _ => (root.join("lean"), "Razor"),
+    };
+    if root_import == "RazorMathlib" && !lean_dir.join(".lake/packages/mathlib").exists() {
+        eprintln!("  {} {}", ui::gold("⚠"), ui::dim(
+            "Mathlib environment not fetched - pinning the statement unchecked (./mathlib-env.sh to enable the check)"));
+        return;
+    }
+    let check = format!("import {root_import}\nexample : Prop := ({lean_type})\n");
+    let path = lean_dir.join(".razor-pin-check.lean");
+    if std::fs::write(&path, check).is_err() { return; }
+    let out = std::process::Command::new("lake")
+        .args(["env", "lean", ".razor-pin-check.lean"])
+        .current_dir(&lean_dir)
+        .output();
+    let _ = std::fs::remove_file(&path);
+    match out {
+        Err(_) => eprintln!("  {} {}", ui::gold("⚠"), ui::dim(
+            "lake not on PATH - pinning the statement unchecked (open a new shell after install.sh to enable the check)")),
+        Ok(o) if !o.status.success() => {
+            let all = format!("{}{}", String::from_utf8_lossy(&o.stdout),
+                String::from_utf8_lossy(&o.stderr));
+            // Errors inside the check file are the statement's own; anything
+            // else (unbuilt package, toolchain trouble) is not the user's
+            // statement failing, so the pin proceeds unchecked.
+            if !all.contains(".razor-pin-check.lean") {
+                eprintln!("  {} {}", ui::gold("⚠"), ui::dim(
+                    "could not elaborate the pin (package not built?) - pinning the statement unchecked"));
+                return;
+            }
+            eprintln!("{} the pinned statement does not elaborate as written:", ui::red("✕"));
+            for l in all.lines().filter(|l| !l.trim().is_empty()) {
+                eprintln!("  {}", ui::dim(l));
+            }
+            eprintln!("  {}", ui::dim(
+                "fix the --lean-type (a pin is permanent), or pass --unchecked to pin it anyway"));
+            std::process::exit(2);
+        }
+        Ok(_) => {}
+    }
+}
+
 /// Claim a hole. Two forms:
 ///   razor submit --hole H --solver S --decl Name.Of.Proof
 ///   razor submit --hole H --solver S --decl Name --file proof.lean
@@ -667,6 +745,13 @@ fn cmd_submit(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
     if let Some(url) = remote() {
         let state = State::fold(load(log_path));
         let Some(hole) = state.holes.get(&hole_id) else {
+            // The classic trap: a demo-dataset hole exists in the local log
+            // but not on the public registry. Say so instead of "unknown".
+            let local = State::fold(load(&root.join("registry/data/events.jsonl")));
+            if local.holes.contains_key(&hole_id) {
+                ui::die(&format!("{hole_id} exists in your local log but not on {url} - \
+                    it is demo/local data; re-run with --local to work against your local registry"));
+            }
             ui::die(&format!("unknown hole: {hole_id}"));
         };
         let (_, root_import) = env_of(root, hole);
@@ -717,7 +802,13 @@ fn cmd_submit(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
         if !build.status.success() {
             let _ = std::fs::remove_file(&dest);
             ui::verdict(false, "submitted file does not compile");
-            println!("{}", String::from_utf8_lossy(&build.stderr));
+            // Lake reports diagnostics on stdout and only a summary on
+            // stderr - show the error blocks from both.
+            let all = format!("{}{}", String::from_utf8_lossy(&build.stdout),
+                String::from_utf8_lossy(&build.stderr));
+            for l in verify::error_lines(&all) {
+                println!("  {l}");
+            }
             std::process::exit(1);
         }
         module
@@ -784,6 +875,7 @@ fn cmd_propose_batch(log_path: &PathBuf, args: &[String]) {
     });
     let existing: std::collections::BTreeSet<String> =
         State::fold(load(log_path)).proposals.keys().cloned().collect();
+    APPEND_QUIET.store(true, std::sync::atomic::Ordering::Relaxed);
     let (mut added, mut skipped) = (0u64, 0u64);
     for (n, line) in text.lines().enumerate() {
         if line.trim().is_empty() { continue }
@@ -2084,7 +2176,9 @@ fn repo_root() -> PathBuf {
             return dir;
         }
         if !dir.pop() {
-            ui::die("not inside the satoshis-razor repo (no lean/lakefile.toml found upward)");
+            ui::die("razor runs from inside a satoshis-razor checkout (no lean/lakefile.toml found \
+                upward) - cd into your clone first; the install one-liner creates it as \
+                ./satoshis-razor in the directory you ran it from");
         }
     }
 }
@@ -2097,27 +2191,53 @@ fn load(path: &PathBuf) -> Vec<Entry> {
         .collect()
 }
 
+/// Where signing keys live. New keys go to the first entry; lookups walk
+/// all of them. The per-user directory is the default home so that keys
+/// survive demo runs, `git clean`, and even deleting the clone; the
+/// repo-local directory keeps demo/seed keys (which set RAZOR_KEYS_DIR)
+/// and pre-existing keys working.
+fn keys_dirs(log_path: &PathBuf) -> Vec<PathBuf> {
+    let mut dirs = vec![];
+    if let Ok(d) = std::env::var("RAZOR_KEYS_DIR") {
+        if !d.trim().is_empty() { dirs.push(PathBuf::from(d)); }
+    } else {
+        let cfg = std::env::var("XDG_CONFIG_HOME").map(PathBuf::from)
+            .or_else(|_| std::env::var("HOME").map(|h| PathBuf::from(h).join(".config")));
+        if let Ok(cfg) = cfg { dirs.push(cfg.join("razor/keys")); }
+    }
+    dirs.push(log_path.parent().unwrap().join("keys"));
+    dirs
+}
+
+fn find_key(log_path: &PathBuf, handle: &str) -> Option<PathBuf> {
+    keys_dirs(log_path).into_iter()
+        .map(|d| d.join(format!("{handle}.secret")))
+        .find(|p| p.exists())
+}
+
 /// Sign the event if the acting handle holds a local key; refuse to act in
 /// a registered handle's name without its key. Handles that never
 /// registered an account stay open and unsigned.
 fn sign_event(path: &PathBuf, event: &Event) -> Option<String> {
     let actor = event.actor()?.to_string();
     let entries = load(path);
-    let keyfile = path.parent().unwrap().join("keys").join(format!("{actor}.secret"));
     let registered = entries.iter().any(|e| matches!(&e.event,
         Event::RegisterAccount { handle, .. } if *handle == actor));
-    match std::fs::read_to_string(&keyfile) {
-        Ok(hex) => {
+    match find_key(path, &actor).map(std::fs::read_to_string) {
+        Some(Ok(hex)) => {
             use ed25519_dalek::Signer;
             let sk = signing_key_from_hex(hex.trim()).expect("malformed key file");
             let msg = serde_json::to_string(event).unwrap();
             Some(hex_of(&sk.sign(msg.as_bytes()).to_bytes()))
         }
-        Err(_) if registered => {
+        _ if registered => {
+            let looked = keys_dirs(path).iter()
+                .map(|d| d.join(format!("{actor}.secret")).display().to_string())
+                .collect::<Vec<_>>().join(" or ");
             ui::die(&format!("'{actor}' is a registered handle and this machine has no key for it \
-                ({}) - refusing to append in their name", keyfile.display()));
+                (looked in {looked}) - refusing to append in their name"));
         }
-        Err(_) => None,
+        _ => None,
     }
 }
 
@@ -2166,8 +2286,15 @@ fn append(path: &PathBuf, event: Event) {
         }
         return;
     }
-    append_entry(path, event, sig);
+    let entry = append_entry(path, event, sig);
+    // The same feedback the remote path gives: what landed, and where.
+    if !APPEND_QUIET.load(std::sync::atomic::Ordering::Relaxed) {
+        ui::step(&format!("recorded {}", ui::dim(&format!("- event #{} on the local log", entry.seq))));
+    }
 }
+
+/// Bulk callers (propose-batch) silence the per-event confirmation.
+static APPEND_QUIET: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 // Remote-mode plumbing: which commands may target a remote, the configured
 // url, and per-command attachments (reveal-statement sends its file+salt so
@@ -2435,4 +2562,8 @@ fn multi(args: &[String], flag: &str) -> Vec<String> {
         .filter(|(_, a)| a.as_str() == flag)
         .filter_map(|(i, _)| args.get(i + 1).cloned())
         .collect()
+}
+
+fn has_flag(args: &[String], flag: &str) -> bool {
+    args.iter().any(|a| a == flag)
 }

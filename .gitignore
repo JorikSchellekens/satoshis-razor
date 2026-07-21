@@ -14,3 +14,4 @@ upstream/
 .DS_Store
 zk/keys/
 site/.vercel/
+registry/data/remote.jsonl

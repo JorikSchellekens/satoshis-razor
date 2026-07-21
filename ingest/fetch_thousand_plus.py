@@ -18,6 +18,7 @@ Usage:
 """
 
 import argparse
+import html
 import io
 import json
 import os
@@ -39,7 +40,8 @@ def parse_entry(stem, text):
     title = None
     m = re.search(r"^# (.+)$", text, re.M)
     if m:
-        title = m.group(1).strip()
+        # Some catalogue titles carry raw HTML entities ("Stolper&ndash;Samuelson").
+        title = html.unescape(m.group(1).strip())
     wikidata = None
     m = re.search(r"^wikidata: (\S+)", text, re.M)
     if m:

@@ -213,6 +213,13 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
             if !sane_id(id) { return no("hole id: letters, digits, dashes, up to 64 chars"); }
             if state.holes.contains_key(id) { return no("hole id already exists"); }
             if lean_type.trim().is_empty() { return no("a hole needs --lean-type"); }
+            // A pin with shell-escape residue or control characters can
+            // never elaborate; refuse it before it is permanent.
+            if lean_type.contains("\\x") || lean_type.contains("\\u")
+                || lean_type.chars().any(|c| c.is_control() && c != '\n') {
+                return no("the pinned type contains escape sequences or control characters - \
+                    it would never elaborate; check your shell quoting and re-send the literal statement");
+            }
             if !matches!(env.as_deref(), None | Some("mathlib")) { return no("env must be omitted (core) or 'mathlib'"); }
             if let Some(p) = proposal {
                 if !state.proposals.contains_key(p) { return no("unknown proposal"); }
@@ -388,7 +395,7 @@ pub fn post_submit(
         if hole.env.as_deref() == Some("mathlib") {
             return err("501 Not Implemented",
                 "this hole verifies in the Mathlib environment, which this remote does not offer yet - \
-                 verify locally (razor --local verify) and contact the maintainer");
+                 verify locally (razor verify --local) and contact the maintainer");
         }
         if solver.trim().is_empty() || decl.trim().is_empty() {
             return err("400 Bad Request", "submit needs --solver and --decl");

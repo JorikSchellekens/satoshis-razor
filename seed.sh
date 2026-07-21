@@ -9,8 +9,10 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # This script builds a local dataset; never publish its events to a
-# configured remote registry.
+# configured remote registry, and keep its keys out of the user's own
+# key directory.
 export RAZOR_REMOTE=
+export RAZOR_KEYS_DIR="$PWD/registry/data/keys"
 RAZOR=./target/release/razor
 step() { printf '\n\033[1;36m▸ %s\033[0m\n' "$*"; }
 
@@ -20,7 +22,10 @@ if [ ! -x "$RAZOR" ]; then
 fi
 
 step "Fresh registry"
-rm -rf registry/data site/data.json
+# Regenerate everything under registry/data except keys/: signing keys are
+# identities, not dataset, and are never deleted by any script.
+find registry/data -mindepth 1 -maxdepth 1 ! -name keys -exec rm -rf {} + 2>/dev/null || true
+rm -rf site/data.json
 
 # ─────────────────────────────────────────────────────────────────────
 step "Recognize prior corpora - work that is already done"

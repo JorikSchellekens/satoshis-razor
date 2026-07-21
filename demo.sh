@@ -6,12 +6,16 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # This script builds a local dataset; never publish its events to a
-# configured remote registry.
+# configured remote registry. Its fictional participants' keys live in the
+# repo-local keys directory - never in ~/.config/razor/keys, where your own
+# identity lives.
 export RAZOR_REMOTE=
+export RAZOR_KEYS_DIR="$PWD/registry/data/keys"
 RAZOR=./target/release/razor
 step() { printf '\n\033[1;36m▸ %s\033[0m\n' "$*"; }
 
 command -v python3 >/dev/null 2>&1 || { echo "python3 is required (decodes the zk prover's output)" >&2; exit 1; }
+command -v lake >/dev/null 2>&1 || { echo "lake is not on PATH - open a new shell after install.sh, or run: export PATH=\"\$HOME/.elan/bin:\$PATH\"" >&2; exit 1; }
 
 step "Build everything (Lean package, registry, harness, wasm submissions)"
 (cd lean && lake build 2>&1 | tail -1)
@@ -20,7 +24,10 @@ cargo build --release --target wasm32-unknown-unknown \
   -p popcount-naive -p popcount-swar -p sum-loop -p sum-closed -p sort8-bubble -p sort8-network -p evm-ref -p evm-tos 2>&1 | tail -1
 
 step "Fresh registry"
-rm -rf registry/data site/data.json lean/Razor/Private lean/Razor/Submissions
+# Everything under registry/data is regenerated except keys/: signing keys
+# are identities, not dataset, and are never deleted by any script.
+find registry/data -mindepth 1 -maxdepth 1 ! -name keys -exec rm -rf {} + 2>/dev/null || true
+rm -rf site/data.json lean/Razor/Private lean/Razor/Submissions
 
 # ─────────────────────────────────────────────────────────────────────
 step "PROLOGUE - Participants claim their handles"

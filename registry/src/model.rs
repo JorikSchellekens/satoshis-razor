@@ -661,8 +661,12 @@ impl State {
         let (seq, ts) = (entry.seq, entry.ts);
         match entry.event {
             Event::Propose { id, title, body, author } => {
+                // Ingested catalogue rows occasionally carry raw HTML
+                // entities ("Stolper&ndash;Samuelson"); the log keeps them
+                // as recorded, the derived state shows them decoded.
                 self.proposals.insert(id.clone(), Proposal {
-                    id, title, body, author, statements: vec![], clumps: vec![],
+                    id, title: html_unescape(&title), body: html_unescape(&body),
+                    author, statements: vec![], clumps: vec![],
                     rounds: vec![], seals: vec![],
                 });
             }
@@ -1276,4 +1280,35 @@ fn max_mutually_blind(members: &[(String, u64, u64)]) -> usize {
         }
     }
     best
+}
+
+/// Decode the handful of HTML entities that show up in ingested catalogue
+/// text. Unknown entities pass through unchanged.
+fn html_unescape(s: &str) -> String {
+    if !s.contains('&') { return s.to_string(); }
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(i) = rest.find('&') {
+        out.push_str(&rest[..i]);
+        rest = &rest[i..];
+        let end = rest[..rest.len().min(12)].find(';');
+        let Some(end) = end else { out.push('&'); rest = &rest[1..]; continue };
+        let ent = &rest[1..end];
+        let decoded = match ent {
+            "amp" => Some('&'), "lt" => Some('<'), "gt" => Some('>'),
+            "quot" => Some('"'), "apos" | "#39" => Some('\''),
+            "ndash" => Some('\u{2013}'), "mdash" => Some('\u{2014}'),
+            "nbsp" => Some(' '), "rsquo" => Some('\u{2019}'), "lsquo" => Some('\u{2018}'),
+            _ => ent.strip_prefix("#x")
+                .and_then(|h| u32::from_str_radix(h, 16).ok())
+                .or_else(|| ent.strip_prefix('#').and_then(|d| d.parse().ok()))
+                .and_then(char::from_u32),
+        };
+        match decoded {
+            Some(c) => { out.push(c); rest = &rest[end + 1..]; }
+            None => { out.push('&'); rest = &rest[1..]; }
+        }
+    }
+    out.push_str(rest);
+    out
 }

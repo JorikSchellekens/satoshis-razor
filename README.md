@@ -66,6 +66,10 @@ what they say, signed by your local key, with proof submissions
 kernel-checked on the spot in a throwaway container. `razor status` shows
 the live registry in your terminal.
 
+Your signing key lives in `~/.config/razor/keys/` - outside the clone, so
+no script can touch it. Back it up: it signs everything you do under your
+handle and cannot be regenerated.
+
 The registry is a sequencer, not an authority. It cannot forge your events
 (your key signs them and never leaves your machine), and its verdicts are
 re-checkable by anyone: the log is mirrored to this repository on every

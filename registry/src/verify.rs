@@ -21,6 +21,10 @@ pub struct Verdict {
 
 const BASE_AXIOMS: &[&str] = &["propext", "Classical.choice", "Quot.sound"];
 
+/// Emitted on stderr between `lake build` and the statement check, so a
+/// failure can name the phase it happened in.
+const BUILD_OK_MARKER: &str = "__RAZOR_BUILD_OK__";
+
 pub fn verify(
     lean_dir: &std::path::Path,
     root_import: &str,
@@ -100,10 +104,22 @@ pub fn verify(
                      container runtime, then retry", compact(&stderr)),
             };
         }
+        // The marker separates the two phases: without it the submitted
+        // module never compiled; with it the module built and the pinned
+        // statement check itself failed. Either way, show the compiler's
+        // actual errors, not its warnings.
+        if !stderr.contains(BUILD_OK_MARKER) {
+            return Verdict {
+                admitted: false,
+                axioms: vec![],
+                detail: format!("submitted file does not compile: {}",
+                    errors_of(&format!("{stdout}{stderr}"))),
+            };
+        }
         return Verdict {
             admitted: false,
             axioms: vec![],
-            detail: format!("statement check failed: {}", compact(&format!("{stdout}{stderr}"))),
+            detail: format!("statement check failed: {}", errors_of(&format!("{stdout}{stderr}"))),
         };
     }
 
@@ -144,7 +160,45 @@ fn parse_axioms(stdout: &str) -> Vec<String> {
 
 fn compact(s: &str) -> String {
     let s: String = s.split_whitespace().collect::<Vec<_>>().join(" ");
-    if s.len() > 400 { format!("{}…", &s[..400]) } else { s }
+    if s.len() > 400 {
+        let cut = (1..=400).rev().find(|i| s.is_char_boundary(*i)).unwrap_or(0);
+        format!("{}…", &s[..cut])
+    } else { s }
+}
+
+/// The compiler's error blocks - each `error` line plus its continuation
+/// lines - with warnings and build chatter dropped.
+pub fn error_lines(s: &str) -> Vec<String> {
+    let s = s.replace(BUILD_OK_MARKER, "");
+    let lines: Vec<&str> = s.lines().collect();
+    let mut out: Vec<String> = vec![];
+    let mut i = 0;
+    while i < lines.len() {
+        let l = lines[i];
+        if l.to_ascii_lowercase().contains("error") && !l.trim_start().starts_with("warning") {
+            out.push(l.to_string());
+            let mut taken = 0;
+            while i + 1 < lines.len() && taken < 8 {
+                let n = lines[i + 1];
+                if n.to_ascii_lowercase().contains("error") { break; }
+                if n.trim().is_empty() || n.contains("warning:")
+                    || n.starts_with('✔') || n.starts_with('⚠') { break; }
+                out.push(n.to_string());
+                i += 1;
+                taken += 1;
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+/// Same, folded to one compact string for a verdict's recorded detail.
+/// Falls back to the whole output when nothing matches, so a failure is
+/// never reported blank.
+fn errors_of(s: &str) -> String {
+    let errs = error_lines(s);
+    if errs.is_empty() { compact(&s.replace(BUILD_OK_MARKER, "")) } else { compact(&errs.join(" ")) }
 }
 
 /// Build the `lake env lean .razor-check.lean` invocation inside the
@@ -167,8 +221,11 @@ fn checker_command(lean_dir: &std::path::Path) -> Command {
                     // Its own deadline, under the watchdog's, so the
                     // container exits even if the client is killed. Build
                     // output goes to stderr; stdout stays the axiom report.
+                    // The marker between the phases tells the caller whether
+                    // a failure was the build or the statement check.
                     "timeout 290 bash -c 'set -e; cp -a /src /work; cd /work; \
-                     lake build 1>&2; lake env lean .razor-check.lean'"]);
+                     lake build 1>&2; echo __RAZOR_BUILD_OK__ 1>&2; \
+                     lake env lean .razor-check.lean'"]);
             return c;
         }
     }
@@ -176,8 +233,10 @@ fn checker_command(lean_dir: &std::path::Path) -> Command {
     // installed as a fresh module has no compiled artifact until it is
     // built, and building untrusted Lean is code execution just like
     // elaborating it. Build output goes to stderr so stdout stays the
-    // axiom report.
-    const BUILD_AND_CHECK: &str = "lake build 1>&2 && lake env lean .razor-check.lean";
+    // axiom report; the marker between the phases tells the caller whether
+    // a failure was the build or the statement check.
+    const BUILD_AND_CHECK: &str =
+        "lake build 1>&2 && { echo __RAZOR_BUILD_OK__ 1>&2; lake env lean .razor-check.lean; }";
     if std::env::var_os("RAZOR_NO_SANDBOX").is_none() {
         if cfg!(target_os = "macos") && std::path::Path::new("/usr/bin/sandbox-exec").exists() {
             let mut c = Command::new("/usr/bin/sandbox-exec");

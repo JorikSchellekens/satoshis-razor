@@ -271,10 +271,13 @@ const EV_TONE = {
 
 function evLine(e) {
   const { seq, ts, type, ...rest } = e;
-  const detail = Object.entries(rest)
+  // The 128-hex signature would drown the row; verify-log checks it, the
+  // row just notes it is there.
+  let detail = Object.entries(rest)
     .filter(([k, v]) => v !== '' && v != null && !(Array.isArray(v) && !v.length)
-      && !['lean_type', 'body', 'detail', 'notes', 'obligation', 'proof', 'public', 'vk_path', 'commitment', 'statement'].includes(k))
+      && !['lean_type', 'body', 'detail', 'notes', 'obligation', 'proof', 'public', 'vk_path', 'commitment', 'statement', 'sig'].includes(k))
     .map(([k, v]) => `${k}=${Array.isArray(v) ? v.join('|') : v}`).join('  ');
+  if (rest.sig) detail += '  · signed';
   return { seq, type, detail, tone: (EV_TONE[type] || (() => ''))(e) };
 }
 

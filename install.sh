@@ -17,17 +17,30 @@ have() { command -v "$1" >/dev/null 2>&1; }
 say "checking toolchain"
 have git || die "git is required"
 
+INSTALLED_TOOLCHAIN=
 if ! have cargo; then
-  die "rust is required - install via https://rustup.rs then re-run"
+  if [ -x "$HOME/.cargo/bin/cargo" ]; then
+    export PATH="$HOME/.cargo/bin:$PATH"
+  else
+    say "installing rust (rustup)"
+    curl -sSf https://sh.rustup.rs | sh -s -- -y
+    export PATH="$HOME/.cargo/bin:$PATH"
+  fi
+  INSTALLED_TOOLCHAIN=1
+  have cargo || die "rust did not install cleanly - install via https://rustup.rs then re-run"
 fi
 if [ "$(uname -s)" = "Linux" ] && ! have bwrap; then
   say "note: bubblewrap is not installed - local proof verification will run unsandboxed"
   echo "  fix: sudo apt install bubblewrap  (the checker isolates untrusted proofs with it)"
 fi
+if ! have python3; then
+  say "note: python3 is not installed - the demo (./demo.sh) and zk walkthrough need it"
+fi
 if ! have elan && ! have lake; then
   say "installing elan (Lean toolchain manager)"
   curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y
   export PATH="$HOME/.elan/bin:$PATH"
+  INSTALLED_TOOLCHAIN=1
 fi
 if have rustup && ! rustup target list --installed | grep -q wasm32-unknown-unknown; then
   say "adding wasm32-unknown-unknown target (Tier-1 deterministic scoring)"
@@ -67,6 +80,11 @@ if [ -z "${RAZOR_NO_REMOTE:-}" ] && [ ! -f "$HOME/.config/razor/remote" ]; then
 fi
 
 say "done"
-echo "  try: razor help"
+echo "  your checkout: $PWD"
+echo "  razor runs from inside it - start with:"
+echo "    cd $PWD && razor status"
 echo "  the clone already contains the live log; to browse it locally:"
 echo "    razor serve      # http://localhost:8420  (./demo.sh first for the scripted walkthrough)"
+if [ -n "$INSTALLED_TOOLCHAIN" ]; then
+  echo "  note: this run installed toolchains - open a new shell first so razor and lake are on PATH"
+fi
