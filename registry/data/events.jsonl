@@ -1031,3 +1031,4 @@
 {"seq":1030,"ts":1784662444,"sig":"5f75b7de62c7f4e29813fa988d64b8ae8423ecbc8f587e0edb0587d7ed4b57f842d30c5562a5c2f5ada96cc599810f1bf0abedd6c649e5712d84e1b5e5b3a803","type":"submit","id":"SUB-AUD-3","hole":"AUD-2","solver":"audit-2","decl":"Razor.Audit.n_add_zero","module":"Razor.Submissions.SSUBAUD3"}
 {"seq":1031,"ts":1784662446,"type":"verdict","submission":"SUB-AUD-3","admitted":true,"axioms":[],"detail":"statement matches pinned type; axioms clean","cost_ms":1303}
 {"seq":1032,"ts":1784662446,"type":"payout","target":"AUD-2","recipient":"audit-2","amount":5,"reason":"first admitted proof of AUD-2, exactly as pinned"}
+{"seq":1033,"ts":1784662468,"sig":"26e394dc1e7d02076b917fb0f5c5f00435e6de822287ceb1fd41ede61be1968b7d58746077fb4132e7860e4bed635270a3af1048d82752ed2b2f525283a81e01","type":"supersede","hole":"AUD-1","by":"audit-2","replacement":"AUD-2","note":"AUD-1 pinned escaped bytes instead of the unicode forall; AUD-2 is the correct pin"}
