@@ -489,6 +489,9 @@ fn run_verification(
 /// Publish every append to the public repository. The box's log is the
 /// canonical one; GitHub is the transparency mirror auditors replay.
 pub fn spawn_mirror(root: PathBuf) {
+    // Flush once at startup: appends from before a restart may still be
+    // sitting uncommitted in the tree.
+    MIRROR_DIRTY.store(true, Ordering::SeqCst);
     std::thread::spawn(move || loop {
         std::thread::sleep(std::time::Duration::from_secs(10));
         if !MIRROR_DIRTY.swap(false, Ordering::SeqCst) {
