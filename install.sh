@@ -20,6 +20,10 @@ have git || die "git is required"
 if ! have cargo; then
   die "rust is required - install via https://rustup.rs then re-run"
 fi
+if [ "$(uname -s)" = "Linux" ] && ! have bwrap; then
+  say "note: bubblewrap is not installed - local proof verification will run unsandboxed"
+  echo "  fix: sudo apt install bubblewrap  (the checker isolates untrusted proofs with it)"
+fi
 if ! have elan && ! have lake; then
   say "installing elan (Lean toolchain manager)"
   curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y
@@ -51,8 +55,18 @@ mkdir -p "$BIN"
 for t in razor anvil-harness zk-prover; do ln -sf "$PWD/target/release/$t" "$BIN/$t"; done
 echo "  linked into $BIN (rebuilds update them in place)"
 
+# Point participation commands at the public registry, unless the user opted
+# out or already chose a remote. One file, one url; `razor remote off` or
+# --local on any command undoes it.
+if [ -z "${RAZOR_NO_REMOTE:-}" ] && [ ! -f "$HOME/.config/razor/remote" ]; then
+  mkdir -p "$HOME/.config/razor"
+  echo "https://razor.mempoolsurfer.com" > "$HOME/.config/razor/remote"
+  say "default remote set to https://razor.mempoolsurfer.com"
+  echo "  razor propose / formalize / submit ... publish there, signed by your key"
+  echo "  razor remote off (or --local on any command) keeps everything on this machine"
+fi
+
 say "done"
 echo "  try: razor help"
-echo "  to host the registry locally:"
-echo "    ./seed.sh        # build the live dataset (or ./demo.sh for the scripted walkthrough)"
-echo "    razor serve      # browse it at http://localhost:8420"
+echo "  the clone already contains the live log; to browse it locally:"
+echo "    razor serve      # http://localhost:8420  (./demo.sh first for the scripted walkthrough)"

@@ -58,22 +58,20 @@ a setup step.)
 
 ## Participate in the hosted registry
 
-The hosted site serves the log on this repository's master branch, so
-publishing your work is a pull request:
+The CLI is the interface: after `./install.sh`, participation commands
+publish directly to [razor.mempoolsurfer.com](https://razor.mempoolsurfer.com).
+`razor account new` registers your handle there; `razor formalize`,
+`razor seal-statement`, `razor submit --file proof.lean` and the rest do
+what they say, signed by your local key, with proof submissions
+kernel-checked on the spot in a throwaway container. `razor status` shows
+the live registry in your terminal.
 
-1. Fork the repository and run `./install.sh`.
-2. Optionally run `razor account new` so your later events are signed.
-3. Work with the CLI as usual - `razor formalize`, `razor seal-statement`,
-   `razor submit`, `razor verify`, and so on. Every command appends to your
-   local `registry/data/events.jsonl`.
-4. Commit the appended events together with any Lean files they reference,
-   and open a pull request against master.
-
-CI re-checks every signature on the log for every pull request, and a
-maintainer re-runs the kernel checks (`razor recheck`) before merging.
-Once merged, the hosted site updates within a few minutes. Order on the
-shared log is the order after the merge; for sealed readings that is the
-order the independence facts are computed from.
+The registry is a sequencer, not an authority. It cannot forge your events
+(your key signs them and never leaves your machine), and its verdicts are
+re-checkable by anyone: the log is mirrored to this repository on every
+append, and `razor recheck` replays any kernel check on your own machine.
+To work entirely on your machine instead, run `razor remote off`, or add
+`--local` to any single command.
 
 ## What is in the registry
 

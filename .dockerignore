@@ -2,6 +2,7 @@
 # builds anvil-harness, so everything heavy or stateful stays out.
 target/
 lean/
+!lean/lean-toolchain
 lean-mathlib/
 site/
 registry/data/

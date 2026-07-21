@@ -8,6 +8,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# This script builds a local dataset; never publish its events to a
+# configured remote registry.
+export RAZOR_REMOTE=
 RAZOR=./target/release/razor
 step() { printf '\n\033[1;36m▸ %s\033[0m\n' "$*"; }
 

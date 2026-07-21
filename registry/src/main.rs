@@ -5,6 +5,7 @@
 //! metering) before writing their events. `export` emits the derived state
 //! for the site.
 
+mod api;
 mod model;
 mod ui;
 mod verify;
@@ -18,6 +19,11 @@ fn main() {
     let root = repo_root();
     let log_path = root.join("registry/data/events.jsonl");
     std::fs::create_dir_all(log_path.parent().unwrap()).ok();
+    // Remote mode: with a remote configured (install.sh sets the public
+    // registry as the default), participation commands run against it - the
+    // CLI signs locally, the server sequences and verifies. `--local` or
+    // RAZOR_REMOTE="" opts out; scripts that build local datasets do so.
+    let log_path = remote_setup(cmd, &args, &root, log_path);
 
     match cmd {
         "propose" => append(&log_path, Event::Propose {
@@ -57,6 +63,7 @@ fn main() {
         "submit" => cmd_submit(&root, &log_path, &args),
         "repin" => cmd_repin(&root, &log_path, &args),
         "propose-batch" => cmd_propose_batch(&log_path, &args),
+        "remote" => cmd_remote(&args),
         // The id is positional, but the flag spellings every sibling command
         // uses are accepted too.
         "cite" => cmd_cite(&log_path, &opt(&args, "--submission")
@@ -244,6 +251,7 @@ fn print_help(cmd: &str) {
             ("export-benchmark", "emit open holes as prover-ready JSONL targets"),
             ("serve", "host the site; data.json re-derived per request"),
             ("verify-log", "audit every event signature against registered keys"),
+            ("remote", "set/show the registry commands publish to (--local opts out)"),
         ]),
     ];
     println!();
@@ -555,6 +563,17 @@ fn cmd_reveal_statement(log_path: &PathBuf, args: &[String]) {
     ui::step(&format!("commitment verified {}",
         ui::dim(&format!("sha256(file ‖ salt) matches {}…", &seal.commitment[..16]))));
     let statement = req(args, "--id");
+    // In remote mode the server re-checks the commitment itself, so the
+    // reveal carries the file and salt along.
+    if remote().is_some() {
+        let bytes = std::fs::read(&file).unwrap_or_else(|e| {
+            ui::die(&format!("cannot read {file}: {e}"));
+        });
+        set_remote_attachments(serde_json::json!({
+            "file_b64": api::base64_encode(&bytes),
+            "salt": salt,
+        }));
+    }
     append(log_path, Event::RevealStatement {
         seal: seal_id.clone(),
         statement: statement.clone(),
@@ -642,6 +661,40 @@ fn cmd_submit(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
     let hole_id = req(args, "--hole");
     let solver = req(args, "--solver");
     let decl = req(args, "--decl");
+    // Remote mode: send the claim (and the proof file, if any) to the
+    // registry; it installs, kernel-checks in its sandbox, and answers with
+    // the verdict - submit and verify in one call.
+    if let Some(url) = remote() {
+        let state = State::fold(load(log_path));
+        let Some(hole) = state.holes.get(&hole_id) else {
+            ui::die(&format!("unknown hole: {hole_id}"));
+        };
+        let (_, root_import) = env_of(root, hole);
+        let (module, file_b64) = match opt(args, "--file") {
+            Some(file) => {
+                let bytes = std::fs::read(&file).unwrap_or_else(|e| {
+                    ui::die(&format!("cannot read {file}: {e}"));
+                });
+                (Some(submission_module(root_import, &id)), Some(api::base64_encode(&bytes)))
+            }
+            None => (None, None),
+        };
+        let event = Event::Submit {
+            id: id.clone(), hole: hole_id.clone(), solver, decl, module,
+        };
+        let sig = sign_event(log_path, &event);
+        let mut body = serde_json::json!({ "event": event, "sig": sig });
+        if let Some(f) = file_b64 {
+            body["file_b64"] = f.into();
+        }
+        ui::step(&format!("submitting {} {}", ui::bold(&id),
+            ui::dim(&format!("to {url} - the kernel check runs there, this can take a minute"))));
+        match http_post_json(&format!("{url}/api/submit"), &body) {
+            Ok(v) => print_remote_verdict(&v),
+            Err(e) => ui::die(&format!("the remote registry refused it: {e}")),
+        }
+        return;
+    }
     let module = opt(args, "--file").map(|file| {
         let state = State::fold(load(log_path));
         let Some(hole) = state.holes.get(&hole_id) else {
@@ -649,9 +702,8 @@ fn cmd_submit(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
         };
         let (lean_dir, root_import) = env_of(root, hole);
         require_env_ready(&lean_dir, root_import);
-        let modname: String = id.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
-        let module = format!("{root_import}.Submissions.S{modname}");
-        let dest = lean_dir.join(root_import).join("Submissions").join(format!("S{modname}.lean"));
+        let module = submission_module(root_import, &id);
+        let dest = lean_dir.join(module.replace('.', "/") + ".lean");
         std::fs::create_dir_all(dest.parent().unwrap()).expect("mkdir Submissions");
         std::fs::copy(&file, &dest).unwrap_or_else(|e| {
             ui::die(&format!("cannot install {file}: {e}"));
@@ -901,29 +953,55 @@ fn cmd_zk_verify(root: &PathBuf, log_path: &PathBuf, submission: &str) {
     }
 }
 
-fn cmd_verify(root: &PathBuf, log_path: &PathBuf, submission: &str) {
+pub struct VerifyOutcome {
+    pub admitted: bool,
+    pub axioms: Vec<String>,
+    pub detail: String,
+    pub cost_ms: u64,
+    pub pinned: String,
+    pub payout: u64,
+}
+
+/// The verification core, shared by the CLI and the serve API: kernel-check
+/// a revealed submission against its hole's pinned statement, record the
+/// verdict (and the payout, when a bounty is taken) on the log. Appends run
+/// under `log_lock`; the kernel check itself does not hold it.
+fn verify_and_record(
+    root: &PathBuf,
+    log_path: &PathBuf,
+    submission: &str,
+    log_lock: &std::sync::Mutex<()>,
+) -> Result<VerifyOutcome, String> {
     let state = State::fold(load(log_path));
-    let (hole, sub) = state
+    let Some((hole, sub)) = state
         .holes
         .values()
         .find_map(|h| h.submissions.iter().find(|s| s.id == submission).map(|s| (h, s)))
-        .unwrap_or_else(|| {
-            ui::die(&format!("unknown submission: {submission}"));
-        });
+    else {
+        return Err(format!("unknown submission: {submission}"));
+    };
     if !sub.revealed {
-        ui::die(&format!("{} is committed but not yet revealed - nothing to verify", sub.id));
+        return Err(format!("{} is committed but not yet revealed - nothing to verify", sub.id));
     }
     ui::step(&format!("verifying {} {} {}", ui::bold(&sub.id), ui::dim("against"), ui::cyan(&hole.id)));
     ui::kv("claims", &sub.decl);
     ui::kv("pinned", &hole.lean_type);
     // Pick the verification environment the hole was registered with.
     let (lean_dir, root_import) = env_of(root, hole);
-    require_env_ready(&lean_dir, root_import);
+    if root_import == "RazorMathlib" && !lean_dir.join(".lake/packages/mathlib").exists() {
+        return Err("this hole verifies in the Mathlib environment, which has not been fetched yet - \
+            run ./mathlib-env.sh once (several GB of prebuilt cache), then retry".into());
+    }
     let module = sub.module.clone()
         .or_else(|| find_decl_module(&lean_dir, root_import, &sub.decl));
     let t0 = std::time::Instant::now();
     let v = verify::verify(&lean_dir, root_import, &hole.lean_type, &sub.decl, &hole.allowed_axioms, module.as_deref());
     let cost_ms = t0.elapsed().as_millis() as u64;
+    // Infrastructure failures (no toolchain, no container runtime) are not
+    // verdicts; nothing is recorded and the caller sees why.
+    if let Some(msg) = v.detail.strip_prefix("checker-unavailable: ") {
+        return Err(msg.to_string());
+    }
     ui::kv("axioms", &if v.axioms.is_empty() { ui::dim("none") } else { v.axioms.join(", ") });
     ui::kv("kernel", &format!("{cost_ms} ms"));
     ui::verdict(v.admitted, if v.admitted { "" } else { &v.detail });
@@ -931,27 +1009,79 @@ fn cmd_verify(root: &PathBuf, log_path: &PathBuf, submission: &str) {
     let hole_id = hole.id.clone();
     let pool = hole.pool;
     let already_solved = hole.status == "solved";
-    append(log_path, Event::Verdict {
+    let pinned = hole.lean_type.clone();
+    let outcome = VerifyOutcome {
+        admitted: v.admitted,
+        axioms: v.axioms.clone(),
+        detail: v.detail.clone(),
+        cost_ms,
+        pinned,
+        payout: if v.admitted && !already_solved { pool } else { 0 },
+    };
+    let _guard = log_lock.lock().unwrap();
+    append_entry(log_path, Event::Verdict {
         submission: submission.into(),
         admitted: v.admitted,
         axioms: v.axioms,
         detail: v.detail,
         cost_ms,
-    });
+    }, None);
     // A bounty pays for the literal statement, first admitted proof, no
     // adjudication - the funder took the fidelity risk when they funded it.
-    if v.admitted && !already_solved && pool > 0 {
-        append(log_path, Event::Payout {
+    if outcome.payout > 0 {
+        append_entry(log_path, Event::Payout {
             target: hole_id.clone(),
             recipient,
             amount: pool,
             reason: format!("first admitted proof of {hole_id}, exactly as pinned"),
-        });
+        }, None);
     }
-    // The rejection is recorded either way; the exit code lets scripts and
-    // CI read the verdict without parsing output.
-    if !v.admitted {
+    Ok(outcome)
+}
+
+fn print_remote_verdict(v: &serde_json::Value) {
+    if let Some(p) = v["pinned"].as_str() {
+        ui::kv("pinned", p);
+    }
+    let axioms: Vec<String> = v["axioms"].as_array().map(|a| a.iter()
+        .filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
+    ui::kv("axioms", &if axioms.is_empty() { ui::dim("none") } else { axioms.join(", ") });
+    if let Some(ms) = v["cost_ms"].as_u64() {
+        ui::kv("kernel", &format!("{ms} ms (on the remote)"));
+    }
+    let admitted = v["admitted"].as_bool() == Some(true);
+    ui::verdict(admitted, if admitted { "" } else { v["detail"].as_str().unwrap_or("") });
+    if let Some(p) = v["payout"].as_u64().filter(|p| *p > 0) {
+        ui::step(&format!("bounty paid: {}", ui::gold(&ui::commas(p))));
+    }
+    if !admitted {
         std::process::exit(1);
+    }
+}
+
+fn cmd_verify(root: &PathBuf, log_path: &PathBuf, submission: &str) {
+    // Remote mode: the server runs the check in its sandbox and answers
+    // with the verdict it recorded.
+    if let Some(url) = remote() {
+        ui::step(&format!("verifying {} {}", ui::bold(submission),
+            ui::dim(&format!("on {url} - the kernel check runs there"))));
+        match http_post_json(&format!("{url}/api/verify"),
+            &serde_json::json!({ "submission": submission })) {
+            Ok(v) => print_remote_verdict(&v),
+            Err(e) => ui::die(&format!("the remote registry refused it: {e}")),
+        }
+        return;
+    }
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    match verify_and_record(root, log_path, submission, &LOCK) {
+        Ok(outcome) => {
+            // The rejection is recorded either way; the exit code lets
+            // scripts and CI read the verdict without parsing output.
+            if !outcome.admitted {
+                std::process::exit(1);
+            }
+        }
+        Err(m) => ui::die(&m),
     }
 }
 
@@ -1545,11 +1675,14 @@ fn cmd_export(log_path: &PathBuf, out: &PathBuf, dataset: Option<String>) {
     ui::step(&format!("exported {} events {} {}", ui::bold(&n.to_string()), ui::dim("→"), out.display()));
 }
 
-/// Serve the site with data.json re-derived from the log on demand, so the
-/// pages update live as events are appended. Read-only: writes still go
-/// through the CLI (and through it, the append-only log).
+/// Serve the site with data.json re-derived from the log on demand, plus
+/// the participation API (/api/event, /api/submit, /api/verify, /api/log).
+/// Each connection gets a thread; appends serialize on a log lock, kernel
+/// checks on a verify lock. With RAZOR_MIRROR set, every append is pushed
+/// to the public repository.
 fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
-    use std::io::{BufRead, BufReader, Write};
+    use std::io::BufReader;
+    use std::sync::{Arc, Mutex};
     // Reuse the dataset label of the last export, so serving after demo.sh
     // keeps saying "demo".
     let dataset = std::fs::read_to_string(root.join("site/data.json"))
@@ -1560,49 +1693,95 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
     let listener = std::net::TcpListener::bind((host, port)).expect("bind");
     ui::step(&format!("serving {}  {}", ui::bold(&format!("http://{host}:{port}")),
         ui::dim(&format!("(dataset: {dataset}; data.json re-derived from the log on every request)"))));
-    let mut cache: Option<(u64, u64, String)> = None; // (len, mtime, json)
-    for stream in listener.incoming() {
-        let Ok(mut stream) = stream else { continue };
-        let mut reader = BufReader::new(stream.try_clone().unwrap());
-        let mut req_line = String::new();
-        if reader.read_line(&mut req_line).is_err() {
-            continue;
-        }
-        let full = req_line.split_whitespace().nth(1).unwrap_or("/");
-        let (path, query) = match full.split_once('?') {
-            Some((p, q)) => (p, Some(q)),
-            None => (full, None),
-        };
-        let (status, ctype, body): (&str, &str, Vec<u8>) = if path == "/data.json" {
-            let meta = std::fs::metadata(log_path).ok();
+    if std::env::var("RAZOR_MIRROR").is_ok_and(|v| !v.trim().is_empty()) {
+        api::spawn_mirror(root.clone());
+        ui::step(&ui::dim("mirror on: every append is committed and pushed to the public repository"));
+    }
+
+    struct Ctx {
+        root: PathBuf,
+        log_path: PathBuf,
+        dataset: String,
+        cache: Mutex<Option<(u64, u64, String)>>, // (len, mtime, json)
+        log_lock: Mutex<()>,
+        verify_lock: Mutex<()>,
+        limiter: Mutex<api::Limiter>,
+    }
+    let ctx = Arc::new(Ctx {
+        root: root.clone(),
+        log_path: log_path.clone(),
+        dataset,
+        cache: Mutex::new(None),
+        log_lock: Mutex::new(()),
+        verify_lock: Mutex::new(()),
+        limiter: Mutex::new(api::Limiter::default()),
+    });
+
+    fn handle(mut stream: std::net::TcpStream, ctx: &Ctx) {
+        use std::io::Write;
+        let peer = stream.peer_addr().map(|a| a.ip().to_string()).unwrap_or_default();
+        let mut reader = BufReader::new(match stream.try_clone() {
+            Ok(s) => s,
+            Err(_) => return,
+        });
+        let Some(req) = api::read_request(&mut reader, &peer) else { return };
+        let query = req.query.as_deref();
+        let (status, ctype, body): (String, String, Vec<u8>) = if req.path.starts_with("/api/") {
+            match (req.method.as_str(), req.path.as_str()) {
+                ("GET", "/api/log") => api::get_log(&ctx.log_path, query),
+                ("POST", "/api/event") => {
+                    if !ctx.limiter.lock().unwrap().allow(&format!("e:{}", req.ip), 120) {
+                        api::json_response("429 Too Many Requests",
+                            serde_json::json!({"ok": false, "error": "rate limited - try again later"}))
+                    } else {
+                        api::post_event(&ctx.root, &ctx.log_path, &req.body, &ctx.log_lock)
+                    }
+                }
+                ("POST", "/api/submit") | ("POST", "/api/verify") => {
+                    if !ctx.limiter.lock().unwrap().allow(&format!("v:{}", req.ip), 12) {
+                        api::json_response("429 Too Many Requests",
+                            serde_json::json!({"ok": false, "error": "rate limited - verification is capped per hour, try again later"}))
+                    } else if req.path == "/api/submit" {
+                        api::post_submit(&ctx.root, &ctx.log_path, &req.body, &ctx.log_lock, &ctx.verify_lock)
+                    } else {
+                        api::post_verify(&ctx.root, &ctx.log_path, &req.body, &ctx.log_lock, &ctx.verify_lock)
+                    }
+                }
+                _ => api::json_response("404 Not Found",
+                    serde_json::json!({"ok": false, "error": "unknown api endpoint"})),
+            }
+        } else if req.path == "/data.json" {
+            let meta = std::fs::metadata(&ctx.log_path).ok();
             let key = meta
                 .map(|m| (m.len(), m.modified().ok()
                     .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                     .map(|d| d.as_secs()).unwrap_or(0)))
                 .unwrap_or((0, 0));
-            let fresh = match &cache {
+            let mut cache = ctx.cache.lock().unwrap();
+            let fresh = match &*cache {
                 Some((l, t, _)) if (*l, *t) == key => false,
                 _ => true,
             };
             if fresh {
-                let (json, _) = export_string(log_path, &dataset);
-                cache = Some((key.0, key.1, json));
+                let (json, _) = export_string(&ctx.log_path, &ctx.dataset);
+                *cache = Some((key.0, key.1, json));
             }
-            ("200 OK", "application/json", cache.as_ref().unwrap().2.clone().into_bytes())
-        } else if path == "/install.sh" {
+            ("200 OK".into(), "application/json".into(),
+                cache.as_ref().unwrap().2.clone().into_bytes())
+        } else if req.path == "/install.sh" {
             // The installer lives at the repo root - the single source of
             // truth CI and checkouts use. Serving a copy from site/ once let
             // the two drift.
-            match std::fs::read(root.join("install.sh")) {
-                Ok(bytes) => ("200 OK", "text/plain", bytes),
-                Err(_) => ("404 Not Found", "text/plain", b"not found".to_vec()),
+            match std::fs::read(ctx.root.join("install.sh")) {
+                Ok(bytes) => ("200 OK".into(), "text/plain".into(), bytes),
+                Err(_) => ("404 Not Found".into(), "text/plain".into(), b"not found".to_vec()),
             }
         } else {
-            let rel = if path == "/" { "index.html" } else { path.trim_start_matches('/') };
+            let rel = if req.path == "/" { "index.html" } else { req.path.trim_start_matches('/') };
             if rel.contains("..") {
-                ("400 Bad Request", "text/plain", b"no".to_vec())
+                ("400 Bad Request".into(), "text/plain".into(), b"no".to_vec())
             } else {
-                let file = root.join("site").join(rel);
+                let file = ctx.root.join("site").join(rel);
                 match std::fs::read(&file) {
                     Ok(bytes) => {
                         let ctype = match file.extension().and_then(|e| e.to_str()) {
@@ -1621,7 +1800,7 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
                         // description into the served HTML so a shared link
                         // shows the mathematics, not the generic page name.
                         let bytes = match (ctype.starts_with("text/html"), query.and_then(query_id)) {
-                            (true, Some(id)) => match detail_meta(log_path, rel, &id) {
+                            (true, Some(id)) => match detail_meta(&ctx.log_path, rel, &id) {
                                 Some((title, desc)) => stamp_meta(
                                     String::from_utf8_lossy(&bytes).into_owned(), &title, &desc,
                                 ).into_bytes(),
@@ -1629,14 +1808,20 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
                             },
                             _ => bytes,
                         };
-                        ("200 OK", ctype, bytes)
+                        ("200 OK".into(), ctype.into(), bytes)
                     }
-                    Err(_) => ("404 Not Found", "text/plain", b"not found".to_vec()),
+                    Err(_) => ("404 Not Found".into(), "text/plain".into(), b"not found".to_vec()),
                 }
             }
         };
         let _ = write!(stream, "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n", body.len());
         let _ = stream.write_all(&body);
+    }
+
+    for stream in listener.incoming() {
+        let Ok(stream) = stream else { continue };
+        let ctx = Arc::clone(&ctx);
+        std::thread::spawn(move || handle(stream, &ctx));
     }
 }
 
@@ -1912,33 +2097,33 @@ fn load(path: &PathBuf) -> Vec<Entry> {
         .collect()
 }
 
-fn append(path: &PathBuf, event: Event) {
+/// Sign the event if the acting handle holds a local key; refuse to act in
+/// a registered handle's name without its key. Handles that never
+/// registered an account stay open and unsigned.
+fn sign_event(path: &PathBuf, event: &Event) -> Option<String> {
+    let actor = event.actor()?.to_string();
     let entries = load(path);
-    // Sign if the acting handle holds a local key; refuse to append in a
-    // registered handle's name without its key. Handles that never
-    // registered an account stay open and unsigned.
-    let sig = match event.actor() {
-        Some(actor) => {
-            let actor = actor.to_string();
-            let keyfile = path.parent().unwrap().join("keys").join(format!("{actor}.secret"));
-            let registered = entries.iter().any(|e| matches!(&e.event,
-                Event::RegisterAccount { handle, .. } if *handle == actor));
-            match std::fs::read_to_string(&keyfile) {
-                Ok(hex) => {
-                    use ed25519_dalek::Signer;
-                    let sk = signing_key_from_hex(hex.trim()).expect("malformed key file");
-                    let msg = serde_json::to_string(&event).unwrap();
-                    Some(hex_of(&sk.sign(msg.as_bytes()).to_bytes()))
-                }
-                Err(_) if registered => {
-                    ui::die(&format!("'{actor}' is a registered handle and this machine has no key for it \
-                        ({}) - refusing to append in their name", keyfile.display()));
-                }
-                Err(_) => None,
-            }
+    let keyfile = path.parent().unwrap().join("keys").join(format!("{actor}.secret"));
+    let registered = entries.iter().any(|e| matches!(&e.event,
+        Event::RegisterAccount { handle, .. } if *handle == actor));
+    match std::fs::read_to_string(&keyfile) {
+        Ok(hex) => {
+            use ed25519_dalek::Signer;
+            let sk = signing_key_from_hex(hex.trim()).expect("malformed key file");
+            let msg = serde_json::to_string(event).unwrap();
+            Some(hex_of(&sk.sign(msg.as_bytes()).to_bytes()))
         }
-        None => None,
-    };
+        Err(_) if registered => {
+            ui::die(&format!("'{actor}' is a registered handle and this machine has no key for it \
+                ({}) - refusing to append in their name", keyfile.display()));
+        }
+        Err(_) => None,
+    }
+}
+
+/// Append an already-signed entry to the log, assigning the next seq.
+fn append_entry(path: &PathBuf, event: Event, sig: Option<String>) -> Entry {
+    let entries = load(path);
     let entry = Entry {
         seq: entries.len() as u64,
         ts: std::time::SystemTime::now()
@@ -1953,6 +2138,186 @@ fn append(path: &PathBuf, event: Event) {
     use std::io::Write;
     let mut f = std::fs::OpenOptions::new().create(true).append(true).open(path).expect("open log");
     f.write_all(line.as_bytes()).expect("append event");
+    entry
+}
+
+fn append(path: &PathBuf, event: Event) {
+    let sig = sign_event(path, &event);
+    // Remote mode: publish to the configured registry instead of the local
+    // file. The server re-validates and assigns the sequence number; the
+    // returned entry extends the local cache so multi-append commands see
+    // their own earlier events.
+    if let Some(url) = remote() {
+        let mut body = serde_json::json!({ "event": event, "sig": sig });
+        if let Some(att) = take_remote_attachments() {
+            body["attachments"] = att;
+        }
+        match http_post_json(&format!("{url}/api/event"), &body) {
+            Ok(v) => {
+                if let Some(entry) = v.get("entry") {
+                    use std::io::Write;
+                    if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(path) {
+                        let _ = writeln!(f, "{entry}");
+                    }
+                }
+                ui::step(&format!("published {}", ui::dim(&format!("- event #{} on {url}", v["seq"]))));
+            }
+            Err(e) => ui::die(&format!("the remote registry refused it: {e}")),
+        }
+        return;
+    }
+    append_entry(path, event, sig);
+}
+
+// Remote-mode plumbing: which commands may target a remote, the configured
+// url, and per-command attachments (reveal-statement sends its file+salt so
+// the server can check the commitment).
+
+const REMOTE_CMDS: &[&str] = &[
+    "propose", "formalize", "seal-statement", "reveal-statement", "round", "bridge",
+    "hole", "split", "curate", "supersede", "fund", "commit", "submit", "verify",
+    "account", "status", "profile", "cite", "verify-log", "log", "recheck",
+];
+
+/// Commands the remote refuses (they assert kernel facts without a check,
+/// or need machinery the remote does not expose). With a remote configured
+/// they stop with an explanation instead of silently acting locally.
+const REMOTE_REFUSED: &[(&str, &str)] = &[
+    ("converge", "converge records an equivalence without a kernel check - on the public registry, \
+        use `razor bridge` and prove it; pass --local to write a local registry"),
+    ("implies", "implies records an implication without a kernel check on the receiving side - \
+        pass --local to write a local registry"),
+    ("certify", "certify is not accepted remotely yet - pass --local to write a local registry"),
+    ("reveal", "revealing a committed proof is not supported remotely yet - pass --local, or \
+        submit the proof file directly with `razor submit --file`"),
+    ("repin", "repin is a maintainer operation - pass --local to run it against a local registry"),
+];
+
+static REMOTE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+static ATTACHMENTS: std::sync::Mutex<Option<serde_json::Value>> = std::sync::Mutex::new(None);
+
+fn remote() -> Option<&'static str> {
+    REMOTE.get().and_then(|o| o.as_deref())
+}
+
+fn set_remote_attachments(v: serde_json::Value) {
+    *ATTACHMENTS.lock().unwrap() = Some(v);
+}
+
+fn take_remote_attachments() -> Option<serde_json::Value> {
+    ATTACHMENTS.lock().unwrap().take()
+}
+
+fn remote_config_path() -> Option<PathBuf> {
+    std::env::var("HOME").ok().map(|h| PathBuf::from(h).join(".config/razor/remote"))
+}
+
+fn remote_setup(cmd: &str, args: &[String], root: &PathBuf, log_path: PathBuf) -> PathBuf {
+    let explicit_local = args.iter().any(|a| a == "--local");
+    let url = if explicit_local {
+        None
+    } else {
+        match std::env::var("RAZOR_REMOTE") {
+            Ok(v) if v.trim().is_empty() => None, // RAZOR_REMOTE="" forces local
+            Ok(v) => Some(v.trim().trim_end_matches('/').to_string()),
+            Err(_) => remote_config_path()
+                .and_then(|p| std::fs::read_to_string(p).ok())
+                .map(|s| s.trim().trim_end_matches('/').to_string())
+                .filter(|s| !s.is_empty()),
+        }
+    };
+    if url.is_some() {
+        if let Some((_, why)) = REMOTE_REFUSED.iter().find(|(c, _)| *c == cmd) {
+            ui::die(why);
+        }
+    }
+    let url = url.filter(|_| REMOTE_CMDS.contains(&cmd));
+    let Some(u) = url else {
+        REMOTE.set(None).ok();
+        return log_path;
+    };
+    // Refresh the local view of the remote log; validation below runs
+    // against current remote state, and the canonical server re-validates.
+    let text = http_get(&format!("{u}/api/log")).unwrap_or_else(|e| {
+        ui::die(&format!("cannot reach the remote registry at {u} ({e}) - retry, or run against \
+            your local registry with --local"));
+    });
+    let cache = root.join("registry/data/remote.jsonl");
+    std::fs::create_dir_all(cache.parent().unwrap()).ok();
+    std::fs::write(&cache, text).expect("write remote cache");
+    REMOTE.set(Some(u)).ok();
+    cache
+}
+
+fn cmd_remote(args: &[String]) {
+    let Some(p) = remote_config_path() else { ui::die("no HOME - cannot store config") };
+    match args.get(1).map(String::as_str) {
+        None => match std::fs::read_to_string(&p) {
+            Ok(u) if !u.trim().is_empty() => {
+                println!("{}", u.trim());
+                println!("{}", ui::dim("participation commands publish there; --local opts out per command"));
+            }
+            _ => println!("{}", ui::dim("no remote configured - commands run against the local registry")),
+        },
+        Some("off") | Some("none") | Some("clear") => {
+            let _ = std::fs::remove_file(&p);
+            ui::step("remote cleared - commands run against the local registry");
+        }
+        Some(url) if url.starts_with("http") => {
+            std::fs::create_dir_all(p.parent().unwrap()).ok();
+            std::fs::write(&p, format!("{}\n", url.trim_end_matches('/'))).expect("write config");
+            ui::step(&format!("remote set to {} {}", ui::bold(url),
+                ui::dim("- participation commands publish there (--local opts out)")));
+        }
+        _ => ui::die("usage: razor remote [<url> | off]"),
+    }
+}
+
+// HTTP through curl: universally present, TLS included, no new
+// dependencies. The server always answers JSON with an `ok` field.
+
+fn http_get(url: &str) -> Result<String, String> {
+    let out = std::process::Command::new("curl")
+        .args(["-sS", "--max-time", "60", "-f", url])
+        .output()
+        .map_err(|e| format!("curl unavailable: {e}"))?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+fn http_post_json(url: &str, body: &serde_json::Value) -> Result<serde_json::Value, String> {
+    use std::io::Write;
+    let mut child = std::process::Command::new("curl")
+        .args(["-sS", "--max-time", "400", "-X", "POST",
+               "-H", "Content-Type: application/json", "--data-binary", "@-", url])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("curl unavailable: {e}"))?;
+    child.stdin.take().unwrap().write_all(body.to_string().as_bytes())
+        .map_err(|e| format!("send failed: {e}"))?;
+    let out = child.wait_with_output().map_err(|e| format!("curl failed: {e}"))?;
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).map_err(|_| {
+        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        if err.is_empty() {
+            format!("unexpected response: {}", String::from_utf8_lossy(&out.stdout).trim())
+        } else {
+            err
+        }
+    })?;
+    if v["ok"].as_bool() == Some(true) {
+        Ok(v)
+    } else {
+        Err(v["error"].as_str().unwrap_or("remote error").to_string())
+    }
+}
+
+fn submission_module(root_import: &str, id: &str) -> String {
+    let modname: String = id.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
+    format!("{root_import}.Submissions.S{modname}")
 }
 
 // ---------------- keys and signatures ----------------

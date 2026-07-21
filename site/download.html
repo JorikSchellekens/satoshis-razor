@@ -69,32 +69,27 @@ site/data.json              <span class="c"># everything above, folded into one 
 
 <section>
   <div class="wrap">
-    <div class="sec-head"><h3>Get your events onto the public registry</h3><span class="note">the hosted site serves the log on the repository's master branch</span></div>
+    <div class="sec-head"><h3>Participate — the CLI publishes directly</h3><span class="note">no pull request, no log file to touch: the commands are the interface</span></div>
     <div class="prose">
-      <p>Every <code>razor</code> command appends to your local copy of
-      <code>registry/data/events.jsonl</code>. The public registry at
-      <a href="https://razor.mempoolsurfer.com">razor.mempoolsurfer.com</a> serves the copy of that
-      file on the master branch of
-      <a href="https://github.com/jorikschellekens/satoshis-razor">github.com/jorikschellekens/satoshis-razor</a>.
-      So publishing your work is a pull request:</p>
-      <div class="codeblock"><span class="c"># fork the repository on GitHub, then work in your fork</span>
-razor account new           <span class="c"># optional but recommended: your later events are signed</span>
-<span class="c"># … razor seal-statement / formalize / submit / verify / … as documented on this page …</span>
-git add registry/data/events.jsonl lean/ lean-mathlib/
-git commit -m "my events"   <span class="c"># the appended events + any Lean files they reference</span>
-<span class="c"># open a pull request against master</span></div>
-      <p>CI re-checks every signature on the log for every pull request, and a maintainer re-runs the
-      kernel checks (<code>razor recheck</code>) before merging. Once the pull request merges, the
-      hosted site updates within a few minutes. Your position on the shared log is your events' order
-      after the merge — for sealed readings that is the order that the blindness facts are computed
-      from, so a seal establishes independence as long as it merges before the other readings'
-      reveals.</p>
-      <p>Two things to avoid in a pull request. Do not commit a log produced by
-      <code>./demo.sh</code> — that is the fictional walkthrough dataset. And do not run
-      <code>./seed.sh</code> before contributing — it regenerates the whole log from scratch with
-      fresh timestamps and signatures, so your diff would rewrite history instead of appending to it.
-      The clone already contains the live log; append to it as it is. If you ran either script,
-      restore first: <code>git checkout registry/data/events.jsonl</code>.</p>
+      <p>The installer points your CLI at this registry, so the participation commands on this site do
+      what they say: <code>razor formalize</code>, <code>razor seal-statement</code>,
+      <code>razor submit</code> and the rest publish here, from your terminal, in seconds.
+      Your key signs every event locally; the private key never leaves your machine.</p>
+      <div class="codeblock">razor account new                <span class="c"># once - your handle, your Ed25519 key, your signature on everything after</span>
+razor status                     <span class="c"># the live registry, in your terminal</span>
+<span class="c"># then exactly the commands each page shows, e.g.:</span>
+razor submit --id SUB-you --hole FLT-RED --solver you \
+  --decl Your.proof --file your-proof.lean   <span class="c"># kernel-checked on the spot; the verdict comes back</span></div>
+      <p>What the registry does with an event: it re-validates it, requires a valid signature for any
+      registered handle, assigns it the next position on the log, and - for proof submissions - runs
+      the kernel check in a throwaway container with no network before recording the verdict. It
+      cannot forge your events, and its verdicts are re-checkable by anyone:
+      <code>razor recheck --submission SUB-you</code> replays the check on your own machine.</p>
+      <p>Prefer to keep everything on your machine? <code>razor remote off</code> (or
+      <code>--local</code> on any single command) switches to your clone's local log - the demo and
+      the scripts always run locally regardless. The public log is mirrored to
+      <a href="https://github.com/jorikschellekens/satoshis-razor">the repository</a> on every append,
+      so auditors can replay it from a checkout without trusting this server.</p>
     </div>
   </div>
 </section>

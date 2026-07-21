@@ -47,13 +47,23 @@ pub fn verify(
         .stderr(std::process::Stdio::piped());
     let timeout_s: u64 = std::env::var("RAZOR_VERIFY_TIMEOUT")
         .ok().and_then(|v| v.parse().ok()).unwrap_or(300);
-    let mut child = cmd.spawn().unwrap_or_else(|e| {
-        let _ = std::fs::remove_file(&path);
-        crate::ui::die(&format!(
-            "cannot run the Lean toolchain ({}: {e})\n  install elan (./install.sh does), or add ~/.elan/bin to PATH, then retry",
-            cmd.get_program().to_string_lossy()
-        ));
-    });
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        // A missing toolchain is an infrastructure failure, not a verdict:
+        // callers see the marker and refuse to record anything.
+        Err(e) => {
+            let _ = std::fs::remove_file(&path);
+            return Verdict {
+                admitted: false,
+                axioms: vec![],
+                detail: format!(
+                    "checker-unavailable: cannot run {} ({e}) - install elan (./install.sh does), \
+                     or add ~/.elan/bin to PATH, then retry",
+                    cmd.get_program().to_string_lossy()
+                ),
+            };
+        }
+    };
     let start = std::time::Instant::now();
     let out = loop {
         match child.try_wait().expect("wait on checker") {
@@ -76,6 +86,20 @@ pub fn verify(
     let _ = std::fs::remove_file(&path);
 
     if !out.status.success() {
+        // A missing toolchain inside the shell/sandbox/container is an
+        // infrastructure failure, not a verdict on the proof.
+        if stderr.contains("lake: not found") || stderr.contains("lake: command not found")
+            || stderr.contains("docker: not found")
+            || stderr.contains("Cannot connect to the Docker daemon")
+            || stderr.contains("Unable to find image") {
+            return Verdict {
+                admitted: false,
+                axioms: vec![],
+                detail: format!(
+                    "checker-unavailable: {} - install elan (./install.sh does) or fix the \
+                     container runtime, then retry", compact(&stderr)),
+            };
+        }
         return Verdict {
             admitted: false,
             axioms: vec![],
@@ -128,12 +152,38 @@ fn compact(s: &str) -> String {
 /// RAZOR_NO_SANDBOX=1 to opt out (e.g. when the process already runs
 /// inside a container that is itself the sandbox).
 fn checker_command(lean_dir: &std::path::Path) -> Command {
+    // Strongest isolation: a throwaway container per check. The package is
+    // mounted read-only and copied inside, the network namespace is empty,
+    // and the container dies with the check. Enabled by naming the image
+    // (the hosted registry sets RAZOR_VERIFY_DOCKER=razor-verify).
+    if let Ok(image) = std::env::var("RAZOR_VERIFY_DOCKER") {
+        if !image.trim().is_empty() {
+            let mut c = Command::new("docker");
+            c.args(["run", "--rm", "--network", "none", "--memory", "3g", "--cpus", "2",
+                    "--pids-limit", "512"])
+                .arg("-v").arg(format!("{}:/src:ro", lean_dir.display()))
+                .arg(image.trim())
+                .args(["bash", "-lc",
+                    // Its own deadline, under the watchdog's, so the
+                    // container exits even if the client is killed. Build
+                    // output goes to stderr; stdout stays the axiom report.
+                    "timeout 290 bash -c 'set -e; cp -a /src /work; cd /work; \
+                     lake build 1>&2; lake env lean .razor-check.lean'"]);
+            return c;
+        }
+    }
+    // Build then check, both inside whatever sandbox applies: a submission
+    // installed as a fresh module has no compiled artifact until it is
+    // built, and building untrusted Lean is code execution just like
+    // elaborating it. Build output goes to stderr so stdout stays the
+    // axiom report.
+    const BUILD_AND_CHECK: &str = "lake build 1>&2 && lake env lean .razor-check.lean";
     if std::env::var_os("RAZOR_NO_SANDBOX").is_none() {
         if cfg!(target_os = "macos") && std::path::Path::new("/usr/bin/sandbox-exec").exists() {
             let mut c = Command::new("/usr/bin/sandbox-exec");
             c.arg("-p")
                 .arg("(version 1)(allow default)(deny network*)")
-                .args(["lake", "env", "lean", ".razor-check.lean"]);
+                .args(["sh", "-c", BUILD_AND_CHECK]);
             return c;
         }
         if cfg!(target_os = "linux") {
@@ -144,7 +194,7 @@ fn checker_command(lean_dir: &std::path::Path) -> Command {
                 c.args(["--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc",
                         "--tmpfs", "/tmp", "--unshare-net", "--die-with-parent"])
                     .arg("--bind").arg(lean_dir).arg(lean_dir)
-                    .args(["lake", "env", "lean", ".razor-check.lean"]);
+                    .args(["sh", "-c", BUILD_AND_CHECK]);
                 return c;
             }
         }
@@ -155,7 +205,7 @@ fn checker_command(lean_dir: &std::path::Path) -> Command {
                 "no sandbox found (sandbox-exec / bwrap) - checker runs unsandboxed"
             }));
     }
-    let mut c = Command::new("lake");
-    c.args(["env", "lean", ".razor-check.lean"]);
+    let mut c = Command::new("sh");
+    c.args(["-c", BUILD_AND_CHECK]);
     c
 }
