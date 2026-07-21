@@ -454,6 +454,21 @@ fn run_verification(
     let _v = verify_lock.lock().unwrap();
     match crate::verify_and_record(root, log_path, id, log_lock) {
         Ok(outcome) => {
+            // A rejected file-submission leaves no source in the tree
+            // (mirroring the local CLI, which removes a file that fails to
+            // build) - otherwise the mirror would push code that breaks
+            // everyone's `lake build`. The rejection itself stays recorded.
+            if !outcome.admitted {
+                let state = State::fold(load(log_path));
+                if let Some((hole, sub)) = state.holes.values()
+                    .find_map(|h| h.submissions.iter().find(|s| s.id == id).map(|s| (h, s)))
+                {
+                    if let Some(module) = &sub.module {
+                        let (lean_dir, _) = crate::env_of(root, hole);
+                        let _ = std::fs::remove_file(lean_dir.join(module.replace('.', "/") + ".lean"));
+                    }
+                }
+            }
             MIRROR_DIRTY.store(true, Ordering::SeqCst);
             ok(serde_json::json!({
                 "submission": id,
