@@ -1,116 +1,126 @@
 # Satoshi's Razor
 
-A public registry of open formal problems. A hole is a Lean theorem statement
-with a `sorry` body: a precisely specified gap in formalized mathematics.
-Anyone - human or AI - can attempt one, and admission is a kernel check, not a
-referee's opinion. Every event lands on an append-only log, so priority and
-credit are verifiable rather than socially disputed.
+A public registry of open formal problems. Browse it at
+[razor.mempoolsurfer.com](https://razor.mempoolsurfer.com).
 
-Holes are stated using Mathlib's definitions by default, and where Mathlib
-already names the Prop the hole pins Mathlib's own name - the FLT hole pins
-`FermatLastTheorem` itself, so the proof the Imperial FLT project lands in
-Mathlib closes it verbatim. A proof admitted here is a proof the rest of
-formal mathematics can build on, not one stranded in a package nobody
-else imports.
+A **hole** is an open problem stated exactly: a Lean theorem statement whose
+proof is missing. Anyone - a person or a machine - can submit a proof, and
+the Lean kernel decides whether it is accepted; no referee does. Every
+action is recorded on an append-only log, so who stated, proved, funded, or
+curated what, and when, is a fact anyone can check.
 
-Two questions the registry is built to answer, which no list answers:
+Holes are stated with Mathlib's definitions by default. Where Mathlib
+already defines the statement itself, the hole uses Mathlib's own name: the
+Fermat's Last Theorem hole is `FermatLastTheorem`, the exact statement the
+Imperial College FLT project is proving, so the proof that lands in Mathlib
+closes the hole with no translation step in between. Because holes are
+stated in the language the rest of formal mathematics already uses, an
+accepted proof can be contributed onward to Mathlib.
 
-- **Is this Lean statement really the theorem it claims to be?** Every hole
-  carries recorded fidelity facts: how many people independently formalized
-  it, whether their statements were proven equivalent by kernel check, what
-  certificates it survived. Two people reading the same words and their
-  Lean agreeing is the strongest mechanical evidence a formalization is
-  faithful - and here it is a first-class, queryable property.
-- **Did that machine really solve that open problem?** When a person or a
-  model claims a solve, the claim reduces to one command: `razor recheck`
-  replays the kernel check against the statement that was pinned before the
-  attempt, audits the Ed25519 signature on the claim, and compares with the
-  verdict on the log. No thread of screenshots, no adjudication - a
-  checkable public fact.
+The registry is built to answer two questions:
+
+- **Does this Lean statement say what the informal theorem says?** No
+  machine can check that, so the registry records the evidence instead: how
+  many people independently wrote a Lean statement for the same problem,
+  whether those statements were proven equivalent by the kernel, and which
+  sanity checks passed. When two people translate the same sentence into
+  Lean without seeing each other's work and the results are proven
+  equivalent, a mistranslation is unlikely - and here that evidence is
+  recorded and queryable.
+- **Did that machine really solve that open problem?** A claimed solve
+  reduces to one command. `razor recheck` re-runs the kernel check against
+  the statement as it was pinned before the attempt, checks the signature
+  on the claim, and compares the result with the verdict on the log.
 
 ## Quick start
 
+The hosted registry is at
+[razor.mempoolsurfer.com](https://razor.mempoolsurfer.com). To run
+everything locally:
+
 ```sh
-./install.sh       # checks the toolchain, builds, links razor / anvil-harness / zk-prover onto PATH
-./seed.sh          # the live registry: real corpora and real open problems, no fiction
-./demo.sh          # OR the scripted walkthrough exercising every mechanism (fictional participants)
-razor serve        # browse the registry at http://localhost:8420
-./mathlib-env.sh   # once, to verify Mathlib-environment holes locally (several GB of prebuilt cache)
+./install.sh       # checks the toolchain, builds, puts razor / anvil-harness / zk-prover on PATH
+./seed.sh          # loads the live registry: real corpora and real open problems
+./demo.sh          # OR a scripted walkthrough of every mechanism, with fictional participants
+razor serve        # browse at http://localhost:8420
+./mathlib-env.sh   # once, if you want to verify Mathlib-environment holes locally (several GB)
 ```
 
 `razor help` lists every command. The registry's entire state is one file,
-`registry/data/events.jsonl`; everything else - the site, the leaderboards,
-every profile - is derived from it. The log is committed, so this repository
-is its permanent public home: a `razor cite` log hash is checkable by anyone
-with a checkout, with no server to trust. CI elaborates every pinned Mathlib
-statement on every push, so you do not need the local Mathlib cache to trust
-the statements. (demo.sh overwrites the log with its fictional walkthrough
-locally; `git checkout registry/data/events.jsonl` restores the live one.)
+`registry/data/events.jsonl`. The site, the leaderboards, and every profile
+are computed from it. The log is committed to this repository, so anyone
+with a checkout can verify a citation without trusting a server, and CI
+compiles every pinned Mathlib statement on every push. (demo.sh overwrites
+the log locally; restore the real one with
+`git checkout registry/data/events.jsonl`.)
 
-## What is on the frontier
+## What is in the registry
 
-- Flagship holes stated with Mathlib's definitions: Fermat's Last Theorem
-  (`FermatLastTheorem`, Mathlib's own Prop), Erdos-Straus, Erdos-Turan on
-  additive bases.
-- A sourced backlog ingested from the [1000+ theorems
-  list](https://1000-plus.github.io/): as of 2026-07-03, 975 catalogued
-  theorems with no Lean formalization, each a proposal waiting for someone to
-  pin its statement. Refresh with `uv run ingest/fetch_thousand_plus.py`.
-- Recognized corpora (Mathlib, formal-conjectures, Physlib): work that is
-  already done, never re-proved - a hole that duplicates it closes by
-  citation.
+- Open problems stated with Mathlib's definitions: Fermat's Last Theorem
+  (`FermatLastTheorem`, Mathlib's own statement), the Erdos-Straus
+  conjecture, and the Erdos-Turan conjecture on additive bases.
+- 975 catalogued theorems with no Lean formalization, imported from the
+  [1000+ theorems list](https://1000-plus.github.io/) (snapshot dated
+  2026-07-03). Each is a proposal waiting for someone to write its Lean
+  statement. Refresh the snapshot with `uv run ingest/fetch_thousand_plus.py`.
+- Recognized prior work (Mathlib, formal-conjectures, Physlib). The registry
+  does not restate or re-prove it, and a hole that turns out to duplicate it
+  is closed by citing it.
 
 ## How it works
 
-- **From words to a hole.** A problem enters as a plain-language proposal;
-  candidate Lean statements are filed against it; statements proven equivalent
-  by machine-checked proof clump together. Two independent authors converging
-  is the strongest evidence a formalization is faithful - and a challenge
-  window makes the independence checkable: authors file readings *sealed*
-  (hash first, reveal later), so readings sealed before one another's reveals
-  were provably written blind. The equivalence obligation between two readings
-  can itself be pinned as a solvable hole (a bridge), so proving it is
-  attributed, fundable, kernel-checked work. The full pipeline is specified in
-  [FUNNEL.md](FUNNEL.md).
-- **Solving.** `razor submit --file proof.lean` takes a single Lean file; the
+- **From words to a hole.** A problem starts as a proposal in plain
+  language. Anyone can file a candidate Lean statement for it, together
+  with a gloss: the author's own plain-language reading of their Lean.
+  Statements proven equivalent by the kernel are grouped into clumps.
+  During a challenge window, statements can be filed sealed - a hash first,
+  the statement itself later - so statements sealed before one another's
+  reveals were provably written without seeing each other. The equivalence
+  of two statements can itself be registered as a hole, called a bridge, so
+  proving it is credited and checked like any other proof. The full
+  pipeline is described in [FUNNEL.md](FUNNEL.md).
+- **Solving.** `razor submit --file proof.lean` takes one Lean file. The
   verifier checks the named declaration against the hole's exact pinned
-  statement - no `sorry`, no extra axioms - inside a no-network sandbox.
-  `razor recheck` lets anyone replay that check later, read-only, and
-  compare with the recorded verdict.
-- **Proofs flow to Mathlib, not away from it.** `razor upstream` drafts a
-  home-library contribution from an admitted proof - the proof source under
-  a provenance header pinning the submission, verdict event, and log hash -
-  and records the pull request once it lands. The hole then shows as
-  upstreamed. The registry measures itself by upstreamed proofs, not
-  admitted ones.
-- **The frontier flows to the provers.** `razor export-benchmark` emits
-  every open hole as a JSONL proving target in the shape prover benchmarks
-  already consume: a header, a formal statement ending in `sorry`, the
-  informal text, and the statement's fidelity facts. Point a model at the
-  export; its claimed solves come back through submit / verify / recheck.
-- **Partial progress is attributed.** A hole can be split into child holes
-  plus a glue hole whose statement the CLI composes mechanically - `(child 1)
-  → ... → (child n) → parent` - so an admitted glue proof is a kernel-checked
-  fact that the children suffice, and each child solve is credited on its own.
-- **Statements survive churn.** When a library refactor respells a pinned
-  statement, `razor repin` migrates the hole - but only if a proof that the
-  two wordings are equivalent kernel-checks. Old wording, new wording, and the
-  equivalence stay on the log; prior admissions remain valid.
-- **Attribution you can take with you.** Registered handles sign events with
-  Ed25519 keys (`razor verify-log` audits the whole log), can bridge to a
-  GitHub identity, and `razor cite` emits a citation pinning an admitted proof
-  to an event number and a log hash anyone can recheck. Commit-reveal and
-  zero-knowledge routes keep a pending proof private without giving up
-  priority.
-- **Value.** Importance is assigned by curation: signed, costless picks,
-  weighted by the curator's admitted work. Anyone who values a proof of one
-  exact statement can attach a bounty; the first admitted proof is paid,
-  degenerate proofs included - the funder carries the fidelity risk. Nothing
+  statement - no `sorry`, no extra axioms - in a sandbox with no network
+  access. `razor recheck` re-runs that check later, read-only, and compares
+  the result with the recorded verdict.
+- **Contributing proofs to Mathlib.** `razor upstream` turns an accepted
+  proof into a draft Mathlib contribution, with a header recording the
+  submission, the verdict event, and the log hash. Once the pull request
+  lands, the hole shows as upstreamed. The registry measures itself by
+  upstreamed proofs, not accepted ones.
+- **Exports for automated provers.** `razor export-benchmark` writes every
+  open hole as a JSONL proving target in the format prover benchmarks
+  already use: an import header, a formal statement ending in `sorry`, and
+  the informal text. Claimed solves come back through submit, verify, and
+  recheck.
+- **Partial progress.** A hole can be split into child holes plus a glue
+  hole, whose statement the CLI composes mechanically:
+  `(child 1) → ... → (child n) → parent`. An accepted glue proof is a
+  kernel-checked fact that solving the children solves the parent, and each
+  child solve is credited on its own.
+- **Library changes.** When a Mathlib refactor renames or respells a pinned
+  statement, `razor repin` migrates the hole to the new wording - but only
+  if a proof that the two wordings are equivalent passes the kernel. The
+  old wording, the new wording, and the equivalence proof stay on the log,
+  so earlier accepted proofs remain valid.
+- **Identity and citations.** A registered handle signs its events with an
+  Ed25519 key, and `razor verify-log` checks every signature on the log.
+  `razor cite` prints a citation that pins a proof to an event number and a
+  log hash. A solver can also commit a hash of a proof and reveal the proof
+  later, or submit a zero-knowledge proof, to establish priority without
+  showing the proof itself.
+- **Money and importance.** Importance is assigned by curation: public,
+  signed picks of problems worth working on, weighted by the curator's own
+  accepted work. Anyone can attach a bounty to one exact statement, and the
+  first accepted proof of that literal statement is paid, trivial proofs
+  included - so the risk that the statement was badly worded stays with the
+  funder, who could see the recorded evidence before spending. Nothing
   about stating, solving, or building on a hole requires credits.
-- **The Anvil.** The same machinery for programs: holes are formal
-  specifications, submissions are implementations proven to refine them, and
-  admitted implementations compete on fuel-metered and native leaderboards.
-  See [ANVIL.md](ANVIL.md).
+- **The Anvil.** The same machinery applied to programs: the specification
+  is formal, submissions are implementations with a proof that they refine
+  the specification, and accepted implementations compete on measured
+  speed. See [ANVIL.md](ANVIL.md).
 
 ## Layout
 
@@ -122,12 +132,12 @@ locally; `git checkout registry/data/events.jsonl` restores the live one.)
 | `ingest/` | catalogue ingestion (1000+ theorems snapshot + fetcher) |
 | `zk/` | Groth16 prover/verifier for zero-knowledge routes |
 | `anvil/` | challenge specs, implementations, fuel + native harness |
-| `site/` | the frontier explorer, computed from the log |
+| `site/` | the site at razor.mempoolsurfer.com, computed from the log |
 
 ## Contributing
 
 Early stage, actively seeking contributors in formal verification, agent
-tooling, frontend, and documentation. Reach out on github or dm
-@mempoolsurfer on telegram.
+tooling, frontend, and documentation. Reach out on GitHub or message
+@mempoolsurfer on Telegram.
 
 MIT - see [LICENSE](LICENSE).
