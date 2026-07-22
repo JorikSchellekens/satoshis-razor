@@ -273,6 +273,55 @@ a.mlink:hover { text-decoration-style: solid; text-decoration-color: var(--solve
 .featured .go { font-family: var(--mono); font-size: 12.5px; color: var(--gold); text-decoration: none; }
 .featured .go:hover { text-decoration: underline; }
 
+/* call-to-action row (index) */
+.cta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+.cta a { font-family: var(--mono); font-size: 13px; text-decoration: none; border: 1px solid var(--faint);
+  border-radius: 999px; padding: 7px 16px; color: var(--chalk); }
+.cta a:hover { border-color: var(--gold); color: var(--gold); }
+.cta a.primary { border-color: var(--gold); color: var(--gold); }
+
+/* the open-window line under the stats */
+.window-line { margin-top: 18px; font-family: var(--mono); font-size: 13px; color: var(--gold); }
+.window-line a { color: inherit; }
+
+/* progress bars: solved vs open, segment per part */
+.progress { display: inline-flex; align-items: center; gap: 10px; }
+.pbar { display: inline-flex; gap: 3px; width: 150px; }
+.pbar i { display: block; height: 8px; flex: 1; border-radius: 2px; background: var(--faint); }
+.pbar i.done { background: var(--solved); }
+.pbar.cont { gap: 0; background: var(--faint); border-radius: 2px; overflow: hidden; }
+.pbar.cont i { flex: none; border-radius: 0; }
+.plabel { font-family: var(--mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+
+/* the activity feed: log events as sentences */
+.feed { background: var(--surface); border: 1px solid var(--faint); border-radius: 10px; padding: 8px 18px; }
+.feedrow { display: flex; align-items: baseline; gap: 14px; padding: 8px 0; border-top: 1px dashed var(--faint); font-size: 15px; }
+.feedrow:first-child { border-top: 0; }
+.feedrow .ft { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 8.5ch; white-space: nowrap; }
+.feedrow .fs { color: var(--muted); }
+.feedrow .fs b, .feedrow .fs .idlink { color: var(--chalk); }
+.feedrow .fseq { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
+.feedrow.good .fs { color: var(--chalk); }
+.feedrow.gold .ft { color: var(--gold); }
+.feedrow.bad .ft { color: var(--danger); }
+
+/* hole families on the frontier */
+.family { margin-bottom: 26px; }
+.family-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding: 8px 2px 10px; }
+.family-head h4 { font-size: 18px; font-weight: 500; font-style: italic; }
+.family-head h4 a { text-decoration: none; }
+.family-head h4 a:hover { text-decoration: underline; }
+.family-head .fmeta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.family-head .progress { margin-left: auto; }
+
+/* collapsed sort & filter controls: summary sits beside the search box,
+   the selects wrap onto their own row when opened */
+details.ctl { display: contents; }
+details.ctl summary { cursor: pointer; font-family: var(--mono); font-size: 12.5px; color: var(--muted); padding: 6px 0; list-style-position: inside; }
+details.ctl summary:hover { color: var(--chalk); }
+details.ctl[open] summary { color: var(--chalk); }
+details.ctl .ctl-body { flex: 1 0 100%; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
 /* verify-it-yourself box on hole pages */
 .verify { margin-top: 10px; }
 .verify .codeblock { margin: 8px 0 6px; }

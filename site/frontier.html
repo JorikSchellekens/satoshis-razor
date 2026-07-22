@@ -41,28 +41,33 @@
 <section>
   <div class="wrap">
     <div class="controls">
-      <label for="sort">sort by</label>
-      <select id="sort">
-        <option value="attention">attention (bounty + community signals)</option>
-        <option value="pool">bounty (credits on this exact statement)</option>
-        <option value="curation">curation weight</option>
-        <option value="clump">clump weight (independent authors)</option>
-        <option value="splits">splits (registered reduction plans)</option>
-        <option value="lineage">earlier wordings replaced</option>
-        <option value="convergence">formalization authors</option>
-        <option value="subs">number of attempts</option>
-        <option value="id">id</option>
-      </select>
-      <label for="filter">show</label>
-      <select id="filter">
-        <option value="all">all</option>
-        <option value="open">open</option>
-        <option value="solved">solved</option>
-        <option value="superseded">marked superseded</option>
-      </select>
       <input id="search" type="search" placeholder="search title / id / statement" aria-label="search holes">
+      <details class="ctl">
+        <summary id="ctl-sum">sort &amp; filter</summary>
+        <div class="ctl-body">
+          <label for="sort">sort by</label>
+          <select id="sort">
+            <option value="attention">attention (bounty + community signals)</option>
+            <option value="pool">bounty (credits on this exact statement)</option>
+            <option value="curation">curation weight</option>
+            <option value="clump">clump weight (independent authors)</option>
+            <option value="splits">splits (registered reduction plans)</option>
+            <option value="lineage">earlier wordings replaced</option>
+            <option value="convergence">formalization authors</option>
+            <option value="subs">number of attempts</option>
+            <option value="id">id</option>
+          </select>
+          <label for="filter">show</label>
+          <select id="filter">
+            <option value="all">all</option>
+            <option value="open">open</option>
+            <option value="solved">solved</option>
+            <option value="superseded">marked superseded</option>
+          </select>
+        </div>
+      </details>
     </div>
-    <div class="cards" id="holes"></div>
+    <div id="holes"></div>
   </div>
 </section>
 
@@ -181,69 +186,50 @@ function card(S, h, sort) {
 function draw() {
   const S = STATE;
   const sort = $('sort').value, filter = $('filter').value, q = $('search').value.toLowerCase();
+  $('ctl-sum').textContent = `sorted by ${$('sort').selectedOptions[0].textContent.split(' (')[0]}` +
+    ` · showing ${$('filter').selectedOptions[0].textContent}`;
   let holes = Object.values(S.holes).map(h => ({ h, m: holeMetrics(S, h) }));
   if (filter === 'superseded') holes = holes.filter(({ h }) => (h.superseded_by || []).length);
   else if (filter !== 'all') holes = holes.filter(({ h }) => h.status === filter);
   if (q) holes = holes.filter(({ h }) =>
     (h.id + ' ' + h.title + ' ' + h.lean_type).toLowerCase().includes(q));
-  holes.sort((a, b) => sort === 'id'
-    ? a.h.id.localeCompare(b.h.id)
-    : (b.m[sort] ?? b.m.attention) - (a.m[sort] ?? a.m.attention));
-  $('holes').innerHTML = holes.map(({ h }) => card(S, h, sort)).join('')
+
+  // Holes grouped by the proposal they serve: the FLT tree reads as one
+  // problem with parts, not ten interleaved cards. Groups order by their
+  // best member on the chosen metric; test-data groups sink.
+  const metric = (x) => x.m[sort] ?? x.m.attention;
+  const fams = new Map();
+  for (const x of holes) {
+    const k = x.h.proposal || '';
+    if (!fams.has(k)) fams.set(k, []);
+    fams.get(k).push(x);
+  }
+  for (const list of fams.values())
+    list.sort((a, b) => sort === 'id' ? a.h.id.localeCompare(b.h.id) : metric(b) - metric(a));
+  const famTest = (k, list) => (k && isTestData(S, k)) || list.every(x => x.m.test);
+  const order = [...fams.entries()].sort((a, b) =>
+    (famTest(...a) ? 1 : 0) - (famTest(...b) ? 1 : 0)
+    || (sort === 'id'
+      ? (a[0] || '~').localeCompare(b[0] || '~')
+      : Math.max(...b[1].map(metric)) - Math.max(...a[1].map(metric))));
+
+  $('holes').innerHTML = order.map(([k, list]) => {
+    const p = k && S.proposals[k];
+    const all = Object.values(S.holes).filter(h => (h.proposal || '') === k);
+    const solved = all.filter(h => h.status === 'solved').length;
+    const head = p ? `<div class="family-head">
+        <h4><a href="proposal.html?id=${encodeURIComponent(k)}">${esc(prettyMath(p.title))}</a></h4>
+        <span class="fmeta">${all.length} hole${all.length > 1 ? 's' : ''} pinned under ${propLink(k)}</span>
+        ${all.length > 1 ? pbar(solved, all.length) : ''}
+      </div>` : `<div class="family-head">
+        <h4>Pinned directly</h4>
+        <span class="fmeta">holes without a proposal on the log</span>
+      </div>`;
+    return `<div class="family">${head}<div class="cards">${list.map(({ h }) => card(S, h, sort)).join('')}</div></div>`;
+  }).join('')
     || (Object.keys(S.holes).length
       ? '<p class="lede">Nothing matches.</p>'
       : '<p class="lede">No holes yet: nothing has been formalized into a pinned Lean statement. The open work is in the proposals below — formalizing one creates the registry\'s first hole.</p>');
-}
-
-function renderGraph(S) {
-  const holes = Object.values(S.holes);
-  const byId = Object.fromEntries(holes.map(h => [h.id, h]));
-  const edges = [];
-  for (const h of holes) {
-    for (const [, r] of (h.superseded_by || []))
-      if (byId[r] && !edges.some(e => e.from === h.id && e.to === r)) edges.push({ from: h.id, to: r, kind: 'supersede' });
-    for (const sp of (h.splits || []))
-      for (const [sg] of sp.children) if (byId[sg]) edges.push({ from: h.id, to: sg, kind: 'decompose' });
-  }
-  const inGraph = new Set(edges.flatMap(e => [e.from, e.to]));
-  if (!inGraph.size) { $('graph').closest('.board').style.display = 'none'; return; }
-  const depth = {};
-  const dfs = (id) => {
-    if (id in depth) return depth[id];
-    const preds = edges.filter(e => e.to === id);
-    depth[id] = preds.length ? 1 + Math.max(...preds.map(e => dfs(e.from))) : 0;
-    return depth[id];
-  };
-  inGraph.forEach(dfs);
-  const cols = {};
-  inGraph.forEach(id => (cols[depth[id]] ||= []).push(id));
-  const W = 940, colW = W / Object.keys(cols).length, H = 250;
-  const pos = {};
-  Object.entries(cols).forEach(([d, ids]) => {
-    ids.sort();
-    ids.forEach((id, i) => { pos[id] = { x: colW * d + colW / 2, y: (H / (ids.length + 1)) * (i + 1) + 14 }; });
-  });
-  const color = { open: 'var(--open)', solved: 'var(--solved)' };
-  let svg = '';
-  for (const e of edges) {
-    const a = pos[e.from], b = pos[e.to];
-    const mx = (a.x + b.x) / 2, wob = (e.to.charCodeAt(e.to.length - 1) % 2 ? 14 : -12);
-    svg += `<path class="gedge ${e.kind}" d="M ${a.x + 62} ${a.y} Q ${mx} ${(a.y + b.y) / 2 + wob} ${b.x - 62} ${b.y}"/>`;
-    if (e.kind === 'supersede')
-      svg += `<text class="gedge-label" x="${mx}" y="${(a.y + b.y) / 2 + wob - 6}" text-anchor="middle">marked superseded by</text>`;
-  }
-  for (const id of inGraph) {
-    const h = byId[id], p = pos[id];
-    const [glyph] = CHIP[h.status];
-    svg += `<a href="hole.html?id=${encodeURIComponent(id)}"><g class="gnode">
-      <title>${esc(prettyMath(h.title))}</title>
-      <ellipse cx="${p.x}" cy="${p.y}" rx="64" ry="26" fill="var(--bg)" stroke="${color[h.status]}" stroke-width="1.8"/>
-      <text x="${p.x}" y="${p.y - 1}" text-anchor="middle">${esc(id)}</text>
-      <text class="sub" x="${p.x}" y="${p.y + 13}" text-anchor="middle">${glyph} ${h.status}</text>
-    </g></a>`;
-  }
-  $('graph').setAttribute('viewBox', `0 0 ${W} ${H + 20}`);
-  $('graph').innerHTML = svg;
 }
 
 function renderProposals(S) {
@@ -283,7 +269,7 @@ function renderProposals(S) {
     return `<article class="card wide">
       <div class="row1">
         ${propLink(p.id)}
-        ${round ? `<span class="badge gold"${tip('window')}>◷ ${round.phase === 'sealing' ? `challenge window open — seal a reading by ${fmtDay(round.closes_at)}` : `reveals due by ${fmtDay(round.reveal_by)}`}</span>` : ''}
+        ${round ? `<span class="badge gold"${tip('window')}>◷ ${round.phase === 'sealing' ? `challenge window open — ${daysLeft(round.closes_at)} to seal a reading (by ${fmtDay(round.closes_at)})` : `reveals due by ${fmtDay(round.reveal_by)} — ${daysLeft(round.reveal_by)}`}</span>` : ''}
         ${pending ? `<span class="badge"${tip('sealed')}>⏣ ${pending} sealed reading${pending > 1 ? 's' : ''} pending</span>` : ''}
         ${curationWeight(S, p.id) ? `<span class="badge gold">curation ${curationWeight(S, p.id)}</span>` : ''}
         ${p.statements.length ? `<span class="badge blue">${p.statements.length} candidate statement${p.statements.length > 1 ? 's' : ''}</span>`
@@ -329,7 +315,7 @@ loadData(S => {
   }
   draw();
   renderProposals(S);
-  renderGraph(S);
+  renderHoleGraph('graph', S);
   for (const id of ['sort', 'filter', 'search']) $(id).addEventListener('input', draw);
 });
 </script>

@@ -5,6 +5,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>
 const NAV = [
   ['index.html', 'overview'],
   ['frontier.html', 'frontier'],
+  ['how.html', 'how it works'],
   ['anvil.html', 'the anvil'],
   ['zk.html', 'zero-knowledge'],
   ['people.html', 'people'],
@@ -328,6 +329,192 @@ function timeline(events) {
     const { seq, type, detail, tone } = evLine(e);
     return `<div class="tl ${tone}"><span class="k">#${seq} ${esc(type)}</span>  ${esc(detail)}</div>`;
   }).join('') + `</div>`;
+}
+
+// ── test-data closure over the log ───────────────────────────────
+// Everything reachable from a test-data tag: the tagged entities, the
+// holes under tagged proposals, and the submissions/seals/statements those
+// entities and handles produced. Used to keep pipeline-test noise out of
+// default feeds without touching the log itself.
+function testIdSet(S) {
+  if (S._testIds) return S._testIds;
+  const set = new Set((S.tags || []).filter(([, , t]) => t === 'test-data').map(([, id]) => id));
+  for (const p of Object.values(S.proposals || {}))
+    if (set.has(p.id)) for (const sid of (p.statements || [])) set.add(sid);
+  for (const h of Object.values(S.holes || {}))
+    if (set.has(h.id) || (h.proposal && set.has(h.proposal))) {
+      set.add(h.id);
+      for (const s of (h.submissions || [])) set.add(s.id);
+      for (const sp of (h.splits || [])) set.add(sp.id);
+    }
+  for (const h of Object.values(S.holes || {}))
+    for (const s of (h.submissions || [])) if (set.has(s.solver)) set.add(s.id);
+  for (const sl of Object.values(S.seals || {}))
+    if (set.has(sl.author) || (sl.statement && set.has(sl.statement))) set.add(sl.id);
+  for (const st of Object.values(S.statements || {}))
+    if (set.has(st.id) && st.seal) set.add(st.seal);
+  return (S._testIds = set);
+}
+// An event is test noise if any id it mentions is in the closure.
+function eventIsTest(S, e) {
+  const set = testIdSet(S);
+  const scan = (v) => typeof v === 'string' ? set.has(v)
+    : Array.isArray(v) ? v.some(scan) : false;
+  return Object.entries(e).some(([k, v]) => k !== 'type' && scan(v));
+}
+
+// ── the activity feed: log events as sentences ───────────────────
+function timeAgo(ts) {
+  const s = Date.now() / 1000 - ts;
+  if (s < 90) return 'just now';
+  const m = s / 60, h = m / 60, d = h / 24;
+  if (m < 90) return `${Math.round(m)} min ago`;
+  if (h < 36) return `${Math.round(h)} hours ago`;
+  if (d < 60) return `${Math.round(d)} days ago`;
+  return fmtDay(ts);
+}
+const daysLeft = (ts) => {
+  const d = Math.ceil((ts - Date.now() / 1000) / 86400);
+  return d <= 0 ? 'closes today' : d === 1 ? '1 day left' : `${d} days left`;
+};
+
+// Each event as one plain-language sentence with its entities linked.
+// Returns null for types better left to the raw ledger.
+function humanEvent(S, e) {
+  const holeOfSub = (id) => Object.values(S.holes || {})
+    .find(h => (h.submissions || []).some(s => s.id === id)
+      || (h.zk_submissions || []).some(s => s.id === id));
+  const q = (s) => s ? ` — “${esc(String(s).length > 90 ? String(s).slice(0, 90) + '…' : s)}”` : '';
+  switch (e.type) {
+    case 'propose': return { t: '', h: `${personLink(e.author)} proposed ${propLink(e.id)}${q(e.title)}` };
+    case 'formalize': return { t: '', h: `${personLink(e.author)} formalized ${propLink(e.proposal)} as statement ${stmtLink(e.id)}` };
+    case 'seal_statement': return { t: 'gold', h: `${personLink(e.author)} sealed a blind reading of ${propLink(e.proposal)}` };
+    case 'reveal_statement': return { t: '', h: `${personLink(e.author)} revealed sealed statement ${stmtLink(e.statement)}` };
+    case 'open_round': return { t: 'gold', h: `${personLink(e.author)} opened a challenge window on ${propLink(e.proposal)}` };
+    case 'register_hole': return { t: '', h: `hole ${holeLink(e.id)} pinned${e.author ? ` by ${personLink(e.author)}` : ''}${q(e.title)}` };
+    case 'submit': return { t: '', h: `${personLink(e.solver)} submitted a proof against ${holeLink(e.hole)}` };
+    case 'verdict': {
+      const h = holeOfSub(e.submission);
+      const where = h ? ` on ${holeLink(h.id)}` : '';
+      return e.admitted
+        ? { t: 'good', h: `the kernel admitted ${esc(e.submission)}${where}${e.cost_ms != null ? ` (checked in ${e.cost_ms} ms)` : ''}` }
+        : { t: 'bad', h: `the kernel rejected ${esc(e.submission)}${where}` };
+    }
+    case 'fund': return { t: 'gold', h: `${personLink(e.funder)} put ${(+e.amount).toLocaleString()} credits on ${holeLink(e.target)}` };
+    case 'payout': return { t: 'gold', h: `${personLink(e.recipient)} was paid ${(+e.amount).toLocaleString()} credits for ${holeLink(e.target)}` };
+    case 'curate': return { t: 'gold', h: `${personLink(e.curator)} curated ${esc(e.target)}${q(e.note)}` };
+    case 'supersede': return { t: 'bad', h: `${personLink(e.by)} marked ${holeLink(e.hole)} superseded by ${holeLink(e.replacement)}` };
+    case 'split': return { t: '', h: `${personLink(e.author)} split ${holeLink(e.parent)} into ${(e.children || []).length} subproblem${(e.children || []).length === 1 ? '' : 's'}` };
+    case 'converge': return { t: 'good', h: `statements ${stmtLink(e.a)} and ${stmtLink(e.b)} proven equivalent — their clumps merge` };
+    case 'implies': return { t: '', h: `${stmtLink(e.a)} proven to imply ${stmtLink(e.b)}` };
+    case 'certify': return { t: '', h: `sanity certificate recorded on ${stmtLink(e.statement)}` };
+    case 'register_account': return { t: '', h: `${esc(e.sigil || '')} ${personLink(e.handle)} registered a handle` };
+    case 'recognize_corpus': return { t: '', h: `corpus <b>${esc(e.name)}</b> recognized — its contents count as already solved` };
+    case 'commit': return { t: '', h: `${personLink(e.solver)} committed a sealed solution to ${holeLink(e.hole)}` };
+    case 'reveal': return { t: '', h: `submission ${esc(e.submission)} revealed — the file matches its committed hash` };
+    case 'upstream': return { t: 'gold', h: `an admitted proof of ${holeLink(e.hole)} was carried to its home library` };
+    case 'tag': return { t: '', h: `${personLink(e.by)} tagged ${esc(e.target)} <code>${esc(e.tag)}</code>` };
+    default: return null;
+  }
+}
+
+function renderFeedInto(id, S, limit = 10) {
+  const el = $(id);
+  if (!el) return;
+  const rows = [];
+  for (let i = S.events.length - 1; i >= 0 && rows.length < limit; i--) {
+    const e = S.events[i];
+    if (eventIsTest(S, e)) continue;
+    const s = humanEvent(S, e);
+    if (s) rows.push(`<div class="feedrow ${s.t}"><span class="ft">${timeAgo(e.ts)}</span><span class="fs">${s.h}</span><span class="fseq">#${e.seq}</span></div>`);
+  }
+  el.innerHTML = rows.join('') || '<p class="lede">Nothing yet.</p>';
+}
+
+// ── progress bars ────────────────────────────────────────────────
+// Solved-vs-open as segments when countable at a glance, a fill otherwise.
+function pbar(done, total, word = 'solved') {
+  if (!total) return '';
+  const bar = total <= 24
+    ? `<span class="pbar">${Array.from({ length: total }, (_, i) => `<i class="${i < done ? 'done' : ''}"></i>`).join('')}</span>`
+    : `<span class="pbar cont"><i class="done" style="width:${Math.round(100 * done / total)}%"></i></span>`;
+  return `<span class="progress" role="img" aria-label="${done} of ${total} ${word}">${bar}<span class="plabel">${done} of ${total} ${word}</span></span>`;
+}
+
+// ── first solves ─────────────────────────────────────────────────
+// Who holds priority: for each solved hole, the solver of the first
+// admitted submission. The board the whole system is built around.
+function firstSolves(S) {
+  const per = {};
+  for (const h of Object.values(S.holes || {})) {
+    if (h.status !== 'solved' || holeIsTest(S, h)) continue;
+    const sub = (h.submissions || []).find(s => s.id === h.solved_by)
+      || (h.submissions || []).find(s => s.verdict && s.verdict[0]);
+    if (!sub) continue;
+    (per[sub.solver] ||= []).push(h.id);
+  }
+  return Object.entries(per).map(([who, holes]) => ({ who, holes, n: holes.length }))
+    .sort((a, b) => b.n - a.n || a.who.localeCompare(b.who));
+}
+
+// ── the hole graph, shared by the frontier and the how-it-works page ──
+// Layered by longest edge distance; supersession and split edges.
+function renderHoleGraph(svgId, S) {
+  const holes = Object.values(S.holes || {});
+  const byId = Object.fromEntries(holes.map(h => [h.id, h]));
+  const edges = [];
+  const seen = new Set();
+  const addEdge = (from, to, kind) => {
+    const key = `${from}|${to}|${kind}`;
+    if (byId[to] && !seen.has(key)) { seen.add(key); edges.push({ from, to, kind }); }
+  };
+  for (const h of holes) {
+    if (holeIsTest(S, h)) continue;
+    for (const [, r] of (h.superseded_by || [])) addEdge(h.id, r, 'supersede');
+    for (const sp of (h.splits || []))
+      for (const c of sp.children) addEdge(h.id, c[0], 'decompose');
+  }
+  const inGraph = new Set(edges.flatMap(e => [e.from, e.to]));
+  const el = $(svgId);
+  if (!inGraph.size) { el.closest('section').style.display = 'none'; return; }
+  const depth = {};
+  const dfs = (id) => {
+    if (id in depth) return depth[id];
+    const preds = edges.filter(e => e.to === id);
+    depth[id] = preds.length ? 1 + Math.max(...preds.map(e => dfs(e.from))) : 0;
+    return depth[id];
+  };
+  inGraph.forEach(dfs);
+  const cols = {};
+  inGraph.forEach(id => (cols[depth[id]] ||= []).push(id));
+  const tallest = Math.max(...Object.values(cols).map(ids => ids.length));
+  const W = 940, colW = W / Object.keys(cols).length, H = Math.max(250, tallest * 64);
+  const pos = {};
+  Object.entries(cols).forEach(([d, ids]) => {
+    ids.sort();
+    ids.forEach((id, i) => { pos[id] = { x: colW * d + colW / 2, y: (H / (ids.length + 1)) * (i + 1) + 14 }; });
+  });
+  const color = { open: 'var(--open)', solved: 'var(--solved)' };
+  let svg = '';
+  for (const e of edges) {
+    const a = pos[e.from], b = pos[e.to];
+    const mx = (a.x + b.x) / 2, wob = (e.to.charCodeAt(e.to.length - 1) % 2 ? 14 : -12);
+    svg += `<path class="gedge ${e.kind}" d="M ${a.x + 62} ${a.y} Q ${mx} ${(a.y + b.y) / 2 + wob} ${b.x - 62} ${b.y}"/>`;
+    if (e.kind === 'supersede')
+      svg += `<text class="gedge-label" x="${mx}" y="${(a.y + b.y) / 2 + wob - 6}" text-anchor="middle">marked superseded by</text>`;
+  }
+  for (const id of inGraph) {
+    const h = byId[id], p = pos[id];
+    const [glyph] = CHIP[h.status];
+    svg += `<a href="hole.html?id=${encodeURIComponent(id)}"><g class="gnode">
+      <title>${esc(prettyMath(h.title))}</title>
+      <ellipse cx="${p.x}" cy="${p.y}" rx="64" ry="26" fill="var(--bg)" stroke="${color[h.status]}" stroke-width="1.8"/>
+      <text x="${p.x}" y="${p.y - 1}" text-anchor="middle">${esc(id)}</text>
+      <text class="sub" x="${p.x}" y="${p.y + 13}" text-anchor="middle">${glyph} ${h.status}</text>
+    </g></a>`;
+  }
+  el.setAttribute('viewBox', `0 0 ${W} ${H + 20}`);
+  el.innerHTML = svg;
 }
 
 function renderLedgerInto(id, events, limit = 100) {
