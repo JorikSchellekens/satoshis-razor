@@ -7,21 +7,21 @@
 <meta name="description" content="One anvil challenge: its specification, every competing lane with its admission proof, each rig's leaderboard, and progress over time.">
 <meta property="og:title" content="Challenge — Satoshi's Razor">
 <meta property="og:description" content="One anvil challenge: its specification, every competing lane with its admission proof, each rig's leaderboard, and progress over time.">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="razor.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/razor.css">
 </head>
 <body>
 
 <header class="mast">
   <div class="wrap">
-    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <h1><a href="/">Satoshi's <span class="razor">Razor</span></a></h1>
     <nav class="pages"></nav>
   </div>
 </header>
 
 <div class="pagehead wrap detail-head">
-  <div class="row1"><a class="backlink" href="anvil.html">← the anvil</a></div>
+  <div class="row1"><a class="backlink" href="/anvil">← the anvil</a></div>
   <div class="row1" id="chips"></div>
   <h2 id="title">Challenge</h2>
   <p class="lede" id="lede"></p>
@@ -66,12 +66,12 @@
 <footer>
   <div class="wrap">
     <span>To enter a lane: write an implementation, prove it matches the specification, then <code>razor anvil-submit</code> and <code>razor bench --rig</code>.</span>
-    <span class="right"><a href="download.html">get started</a></span>
+    <span class="right"><a href="/get-started">get started</a></span>
   </div>
 </footer>
 
-<script src="razor.js"></script>
-<script src="anvil.js"></script>
+<script src="/razor.js"></script>
+<script src="/anvil.js"></script>
 <script>
 loadData(S => {
   const c = S.challenges[qid()];

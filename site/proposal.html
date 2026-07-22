@@ -7,15 +7,15 @@
 <meta name="description" content="One proposal: a problem in plain language, its candidate Lean statements grouped by proven equivalence, and its sorries.">
 <meta property="og:title" content="Proposal — Satoshi's Razor">
 <meta property="og:description" content="One proposal: a problem in plain language, its candidate Lean statements grouped by proven equivalence, and its sorries.">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="razor.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/razor.css">
 </head>
 <body>
 
 <header class="mast">
   <div class="wrap">
-    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <h1><a href="/">Satoshi's <span class="razor">Razor</span></a></h1>
     <nav class="pages"></nav>
   </div>
 </header>
@@ -33,7 +33,7 @@
       <p>This proposal has no candidate Lean statement. Whoever pins the first faithful one is on the log
       as its formalizer, permanently. Write the statement in Lean, then:</p>
       <div class="codeblock" id="claim-cmd"></div>
-      <p class="note">With the CLI installed (<a href="download.html">get started</a>, one script),
+      <p class="note">With the CLI installed (<a href="/get-started">get started</a>, one script),
       this command publishes directly to this registry, signed by your key.</p>
     </div>
   </div>
@@ -72,18 +72,18 @@
 <footer>
   <div class="wrap">
     <span>Add your own reading: <code>razor formalize --gloss "…"</code> — or seal it first (<code>razor seal-statement</code>), so its independence is provable.</span>
-    <span class="right"><a href="frontier.html">← back to the frontier</a></span>
+    <span class="right"><a href="/frontier">← back to the frontier</a></span>
   </div>
 </footer>
 
-<script src="razor.js"></script>
+<script src="/razor.js"></script>
 <script>
 loadData(S => {
   const id = qid();
   const p = S.proposals[id];
   if (!p) {
     $('title').textContent = id ? `No proposal named ${id}` : 'No proposal selected';
-    $('lede').innerHTML = `Pick one on <a href="frontier.html">the frontier</a>. ${id ? datasetHint(S) : ''}`;
+    $('lede').innerHTML = `Pick one on <a href="/frontier">the frontier</a>. ${id ? datasetHint(S) : ''}`;
     return;
   }
   document.title = `${p.id} — Satoshi's Razor`;
@@ -124,7 +124,7 @@ razor seal-statement --id SEAL-you --proposal ${esc(p.id)} --author you --commit
            <p>Keep the file and salt private until you reveal:</p>
            <div class="codeblock">razor reveal-statement --seal SEAL-you --id STM-you --file your-statement.lean --salt &lt;your-salt&gt; \\
   --decl Your.Lean.Name --gloss "your plain-language reading"</div>
-           <p class="note">With the CLI installed (<a href="download.html">get started</a>, one
+           <p class="note">With the CLI installed (<a href="/get-started">get started</a>, one
            script), these commands publish directly to this registry, signed by your key. Seal early:
            independence is computed from log order, and your seal establishes blindness as long as it
            lands before the other readings' reveals.</p>`

@@ -3,18 +3,31 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 const NAV = [
-  ['index.html', 'overview'],
-  ['frontier.html', 'frontier'],
-  ['how.html', 'how it works'],
-  ['anvil.html', 'the anvil'],
-  ['people.html', 'people'],
-  ['download.html', 'get started'],
+  ['/', 'overview'],
+  ['/frontier', 'frontier'],
+  ['/how', 'how it works'],
+  ['/anvil', 'the anvil'],
+  ['/people', 'people'],
+  ['/get-started', 'get started'],
 ];
 
 const REPO = 'https://github.com/jorikschellekens/satoshis-razor';
 
+// The current page's clean path. Pages are served at /frontier etc., but a
+// file:// view (an auditor's checkout) still sees the .html name - map it.
+function herePath() {
+  const FILES = {
+    'index.html': '/', 'frontier.html': '/frontier', 'how.html': '/how',
+    'anvil.html': '/anvil', 'zk.html': '/zk', 'people.html': '/people',
+    'download.html': '/get-started', 'propose.html': '/propose',
+  };
+  const last = location.pathname.split('/').pop();
+  if (last && last.endsWith('.html')) return FILES[last] || location.pathname;
+  return location.pathname === '' ? '/' : location.pathname.replace(/\/$/, '') || '/';
+}
+
 function renderNav() {
-  const here = location.pathname.split('/').pop() || 'index.html';
+  const here = herePath();
   const el = document.querySelector('nav.pages');
   if (el) el.innerHTML = NAV.map(([href, label]) =>
     `<a href="${href}" class="${href === here ? 'here' : ''}">${label}</a>`).join('');
@@ -24,6 +37,10 @@ function renderNav() {
   if (right && !right.querySelector('a[href^="https://github"]'))
     right.insertAdjacentHTML('beforeend', ` · <a href="${REPO}">source on GitHub</a>`);
 }
+
+// Served pages live at path-routed URLs (/sorry/FLT-000), so the data must
+// be fetched absolutely; a file:// view keeps the relative form.
+const DATA_URL = location.protocol.startsWith('http') ? '/data.json' : 'data.json';
 
 function loadData(render) {
   renderNav();
@@ -39,12 +56,12 @@ function loadData(render) {
     renderDatasetBanner(S);
     render(S);
   };
-  fetch('data.json').then(r => r.json()).then(S => {
+  fetch(DATA_URL).then(r => r.json()).then(S => {
     apply(S);
     // Live updates: when served by `razor serve`, data.json is re-derived
     // from the log on every request, so polling picks up new events.
     if (location.protocol.startsWith('http')) {
-      setInterval(() => fetch('data.json').then(r => r.json()).then(apply).catch(() => {}), 4000);
+      setInterval(() => fetch(DATA_URL).then(r => r.json()).then(apply).catch(() => {}), 4000);
     }
   }).catch(() => {
     const t = document.querySelector('.pagehead .lede') || document.body;
@@ -103,13 +120,19 @@ document.addEventListener('click', async (ev) => {
 });
 
 // ── entity links ─────────────────────────────────────────────────
-// Every id on the site is a link to that entity's own page.
-const qid = () => new URLSearchParams(location.search).get('id');
-const sorryLink = (id) => `<a class="idlink" href="sorry.html?id=${encodeURIComponent(id)}">${esc(id)}</a>`;
-const stmtLink = (id) => `<a class="idlink" href="statement.html?id=${encodeURIComponent(id)}">${esc(id)}</a>`;
-const propLink = (id) => `<a class="idlink" href="proposal.html?id=${encodeURIComponent(id)}">${esc(id)}</a>`;
-const personLink = (h) => `<a class="idlink" href="person.html?id=${encodeURIComponent(h)}">${esc(h)}</a>`;
-const chalLink = (id) => `<a class="idlink" href="challenge.html?id=${encodeURIComponent(id)}">${esc(id)}</a>`;
+// Every id on the site is a link to that entity's own page, at
+// /sorry/<id> and friends. The ?id= query form still parses so that old
+// links and file:// views keep working.
+const qid = () => {
+  const m = location.pathname.match(/^\/(?:sorry|proposal|statement|person|challenge)\/([^/]+)/);
+  if (m) return decodeURIComponent(m[1]);
+  return new URLSearchParams(location.search).get('id');
+};
+const sorryLink = (id) => `<a class="idlink" href="/sorry/${encodeURIComponent(id)}">${esc(id)}</a>`;
+const stmtLink = (id) => `<a class="idlink" href="/statement/${encodeURIComponent(id)}">${esc(id)}</a>`;
+const propLink = (id) => `<a class="idlink" href="/proposal/${encodeURIComponent(id)}">${esc(id)}</a>`;
+const personLink = (h) => `<a class="idlink" href="/person/${encodeURIComponent(h)}">${esc(h)}</a>`;
+const chalLink = (id) => `<a class="idlink" href="/challenge/${encodeURIComponent(id)}">${esc(id)}</a>`;
 
 // Every export is labeled with the dataset it came from. The demo dataset
 // is a scripted walkthrough with fictional participants (the verifications
@@ -254,7 +277,13 @@ const isTestData = (S, id) => tagsOf(S, id).some(t => t.tag === 'test-data');
 // covers every sorry filed under it.
 const sorryIsTest = (S, h) => isTestData(S, h.id) || (h.proposal && isTestData(S, h.proposal));
 function tagChips(S, id) {
-  return tagsOf(S, id).map(t =>
+  // The log can carry the same (tag, author) pair more than once - e.g. two
+  // sessions tagging the same account; one badge per pair is enough.
+  const seen = new Set();
+  return tagsOf(S, id).filter(t => {
+    const k = `${t.by}|${t.tag}`;
+    return seen.has(k) ? false : (seen.add(k), true);
+  }).map(t =>
     `<span class="badge"${tip('tag')}>⚑ ${esc(t.tag)} — tagged by ${esc(t.by)}${t.note ? `: “${esc(t.note)}”` : ''}</span>`).join('');
 }
 
@@ -562,7 +591,7 @@ function renderSorryGraph(svgId, S) {
   for (const id of inGraph) {
     const h = byId[id], p = pos[id];
     const [glyph] = CHIP[h.status];
-    svg += `<a href="sorry.html?id=${encodeURIComponent(id)}"><g class="gnode">
+    svg += `<a href="/sorry/${encodeURIComponent(id)}"><g class="gnode">
       <title>${esc(prettyMath(h.title))}</title>
       <ellipse cx="${p.x}" cy="${p.y}" rx="64" ry="26" fill="var(--bg)" stroke="${color[h.status]}" stroke-width="1.8"/>
       <text x="${p.x}" y="${p.y - 1}" text-anchor="middle">${esc(id)}</text>

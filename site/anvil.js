@@ -11,7 +11,7 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 // Lane colors: fixed assignment by the order lanes joined the challenge
 // (the specification lane is first and always blue). Validated for this
 // site's dark surface, including for color-blind readers.
-const LANE_COLORS = ['#348AC9', '#B28D3B', '#9B7FD4', '#C85850'];
+const LANE_COLORS = ['#348AC9', '#B28D3B', '#9B7FD4', '#2FA98F', '#C85850'];
 const laneColor = (i) => LANE_COLORS[i % LANE_COLORS.length];
 const laneDot = (i) => `<span class="dot" style="background:${laneColor(i)}"></span>`;
 

@@ -7,15 +7,15 @@
 <meta name="description" content="Install the registry toolchain, then pick a path: solve a sorry, propose or formalize a problem, or benchmark on the anvil.">
 <meta property="og:title" content="Get started — Satoshi's Razor">
 <meta property="og:description" content="Install the registry toolchain, then pick a path: solve a sorry, propose or formalize a problem, or benchmark on the anvil.">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="razor.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/razor.css">
 </head>
 <body>
 
 <header class="mast">
   <div class="wrap">
-    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <h1><a href="/">Satoshi's <span class="razor">Razor</span></a></h1>
     <nav class="pages"></nav>
   </div>
 </header>
@@ -46,7 +46,7 @@ cd satoshis-razor &amp;&amp; ./install.sh</div>
       if they are missing; builds everything; and links the three tools into <code>~/.cargo/bin</code>.
       It clones into <code>./satoshis-razor</code>, and <code>razor</code> runs from inside that
       checkout. (The demo and zk walkthrough additionally need <strong>python3</strong>.)
-      <a href="install.sh">Read the script before you run it</a> — you should not have to trust this page's word
+      <a href="/install.sh">Read the script before you run it</a> — you should not have to trust this page's word
       about what it does. The source of everything, this site included, is
       <a href="https://github.com/jorikschellekens/satoshis-razor">github.com/jorikschellekens/satoshis-razor</a>.</p>
       <p>The installer points your CLI at this registry, so the commands below publish here, from your
@@ -63,7 +63,7 @@ razor status        <span class="c"># the live registry, in your terminal</span>
   <div class="wrap">
     <div class="sec-head"><h3>Path 1 · Solve a sorry</h3><span class="note">the whole loop is one command once the proof exists</span></div>
     <div class="prose">
-      <p>Pick an open sorry on <a href="frontier.html">the frontier</a> — its page shows the exact
+      <p>Pick an open sorry on <a href="/frontier">the frontier</a> — its page shows the exact
       statement a solution must prove and pre-fills the commands. Write the proof in any
       <code>.lean</code> file under <code>lean/Razor/</code> (or <code>lean-mathlib/RazorMathlib/</code>
       for Mathlib-environment sorries); the build picks it up automatically, and the verifier finds
@@ -90,10 +90,10 @@ razor verify --local --submission SUB-me</div>
     <div class="sec-head"><h3>Path 2 · Propose or formalize a problem</h3><span class="note">proposing needs no Lean; formalizing is attributed work</span></div>
     <div class="prose">
       <p>A proposal is a problem in plain language — costless to post, no Lean required (it can even
-      be filed <a href="propose.html">straight from the browser</a>). To make a
+      be filed <a href="/propose">straight from the browser</a>). To make a
       problem solvable, formalize it: file your candidate Lean statement with a <strong>gloss</strong>
       (your own plain-language reading, which is what reviewers compare against the proposal), then
-      pin the exact statement as a sorry. The <a href="frontier.html#backlog">backlog</a> lists
+      pin the exact statement as a sorry. The <a href="/frontier#backlog">backlog</a> lists
       hundreds of catalogued theorems waiting for exactly this — filing the first formal statement
       of one is attributed, timestamped work on the log.</p>
       <div class="codeblock">razor propose --id PRP-you-1 --title "..." --author you --body "..."
@@ -115,7 +115,7 @@ razor sorry --id YOUR-1 --title "..." --lean-type "..." \
     <div class="prose">
       <p>Write a faster implementation of a challenge spec in <code>anvil/impls/</code>, hand-translate
       it to a Lean model in <code>lean/Razor/Anvil/</code>, prove it refines the executable spec, then
-      submit and bench. Your lane appears on <a href="anvil.html">the leaderboards</a> next to its
+      submit and bench. Your lane appears on <a href="/anvil">the leaderboards</a> next to its
       proof.</p>
       <div class="codeblock"><span class="c"># e.g. against ANV-001 (popcount): pin your refinement proof as a sorry, then enter</span>
 razor anvil-submit --id ANV-001-you --challenge ANV-001 --impl your-impl \
@@ -173,7 +173,7 @@ razor zk-submit --local --id SUB-me-zk --sorry ZKH-001 --route ZKR-001 \
   --solver you --public &lt;hex&gt; --proof &lt;hex&gt;</div>
         <p class="note">On the public registry, commit-reveal works without <code>--local</code> too:
         <code>razor commit</code> posts the hash there, and <code>razor submit --file</code> reveals
-        when you are ready. The full trust story is on <a href="zk.html">the zero-knowledge page</a>.</p>
+        when you are ready. The full trust story is on <a href="/zk">the zero-knowledge page</a>.</p>
       </details>
 
       <details>
@@ -243,7 +243,7 @@ razor submit --id SUB-glue --sorry MY-SPLIT-glue --solver you \
   </div>
 </footer>
 
-<script src="razor.js"></script>
+<script src="/razor.js"></script>
 <script>loadData(() => {});</script>
 </body>
 </html>

@@ -2020,6 +2020,36 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
         limiter: Mutex::new(api::Limiter::default()),
     });
 
+    // Clean URLs: each page has a path (/frontier, /get-started, ...) and
+    // each entity a path with its id (/sorry/FLT-000). The .html files stay
+    // on disk unchanged - a route only names which file renders the path,
+    // and the page reads the id from the path in the browser.
+    fn route(path: &str) -> Option<(&'static str, Option<String>)> {
+        match path {
+            "/" => Some(("index.html", None)),
+            "/frontier" => Some(("frontier.html", None)),
+            "/how" => Some(("how.html", None)),
+            "/anvil" => Some(("anvil.html", None)),
+            "/zk" => Some(("zk.html", None)),
+            "/people" => Some(("people.html", None)),
+            "/get-started" => Some(("download.html", None)),
+            "/propose" => Some(("propose.html", None)),
+            _ => {
+                let mut it = path.trim_start_matches('/').splitn(2, '/');
+                let kind = it.next()?;
+                let file = match kind {
+                    "sorry" => "sorry.html",
+                    "proposal" => "proposal.html",
+                    "statement" => "statement.html",
+                    "person" => "person.html",
+                    "challenge" => "challenge.html",
+                    _ => return None,
+                };
+                Some((file, it.next().filter(|s| !s.is_empty()).map(String::from)))
+            }
+        }
+    }
+
     fn handle(mut stream: std::net::TcpStream, ctx: &Ctx) {
         use std::io::Write;
         let peer = stream.peer_addr().map(|a| a.ip().to_string()).unwrap_or_default();
@@ -2029,6 +2059,39 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
         });
         let Some(req) = api::read_request(&mut reader, &peer) else { return };
         let query = req.query.as_deref();
+
+        // The old .html URLs (and .html?id=) redirect permanently to the
+        // clean paths, so every link ever shared keeps working.
+        let legacy = match req.path.as_str() {
+            "/index.html" => Some("/".to_string()),
+            "/frontier.html" => Some("/frontier".into()),
+            "/how.html" => Some("/how".into()),
+            "/anvil.html" => Some("/anvil".into()),
+            "/zk.html" => Some("/zk".into()),
+            "/people.html" => Some("/people".into()),
+            "/download.html" => Some("/get-started".into()),
+            "/propose.html" => Some("/propose".into()),
+            p @ ("/sorry.html" | "/hole.html" | "/proposal.html" | "/statement.html"
+                | "/person.html" | "/challenge.html") => {
+                let kind = match p {
+                    "/sorry.html" | "/hole.html" => "sorry",
+                    "/proposal.html" => "proposal",
+                    "/statement.html" => "statement",
+                    "/person.html" => "person",
+                    _ => "challenge",
+                };
+                Some(match query.and_then(query_id) {
+                    Some(id) => format!("/{kind}/{id}"),
+                    None => format!("/{kind}"),
+                })
+            }
+            _ => None,
+        };
+        if let Some(loc) = legacy {
+            let _ = write!(stream,
+                "HTTP/1.1 301 Moved Permanently\r\nLocation: {loc}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+            return;
+        }
         let (status, ctype, body): (String, String, Vec<u8>) = if req.path.starts_with("/api/") {
             match (req.method.as_str(), req.path.as_str()) {
                 ("GET", "/api/log") => api::get_log(&ctx.log_path, query),
@@ -2081,11 +2144,14 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
                 Err(_) => ("404 Not Found".into(), "text/plain".into(), b"not found".to_vec()),
             }
         } else {
-            let rel = if req.path == "/" { "index.html" } else { req.path.trim_start_matches('/') };
+            let (rel, path_id) = match route(&req.path) {
+                Some((f, id)) => (f.to_string(), id),
+                None => (req.path.trim_start_matches('/').to_string(), None),
+            };
             if rel.contains("..") {
                 ("400 Bad Request".into(), "text/plain".into(), b"no".to_vec())
             } else {
-                let file = ctx.root.join("site").join(rel);
+                let file = ctx.root.join("site").join(&rel);
                 match std::fs::read(&file) {
                     Ok(bytes) => {
                         let ctype = match file.extension().and_then(|e| e.to_str()) {
@@ -2100,11 +2166,12 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
                         };
                         // Detail pages set their titles from data.json in the
                         // browser, which link-preview crawlers never run. For
-                        // sorry.html?id=X etc, stamp the entity's title and a
+                        // /sorry/X etc, stamp the entity's title and a
                         // description into the served HTML so a shared link
                         // shows the mathematics, not the generic page name.
-                        let bytes = match (ctype.starts_with("text/html"), query.and_then(query_id)) {
-                            (true, Some(id)) => match detail_meta(&ctx.log_path, rel, &id) {
+                        let id = path_id.or_else(|| query.and_then(query_id));
+                        let bytes = match (ctype.starts_with("text/html"), id) {
+                            (true, Some(id)) => match detail_meta(&ctx.log_path, &rel, &id) {
                                 Some((title, desc)) => stamp_meta(
                                     String::from_utf8_lossy(&bytes).into_owned(), &title, &desc,
                                 ).into_bytes(),

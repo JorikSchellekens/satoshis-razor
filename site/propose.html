@@ -7,15 +7,15 @@
 <meta name="description" content="File an open problem in plain language, straight from the browser. Proposing needs no Lean and no account.">
 <meta property="og:title" content="Propose a problem — Satoshi's Razor">
 <meta property="og:description" content="File an open problem in plain language, straight from the browser. Proposing needs no Lean and no account.">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="razor.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/razor.css">
 </head>
 <body>
 
 <header class="mast">
   <div class="wrap">
-    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <h1><a href="/">Satoshi's <span class="razor">Razor</span></a></h1>
     <nav class="pages"></nav>
   </div>
 </header>
@@ -23,7 +23,7 @@
 <div class="pagehead wrap">
   <h2>Propose a problem</h2>
   <p class="lede">A proposal is an open problem stated in plain language: the first stage of
-  <a href="how.html">the path</a>. It costs nothing, needs no Lean and no account, and records the
+  <a href="/how">the path</a>. It costs nothing, needs no Lean and no account, and records the
   idea - and who had it first - as a permanent event on the public log. Formalizing it into a
   solvable sorry is a separate, attributed step that anyone can take later, including you.</p>
 </div>
@@ -51,18 +51,18 @@
     (open participation - the log marks them so). If your handle has a registered account, the registry
     will refuse the event without your key's signature; use the CLI instead, which signs automatically:
     <code>razor propose --id PRP-you-1 --title "..." --author you</code>. The
-    <a href="download.html">get-started page</a> has the one-line install.</p>
+    <a href="/get-started">get-started page</a> has the one-line install.</p>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    <span>A proposal becomes solvable when someone formalizes it - the <a href="frontier.html#backlog">backlog</a> shows hundreds waiting.</span>
-    <span class="right"><a href="frontier.html">← the frontier</a></span>
+    <span>A proposal becomes solvable when someone formalizes it - the <a href="/frontier#backlog">backlog</a> shows hundreds waiting.</span>
+    <span class="right"><a href="/frontier">← the frontier</a></span>
   </div>
 </footer>
 
-<script src="razor.js"></script>
+<script src="/razor.js"></script>
 <script>
 loadData(() => {});
 
@@ -92,7 +92,7 @@ document.getElementById('propose-form').addEventListener('submit', async (ev) =>
   if (r.ok) {
     msg.className = 'form-msg ok';
     msg.innerHTML = `recorded - event #${esc(r.seq)}. Your proposal: ` +
-      `<a href="proposal.html?id=${encodeURIComponent(id)}">${esc(id)}</a>`;
+      `<a href="/proposal/${encodeURIComponent(id)}">${esc(id)}</a>`;
   } else {
     msg.className = 'form-msg bad';
     msg.textContent = `refused: ${r.msg}`;

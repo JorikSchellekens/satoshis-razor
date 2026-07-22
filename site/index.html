@@ -7,15 +7,15 @@
 <meta name="description" content="A public registry of open formal problems, checked by machine instead of by committee. Anyone - human or AI - can attempt a sorry; admission is a kernel check, recorded on an append-only log.">
 <meta property="og:title" content="Satoshi's Razor — the frontier registry">
 <meta property="og:description" content="A public registry of open formal problems, checked by machine instead of by committee. Anyone - human or AI - can attempt a sorry; admission is a kernel check, recorded on an append-only log.">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="razor.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/razor.css">
 </head>
 <body>
 
 <header class="mast">
   <div class="wrap">
-    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <h1><a href="/">Satoshi's <span class="razor">Razor</span></a></h1>
     <nav class="pages"></nav>
   </div>
 </header>
@@ -28,10 +28,10 @@
   the Lean kernel, so accepting it requires no trust in whoever sent it. Every page on this site is
   computed from a single append-only log of events.</p>
   <div class="cta">
-    <a class="primary" href="frontier.html">browse the open problems →</a>
-    <a href="how.html">how it works</a>
-    <a href="propose.html">propose a problem</a>
-    <a href="download.html">get started</a>
+    <a class="primary" href="/frontier">browse the open problems →</a>
+    <a href="/how">how it works</a>
+    <a href="/propose">propose a problem</a>
+    <a href="/get-started">get started</a>
   </div>
   <div class="stats" id="stats"></div>
   <div class="window-line" id="window-line" style="display:none"></div>
@@ -57,7 +57,7 @@
     <div class="feed" id="feed"></div>
     <p class="prose" style="margin-top:12px">Every line above is an event on the append-only log - the
     registry's single source of truth. The raw log, and the system that folds it into these pages, is
-    <a href="how.html#log">shown as-is on the how-it-works page</a>.</p>
+    <a href="/how#log">shown as-is on the how-it-works page</a>.</p>
   </div>
 </section>
 
@@ -77,38 +77,38 @@
         <p>Every proposal and every sorry in the registry, grouped by the problem they serve. For each sorry:
         the exact Lean statement a solution must prove, whether it is open or solved, who has attempted it,
         and its complete event history.</p>
-        <a class="go" href="frontier.html">browse the frontier →</a>
+        <a class="go" href="/frontier">browse the frontier →</a>
       </div>
       <div class="card">
         <h4>The anvil</h4>
         <p>Performance competitions for verified software. Programs that solve the same problem are ranked
         by speed, but a program is only allowed onto a leaderboard after a machine-checked proof that it
         computes exactly what the specification says. Sponsors can attach rewards to specific hardware.</p>
-        <a class="go" href="anvil.html">see the leaderboards →</a>
+        <a class="go" href="/anvil">see the leaderboards →</a>
       </div>
       <div class="card">
         <h4>Zero-knowledge</h4>
         <p>Ways to participate without publishing your work. You can register a hash of your solution now
         and reveal the solution later, or go further and send a cryptographic proof that you possess a
         solution — which the registry can check without ever seeing the solution itself.</p>
-        <a class="go" href="zk.html">inspect the proofs →</a>
+        <a class="go" href="/zk">inspect the proofs →</a>
       </div>
     </div>
     <p class="prose" style="margin-top:18px">The full system - what counts as already solved, how wrong
     formalizations lose without a committee, what curations and bounties are, and a worked example where
     every step is a real event - is explained in reading order on
-    <a href="how.html">the how-it-works page</a>.</p>
+    <a href="/how">the how-it-works page</a>.</p>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
     <span>Satoshi's Razor — a registry for machine-checked mathematics and verified software.</span>
-    <span class="right"><a href="download.html">get started</a> · <code>./demo.sh</code> scripted walkthrough</span>
+    <span class="right"><a href="/get-started">get started</a> · <code>./demo.sh</code> scripted walkthrough</span>
   </div>
 </footer>
 
-<script src="razor.js"></script>
+<script src="/razor.js"></script>
 <script>
 loadData(S => {
   const sorries = Object.values(S.sorries);
@@ -128,7 +128,7 @@ loadData(S => {
   $('stats').innerHTML = [
     [liveSorries.filter(h => h.status === 'open').length, 'open problems'],
     [pool, 'credits in bounties'],
-    [backlogN, 'theorems waiting for a first formalization — claim one', 'frontier.html#backlog'],
+    [backlogN, 'theorems waiting for a first formalization — claim one', '/frontier#backlog'],
     [admitted, 'proofs admitted'],
     [liveProposals.length, 'proposals'],
     [S.events.length, 'events on the log'],
@@ -165,7 +165,7 @@ loadData(S => {
     // One band per split: parent on the left, its parts to the right.
     const W = 940, bandH = 96, H = splits.length * bandH + 26;
     const color = { open: 'var(--open)', solved: 'var(--solved)' };
-    const node = (id, st, x, y, sub) => `<a href="sorry.html?id=${encodeURIComponent(id)}"><g class="gnode">
+    const node = (id, st, x, y, sub) => `<a href="/sorry/${encodeURIComponent(id)}"><g class="gnode">
       <title>${esc(prettyMath((S.sorries[id] || {}).title || id))}</title>
       <ellipse cx="${x}" cy="${y}" rx="58" ry="24" fill="var(--bg)" stroke="${color[st] || 'var(--muted)'}" stroke-width="1.8"/>
       <text x="${x}" y="${y - 1}" text-anchor="middle">${esc(id)}</text>
@@ -200,7 +200,7 @@ loadData(S => {
       proof is a machine-checked guarantee that solving the children finishes the whole thing.</p>
       <div class="board" style="margin-top:14px"><svg role="img" viewBox="0 0 ${W} ${H}"
         aria-label="The flagship problem and its registered splits: each split's child sorries and glue sorry, solved ones marked.">${svg}</svg></div>
-      <a class="go" href="sorry.html?id=${encodeURIComponent(featured.id)}">the full record: the exact statement, every split, every attempt →</a>`;
+      <a class="go" href="/sorry/${encodeURIComponent(featured.id)}">the full record: the exact statement, every split, every attempt →</a>`;
   }
 
   // ── start here: the curated, open, genuinely attemptable sorry ──
@@ -231,7 +231,7 @@ razor verify --local --submission SUB-you   <span class="c"># Mathlib env: check
       <div class="codeblock">curl -sSf ${esc(origin)}/install.sh | bash   <span class="c"># once — builds the toolchain (details on the get-started page)</span>
 <span class="c"># write the proof in any .lean file, then:</span>
 ${cmd}</div>
-      <a class="go" href="sorry.html?id=${encodeURIComponent(starter.id)}">the exact statement this must prove, character for character →</a>`;
+      <a class="go" href="/sorry/${encodeURIComponent(starter.id)}">the exact statement this must prove, character for character →</a>`;
   }
 
   renderFeedInto('feed', S, 10);

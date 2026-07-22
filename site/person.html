@@ -7,9 +7,9 @@
 <meta name="description" content="A profile derived entirely from the registry's event log.">
 <meta property="og:title" content="Person — Satoshi's Razor">
 <meta property="og:description" content="A profile derived entirely from the registry's event log.">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="razor.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/razor.css">
 <style>
   .detail-head .sigil { font-size: 34px; line-height: 1; }
 </style>
@@ -18,7 +18,7 @@
 
 <header class="mast">
   <div class="wrap">
-    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <h1><a href="/">Satoshi's <span class="razor">Razor</span></a></h1>
     <nav class="pages"></nav>
   </div>
 </header>
@@ -46,11 +46,11 @@
 <footer>
   <div class="wrap">
     <span>Claim a handle: <code>razor account new</code>.</span>
-    <span class="right"><a href="people.html">← all people</a></span>
+    <span class="right"><a href="/people">← all people</a></span>
   </div>
 </footer>
 
-<script src="razor.js"></script>
+<script src="/razor.js"></script>
 <script>
 const OUTCOME = {
   admitted: ['✓', 'good', 'accepted'],
@@ -64,7 +64,7 @@ loadData(S => {
   const p = (S.people || {})[id];
   if (!p) {
     $('title').textContent = id ? `Nobody named ${id}` : 'Nobody selected';
-    $('lede').innerHTML = `Everyone with any activity is listed on <a href="people.html">the people page</a>. ${id ? datasetHint(S) : ''}`;
+    $('lede').innerHTML = `Everyone with any activity is listed on <a href="/people">the people page</a>. ${id ? datasetHint(S) : ''}`;
     return;
   }
   document.title = `@${p.handle} — Satoshi's Razor`;

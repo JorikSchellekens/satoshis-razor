@@ -7,15 +7,15 @@
 <meta name="description" content="Take part without publishing your work: commit-reveal priority and zero-knowledge submissions the registry checks without seeing the solution.">
 <meta property="og:title" content="Zero-knowledge — Satoshi's Razor">
 <meta property="og:description" content="Take part without publishing your work: commit-reveal priority and zero-knowledge submissions the registry checks without seeing the solution.">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="razor.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/razor.css">
 </head>
 <body>
 
 <header class="mast">
   <div class="wrap">
-    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <h1><a href="/">Satoshi's <span class="razor">Razor</span></a></h1>
     <nav class="pages"></nav>
   </div>
 </header>
@@ -107,11 +107,11 @@
 <footer>
   <div class="wrap">
     <span>To submit privately: <code>zk-prover prove --list …</code> then <code>razor zk-submit</code>. The registry never sees your data.</span>
-    <span class="right"><a href="download.html">get started</a></span>
+    <span class="right"><a href="/get-started">get started</a></span>
   </div>
 </footer>
 
-<script src="razor.js"></script>
+<script src="/razor.js"></script>
 <script>
 loadData(S => {
   const zk = Object.values(S.sorries).filter(h => (h.zk_routes || []).length);
@@ -130,13 +130,13 @@ loadData(S => {
         ${chip(h.status)}
         ${h.pool ? `<span class="pool">pool ${h.pool.toLocaleString()}</span>` : ''}
       </div>
-      <h4><a class="cardlink" href="sorry.html?id=${encodeURIComponent(h.id)}">${esc(prettyMath(h.title))}</a></h4>
+      <h4><a class="cardlink" href="/sorry/${encodeURIComponent(h.id)}">${esc(prettyMath(h.title))}</a></h4>
       <pre>${hiLeanLinked(h.lean_type, h.mathlib_names)}</pre>
       <div class="meta">
         ${routes}
         ${subs}
       </div>
-      <a class="go" href="sorry.html?id=${encodeURIComponent(h.id)}">full record: the Lean unfolded, every attempt, every event →</a>
+      <a class="go" href="/sorry/${encodeURIComponent(h.id)}">full record: the Lean unfolded, every attempt, every event →</a>
     </article>`;
   }).join('') || `<p class="lede">No sorry here carries a zk route yet, so <code>razor zk-submit</code> has
     nothing to target on this registry — the demo dataset (<code>./demo.sh</code> in your clone) shows the

@@ -7,15 +7,15 @@
 <meta name="description" content="One candidate Lean statement: its author's plain-language gloss, its certificates, and its machine-checked equivalences.">
 <meta property="og:title" content="Statement — Satoshi's Razor">
 <meta property="og:description" content="One candidate Lean statement: its author's plain-language gloss, its certificates, and its machine-checked equivalences.">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="razor.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/razor.css">
 </head>
 <body>
 
 <header class="mast">
   <div class="wrap">
-    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <h1><a href="/">Satoshi's <span class="razor">Razor</span></a></h1>
     <nav class="pages"></nav>
   </div>
 </header>
@@ -58,18 +58,18 @@
 <footer>
   <div class="wrap">
     <span>Strengthen a clump: pin the equivalence as a solvable sorry with <code>razor bridge</code>, then prove it like any other.</span>
-    <span class="right"><a href="frontier.html">← back to the frontier</a></span>
+    <span class="right"><a href="/frontier">← back to the frontier</a></span>
   </div>
 </footer>
 
-<script src="razor.js"></script>
+<script src="/razor.js"></script>
 <script>
 loadData(S => {
   const id = qid();
   const st = S.statements[id];
   if (!st) {
     $('title').textContent = id ? `No statement named ${id}` : 'No statement selected';
-    $('lede').innerHTML = `Pick one on <a href="frontier.html">the frontier</a>. ${id ? datasetHint(S) : ''}`;
+    $('lede').innerHTML = `Pick one on <a href="/frontier">the frontier</a>. ${id ? datasetHint(S) : ''}`;
     return;
   }
   document.title = `${st.id} — Satoshi's Razor`;

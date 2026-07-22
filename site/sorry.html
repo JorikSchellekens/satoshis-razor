@@ -7,15 +7,15 @@
 <meta name="description" content="One sorry: its pinned Lean statement, where it stands, every attempt, and every event touching it.">
 <meta property="og:title" content="One sorry — Satoshi's Razor">
 <meta property="og:description" content="One sorry: its pinned Lean statement, where it stands, every attempt, and every event touching it.">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="razor.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/razor.css">
 </head>
 <body>
 
 <header class="mast">
   <div class="wrap">
-    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <h1><a href="/">Satoshi's <span class="razor">Razor</span></a></h1>
     <nav class="pages"></nav>
   </div>
 </header>
@@ -80,18 +80,18 @@
 <footer>
   <div class="wrap">
     <span id="foot-hint">With the CLI installed, participation commands publish here directly, signed by your key.</span>
-    <span class="right"><a href="download.html">get started</a> · <a href="frontier.html">← back to the frontier</a></span>
+    <span class="right"><a href="/get-started">get started</a> · <a href="/frontier">← back to the frontier</a></span>
   </div>
 </footer>
 
-<script src="razor.js"></script>
+<script src="/razor.js"></script>
 <script>
 loadData(S => {
   const id = qid();
   const h = S.sorries[id];
   if (!h) {
     $('title').textContent = id ? `No sorry named ${id}` : 'No sorry selected';
-    $('lede').innerHTML = `Pick one on <a href="frontier.html">the frontier</a>. ${id ? datasetHint(S) : ''}`;
+    $('lede').innerHTML = `Pick one on <a href="/frontier">the frontier</a>. ${id ? datasetHint(S) : ''}`;
     return;
   }
   document.title = `${h.id} — Satoshi's Razor`;
@@ -189,7 +189,7 @@ loadData(S => {
         <span class="badge ${r.bridge_kind === 'theorem' ? 'gold' : ''}">bridge: ${esc(r.bridge_kind)}</span></div>
       <div class="meta"><span>${r.bridge_kind === 'theorem'
         ? `kernel-checked bridge theorem: <span class="ok">${esc(r.bridge)}</span> — satisfying the circuit implies the pinned statement`
-        : `checker binary hash: ${esc(r.bridge)} — an auditable claim, not a theorem (see the <a href="zk.html">zero-knowledge page</a>)`}</span>
+        : `checker binary hash: ${esc(r.bridge)} — an auditable claim, not a theorem (see the <a href="/zk">zero-knowledge page</a>)`}</span>
       ${r.note ? `<span class="note">“${esc(r.note)}”</span>` : ''}</div>
     </article>`).join('');
   }

@@ -7,9 +7,9 @@
 <meta name="description" content="Everyone who has done anything on the registry, with records derived entirely from the event log.">
 <meta property="og:title" content="People — Satoshi's Razor">
 <meta property="og:description" content="Everyone who has done anything on the registry, with records derived entirely from the event log.">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="razor.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/razor.css">
 <style>
   .person .sigil { font-size: 26px; line-height: 1; }
   .person .statline { font-family: var(--mono); font-size: 11.5px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
@@ -21,7 +21,7 @@
 
 <header class="mast">
   <div class="wrap">
-    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <h1><a href="/">Satoshi's <span class="razor">Razor</span></a></h1>
     <nav class="pages"></nav>
   </div>
 </header>
@@ -55,12 +55,12 @@
 <footer>
   <div class="wrap">
     <span>Claim a handle: <code>razor account new</code> — it registers here directly, and your profile
-    appears as soon as you do anything (<a href="download.html">get started</a>).</span>
-    <span class="right"><a href="download.html">get started</a></span>
+    appears as soon as you do anything (<a href="/get-started">get started</a>).</span>
+    <span class="right"><a href="/get-started">get started</a></span>
   </div>
 </footer>
 
-<script src="razor.js"></script>
+<script src="/razor.js"></script>
 <script>
 let STATE = null;
 
@@ -107,7 +107,7 @@ function personCard(p) {
   return `<article class="card person">
     <div class="row1">
       <span class="sigil">${esc(sigil)}</span>
-      <h4><a class="cardlink" href="person.html?id=${encodeURIComponent(p.handle)}">${esc(name)}</a> <span style="color:var(--muted);font-weight:400">@${esc(p.handle)}</span></h4>
+      <h4><a class="cardlink" href="/person/${encodeURIComponent(p.handle)}">${esc(name)}</a> <span style="color:var(--muted);font-weight:400">@${esc(p.handle)}</span></h4>
       ${registered}
     </div>
     ${about}

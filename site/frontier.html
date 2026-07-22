@@ -7,15 +7,15 @@
 <meta name="description" content="Every precisely stated open problem in the registry, with the exact Lean statement a solution must prove and what it would take to close each one.">
 <meta property="og:title" content="The frontier — Satoshi's Razor">
 <meta property="og:description" content="Every precisely stated open problem in the registry, with the exact Lean statement a solution must prove and what it would take to close each one.">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="razor.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/razor.css">
 </head>
 <body>
 
 <header class="mast">
   <div class="wrap">
-    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <h1><a href="/">Satoshi's <span class="razor">Razor</span></a></h1>
     <nav class="pages"></nav>
   </div>
 </header>
@@ -100,7 +100,7 @@
     Mathlib environment before it is a solvable sorry - filing that statement is itself attributed,
     timestamped work on the log. To claim one: open it, read the background, then
     <code>razor formalize --gloss "your plain-language reading"</code>. A problem missing from the
-    list can be <a href="propose.html">proposed straight from the browser</a> - no Lean, no account.</p>
+    list can be <a href="/propose">proposed straight from the browser</a> - no Lean, no account.</p>
     <div class="controls">
       <input id="backlog-search" type="search" placeholder="search the backlog" aria-label="search backlog">
       <span class="note" id="backlog-count"></span>
@@ -122,11 +122,11 @@
 <footer>
   <div class="wrap">
     <span>To attempt one: pick an open sorry, write the proof, then run <code>razor submit</code> and <code>razor verify</code>.</span>
-    <span class="right"><a href="download.html">get started</a></span>
+    <span class="right"><a href="/get-started">get started</a></span>
   </div>
 </footer>
 
-<script src="razor.js"></script>
+<script src="/razor.js"></script>
 <script>
 let STATE = null;
 
@@ -176,12 +176,12 @@ function card(S, h, sort) {
       ${m.pool ? `<span class="pool"${tip('bounty')}>bounty ${m.pool.toLocaleString()}</span>` : ''}
       ${tagChips(S, h.id)}${h.proposal && isTestData(S, h.proposal) && !isTestData(S, h.id) ? `<span class="badge"${tip('tag')}>⚑ test-data (proposal)</span>` : ''}
     </div>
-    <h4><a class="cardlink" href="sorry.html?id=${encodeURIComponent(h.id)}">${esc(prettyMath(h.title))}</a></h4>
+    <h4><a class="cardlink" href="/sorry/${encodeURIComponent(h.id)}">${esc(prettyMath(h.title))}</a></h4>
     ${informal ? `<p class="informal">${esc(prettyMath(informal.length > 220 ? informal.slice(0, 220) + '…' : informal))}</p>` : ''}
     <pre>${lean}</pre>
     <div>${badges}</div>
     ${marks || splits || routes || partOf || curs.length ? `<div class="meta">${marks}${partOf}${splits}${routes}${curs.map(([who, , note]) => `<span class="ok">☆ curated by ${esc(who)}${note ? `: “${esc(note)}”` : ''}</span>`).join('')}</div>` : ''}
-    <a class="go" href="sorry.html?id=${encodeURIComponent(h.id)}">full record: the Lean unfolded, every attempt, every event →</a>
+    <a class="go" href="/sorry/${encodeURIComponent(h.id)}">full record: the Lean unfolded, every attempt, every event →</a>
   </article>`;
 }
 
@@ -220,7 +220,7 @@ function draw() {
     const all = Object.values(S.sorries).filter(h => (h.proposal || '') === k);
     const solved = all.filter(h => h.status === 'solved').length;
     const head = p ? `<div class="family-head">
-        <h4><a href="proposal.html?id=${encodeURIComponent(k)}">${esc(prettyMath(p.title))}</a></h4>
+        <h4><a href="/proposal/${encodeURIComponent(k)}">${esc(prettyMath(p.title))}</a></h4>
         <span class="fmeta">${all.length} sorry${all.length > 1 ? 's' : ''} pinned under ${propLink(k)}</span>
         ${all.length > 1 ? pbar(solved, all.length) : ''}
       </div>` : `<div class="family-head">
@@ -278,7 +278,7 @@ function renderProposals(S) {
           : '<span class="chip open">○ needs a formal statement</span>'}
         ${tagChips(S, p.id)}
       </div>
-      <h4><a class="cardlink" href="proposal.html?id=${encodeURIComponent(p.id)}">${esc(prettyMath(p.title))}</a></h4>
+      <h4><a class="cardlink" href="/proposal/${encodeURIComponent(p.id)}">${esc(prettyMath(p.title))}</a></h4>
       <p class="prop-body">${esc(prettyMath(p.body))}</p>
       ${curatorsOf(S, p.id).map(([who, , note]) => `<div class="prop-body">☆ curated by ${esc(who)}${note ? `: “${esc(note)}”` : ''}</div>`).join('')}
       ${clumps}
@@ -298,7 +298,7 @@ function renderBacklog(backlog) {
     $('backlog').innerHTML = hits.map(p => {
       const bg = ((p.body || '').match(/Background: (\S+)/) || [])[1]?.replace(/\.$/, '');
       return `<div class="backlog-row">${propLink(p.id)}
-        <a class="cardlink" href="proposal.html?id=${encodeURIComponent(p.id)}">${esc(prettyMath(p.title))}</a>
+        <a class="cardlink" href="/proposal/${encodeURIComponent(p.id)}">${esc(prettyMath(p.title))}</a>
         ${bg ? `<a class="src-link" href="${esc(bg)}">background ↗</a>` : ''}</div>`;
     }).join('') || '<p class="lede">Nothing matches.</p>';
   };

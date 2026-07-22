@@ -7,15 +7,15 @@
 <meta name="description" content="The whole system in reading order: the path a problem travels, the machinery around it, what is already proved elsewhere, how wrong wordings lose, and a worked example where every step is a real event on the log.">
 <meta property="og:title" content="How it works — Satoshi's Razor">
 <meta property="og:description" content="The whole system in reading order: the path a problem travels, the machinery around it, what is already proved elsewhere, how wrong wordings lose, and a worked example where every step is a real event on the log.">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="razor.css">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/razor.css">
 </head>
 <body>
 
 <header class="mast">
   <div class="wrap">
-    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <h1><a href="/">Satoshi's <span class="razor">Razor</span></a></h1>
     <nav class="pages"></nav>
   </div>
 </header>
@@ -132,11 +132,11 @@
           <dd>A solver can file a hash of a proof now and reveal the file later, establishing
           priority without exposure - or go further and send a cryptographic proof of possession
           that the registry checks without ever seeing the solution. Both are on
-          <a href="zk.html">the zero-knowledge page</a>.</dd></div>
+          <a href="/zk">the zero-knowledge page</a>.</dd></div>
       </dl>
     </div>
     <p class="prose">The same machinery has a second life for programs: on
-    <a href="anvil.html">the anvil</a>, a <em>challenge</em> pins a formal specification, a
+    <a href="/anvil">the anvil</a>, a <em>challenge</em> pins a formal specification, a
     submitted implementation is admitted only with a kernel-checked proof that it computes what
     the specification says (that proof obligation is an ordinary sorry), and admitted
     implementations then compete on measured speed. The anvil's own vocabulary - rigs, lanes,
@@ -170,7 +170,7 @@
     counts for more - and every mark is signed and permanent, so it goes on the filer's own record too. A
     mark changes no status. The marked sorry stays exactly as provable as before, its admitted proofs and
     payouts stand, and anyone who disagrees can keep working on it or file a mark pointing elsewhere.</p>
-    <p class="prose">What changes is what readers see: on <a href="frontier.html">the frontier</a>, a marked
+    <p class="prose">What changes is what readers see: on <a href="/frontier">the frontier</a>, a marked
     sorry's card shows who considers it superseded and by what, sorts down in proportion to the weight
     against it, and links forward. A sorry's <strong>lineage</strong> number counts the earlier wordings
     whose marks point at it - lineage 2 means the third attempt at stating the same problem. A long lineage
@@ -229,11 +229,11 @@
 <footer>
   <div class="wrap">
     <span>Satoshi's Razor — a registry for machine-checked mathematics and verified software.</span>
-    <span class="right"><a href="download.html">get started</a> · <code>./demo.sh</code> scripted walkthrough</span>
+    <span class="right"><a href="/get-started">get started</a> · <code>./demo.sh</code> scripted walkthrough</span>
   </div>
 </footer>
 
-<script src="razor.js"></script>
+<script src="/razor.js"></script>
 <script>
 loadData(S => {
   const corpora = Object.values(S.corpora || {});
@@ -281,7 +281,7 @@ loadData(S => {
       body: 'Two related sorries remain open, one carrying a small bounty and two curations. mallory attempts one with a proof that still contains Lean\'s <code>sorry</code> placeholder - an unfinished part. The checker detects it and rejects the submission. Rejections are recorded on the log like everything else.',
       evs: seqOf(e => e.submission === 'SUB-104x') },
     { tone: 'gold', when: 'commit · reveal · verify', title: 'Afterword: nina solves a sorry without showing her work first',
-      body: 'nina registers a hash of her proof file, which establishes when she had it without showing it to anyone. Later she reveals the file; the registry confirms it matches the hash, checks the proof, and accepts it. On the <a href="zk.html">zero-knowledge page</a>, peggy goes one step further and is paid without ever revealing her solution at all.',
+      body: 'nina registers a hash of her proof file, which establishes when she had it without showing it to anyone. Later she reveals the file; the registry confirms it matches the hash, checks the proof, and accepts it. On the <a href="/zk">zero-knowledge page</a>, peggy goes one step further and is paid without ever revealing her solution at all.',
       evs: seqOf(e => e.submission === 'SUB-106' || (e.type === 'commit' && e.id === 'SUB-106') || (e.type === 'reveal' && e.submission === 'SUB-106')) },
   ];
   $('examplebody').innerHTML = beats.map(b => `<div class="beat ${b.tone}">

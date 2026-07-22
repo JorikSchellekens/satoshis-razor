@@ -15,3 +15,5 @@ upstream/
 zk/keys/
 site/.vercel/
 registry/data/remote.jsonl
+lean-mathlib/.lake/
+lean-mathlib/lake-manifest.json
