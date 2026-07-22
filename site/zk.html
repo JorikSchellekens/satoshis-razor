@@ -29,9 +29,10 @@
   valid solution. The registry can check this proof in milliseconds and learns nothing about the solution
   itself — it is never sent.</p>
   <p class="lede">A sorry becomes zk-solvable when someone attaches a <strong>zk route</strong> to it: a
-  verifying key for a circuit, plus a <strong>bridge</strong> establishing that satisfying the circuit means
-  the sorry's pinned statement is true. There is one kind of sorry; routes are attachments, several can
-  coexist, and a route is never edited.</p>
+  verifying key for a circuit, plus a <strong>circuit-to-statement bridge</strong> establishing that
+  satisfying the circuit means the sorry's pinned statement is true. (Distinct from a
+  <em>bridge sorry</em>, which ties two candidate statements of the same problem.) There is one kind of
+  sorry; routes are attachments, several can coexist, and a route is never edited.</p>
 </div>
 
 <section>
@@ -48,7 +49,7 @@
       <div class="card">
         <h4>2 · The bridge: what the equations mean</h4>
         <p>Satisfying a set of equations only matters if the equations say the right thing. Each route
-        carries a bridge tying its circuit to the sorry's pinned statement. The strongest kind is a
+        carries a circuit-to-statement bridge tying its circuit to the sorry's pinned statement. The strongest kind is a
         <strong>theorem bridge</strong>, itself a kernel-checked proof. The demo dataset
         (<code>./demo.sh</code>) shows one: <code>Razor.Zk.network_sound</code>, proving that any
         values satisfying its sorting circuit really do describe a correctly sorted copy of the hidden

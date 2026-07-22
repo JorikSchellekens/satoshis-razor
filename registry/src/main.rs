@@ -261,7 +261,7 @@ fn print_help(cmd: &str) {
             ("converge", "prove two statements equivalent (they clump)"),
             ("bridge", "pin the equivalence of two statements as its own sorry"),
             ("implies", "prove one statement implies another"),
-            ("round", "open a challenge window: sealed readings until a deadline"),
+            ("round", "open a reading window: sealed readings until a deadline"),
             ("seal-statement", "commit a hash of your statement file - a reading, sealed"),
             ("reveal-statement", "open a statement seal; it enters the funnel with provenance"),
             ("sorry", "pin an exact Lean statement as a solvable sorry"),
@@ -557,7 +557,7 @@ fn cmd_reveal(root: &PathBuf, log_path: &PathBuf, submission: &str, file: &str, 
     ui::step(&format!("revealed {} razor verify --submission {submission}", ui::dim("- next:")));
 }
 
-/// Open a challenge window on a proposal: a dated invitation for sealed
+/// Open a reading window on a proposal: a dated invitation for sealed
 /// readings. Nothing is enforced - a late seal or reveal simply carries its
 /// own timestamps, and the blindness math reads event order, not the dates.
 fn cmd_round(log_path: &PathBuf, args: &[String]) {
@@ -586,7 +586,7 @@ fn cmd_round(log_path: &PathBuf, args: &[String]) {
         id: id.clone(), proposal: proposal.clone(), author: req(args, "--author"),
         closes_at, reveal_by, note: opt(args, "--note").unwrap_or_default(),
     });
-    ui::step(&format!("challenge window {} open on {}", ui::bold(&id), ui::cyan(&proposal)));
+    ui::step(&format!("reading window {} open on {}", ui::bold(&id), ui::cyan(&proposal)));
     ui::kv("sealing", &format!("until unix {closes_at} ({})", ui::dim(&days_from(now, closes_at))));
     ui::kv("reveals", &format!("by unix {reveal_by} ({})", ui::dim(&days_from(now, reveal_by))));
     ui::kv("next", &ui::dim("participants: razor seal --file your-statement.lean --salt <salt>, then razor seal-statement"));
@@ -1753,7 +1753,7 @@ fn cmd_status(log_path: &PathBuf) {
         for rid in &p.rounds {
             let Some(r) = state.rounds.get(rid) else { continue };
             let phase = if now < r.closes_at {
-                format!("{} {}", ui::gold("◷ challenge window open"),
+                format!("{} {}", ui::gold("◷ reading window open"),
                     ui::dim(&format!("- sealed readings invited, closes {}", days_from(now, r.closes_at))))
             } else if now < r.reveal_by {
                 format!("{} {}", ui::gold("◷ reveal phase"),

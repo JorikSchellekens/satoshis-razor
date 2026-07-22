@@ -157,7 +157,7 @@ $RAZOR sorry --id ES-002 --proposal PRP-002 --statement STM-ES-RAT --env mathlib
   --title "Erdos-Straus (rationals, in the Mathlib environment)" \
   --lean-type "RazorMathlib.ErdosStrausRat"
 
-# A real challenge window: both readings above are one author's (the
+# A real reading window: both readings above are one author's (the
 # registry's), so the proposal has no independent convergence evidence at
 # all. The window invites sealed readings - statements committed as hashes
 # before any is revealed - because two readings sealed before one another's

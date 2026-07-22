@@ -7,7 +7,6 @@ const NAV = [
   ['frontier.html', 'frontier'],
   ['how.html', 'how it works'],
   ['anvil.html', 'the anvil'],
-  ['zk.html', 'zero-knowledge'],
   ['people.html', 'people'],
   ['download.html', 'get started'],
 ];
@@ -32,6 +31,11 @@ function loadData(render) {
   const apply = (S) => {
     if (S.events.length === eventCount) return;
     eventCount = S.events.length;
+    // Display normalization: proposal bodies imported before the 2026-07
+    // rename instruct `razor hole`. The CLI accepts both spellings; the
+    // site shows the current one. The log itself is untouched.
+    for (const p of Object.values(S.proposals || {}))
+      if (p.body) p.body = p.body.replace(/\brazor hole\b/g, 'razor sorry');
     renderDatasetBanner(S);
     render(S);
   };
@@ -47,6 +51,56 @@ function loadData(render) {
     t.textContent = 'No data.json found. Run ./seed.sh (live registry) or ./demo.sh (scripted walkthrough) at the repo root, then reload.';
   });
 }
+
+// ── browser participation ────────────────────────────────────────
+// The same endpoint the CLI uses: POST /api/event {event, sig?}. Unsigned
+// events are accepted for handles with no registered account (the server
+// marks them unsigned); a registered handle's event is refused without its
+// key's signature, which only the CLI holds - the error says so.
+async function postEvent(event) {
+  if (!location.protocol.startsWith('http'))
+    return { ok: false, msg: 'participation needs the served site (razor serve), not a file:// view' };
+  try {
+    const r = await fetch('/api/event', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ event }),
+    });
+    const text = await r.text();
+    if (!r.ok) {
+      const m = (text.match(/"error"\s*:\s*"([^"]+)"/) || [])[1];
+      return { ok: false, msg: m || text.slice(0, 300) || r.status };
+    }
+    const seq = (text.match(/"seq"\s*:\s*(\d+)/) || [])[1];
+    return { ok: true, seq };
+  } catch (e) {
+    return { ok: false, msg: String(e) };
+  }
+}
+
+// One-click curation from a sorry or proposal page. No account needed: the
+// event is recorded unsigned, weighted like any other curation. A registered
+// handle's curation is refused here without its key's signature - the server
+// says so, and the CLI path signs automatically.
+function curateButton(target) {
+  if (!location.protocol.startsWith('http')) return '';
+  return `<button class="curate-btn" data-curate="${esc(target)}">☆ mark worth working on</button>` +
+    `<span class="curate-msg" data-curate-msg="${esc(target)}"></span>`;
+}
+document.addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('[data-curate]');
+  if (!btn) return;
+  const target = btn.dataset.curate;
+  const who = (window.prompt('Your handle (recorded on the public log; no account needed):') || '')
+    .trim().toLowerCase();
+  if (!who) return;
+  const note = (window.prompt('Why is it worth working on? (optional, public)') || '').trim();
+  btn.disabled = true;
+  const r = await postEvent({ type: 'curate', curator: who, target, note });
+  const el = document.querySelector(`[data-curate-msg="${CSS.escape(target)}"]`);
+  if (el) el.textContent = r.ok ? `☆ recorded - event #${r.seq}` : `refused: ${r.msg}`;
+  if (!r.ok) btn.disabled = false;
+});
 
 // ── entity links ─────────────────────────────────────────────────
 // Every id on the site is a link to that entity's own page.
@@ -142,6 +196,7 @@ const TIP = {
   bounty: 'Credits attached to this exact statement. The first admitted proof is paid, with no adjudication.',
   env: "Stated using Mathlib's definitions and checked in the Mathlib environment.",
   upstreamed: 'The admitted proof was carried to its home library; the pull request is recorded on the log.',
+  repin: "A wording migration: the sorry's pinned type was swapped for a new wording, allowed only with a kernel-checked proof that new and old are equivalent. Prior admitted proofs stay valid.",
 };
 const tip = (k) => TIP[k] ? ` title="${esc(TIP[k])}"` : '';
 
@@ -151,7 +206,7 @@ const datasetHint = (S) => S.dataset === 'demo'
   ? 'This site is currently showing the <b>demo dataset</b>. If you followed a link to a live-registry entity, run <code>./seed.sh</code> and reload.'
   : 'This site is currently showing the <b>live registry</b>. If you followed a link from the demo walkthrough, run <code>./demo.sh</code> and reload.';
 
-// ── challenge windows and sealed readings ────────────────────────
+// ── reading windows and sealed readings ──────────────────────────
 const fmtDay = (ts) => new Date(ts * 1000).toLocaleDateString(undefined,
   { year: 'numeric', month: 'short', day: 'numeric' });
 
@@ -391,7 +446,7 @@ function humanEvent(S, e) {
     case 'formalize': return { t: '', h: `${personLink(e.author)} formalized ${propLink(e.proposal)} as statement ${stmtLink(e.id)}` };
     case 'seal_statement': return { t: 'gold', h: `${personLink(e.author)} sealed a blind reading of ${propLink(e.proposal)}` };
     case 'reveal_statement': return { t: '', h: `${personLink(e.author)} revealed sealed statement ${stmtLink(e.statement)}` };
-    case 'open_round': return { t: 'gold', h: `${personLink(e.author)} opened a challenge window on ${propLink(e.proposal)}` };
+    case 'open_round': return { t: 'gold', h: `${personLink(e.author)} opened a reading window on ${propLink(e.proposal)}` };
     case 'register_sorry': return { t: '', h: `sorry ${sorryLink(e.id)} pinned${e.author ? ` by ${personLink(e.author)}` : ''}${q(e.title)}` };
     case 'submit': return { t: '', h: `${personLink(e.solver)} submitted a proof against ${sorryLink(e.sorry)}` };
     case 'verdict': {

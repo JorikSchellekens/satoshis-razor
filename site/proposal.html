@@ -41,7 +41,7 @@
 
 <section id="sec-round" style="display:none">
   <div class="wrap">
-    <div class="sec-head"><h3 id="round-title">Challenge window</h3><span class="note">file your reading sealed; statements sealed before one another's reveals are provably independent</span></div>
+    <div class="sec-head"><h3 id="round-title">Reading window</h3><span class="note">file your reading sealed; statements sealed before one another's reveals are provably independent</span></div>
     <div class="prose" id="round-body"></div>
     <div class="kv" id="round-seals"></div>
   </div>
@@ -51,6 +51,7 @@
   <div class="wrap">
     <div class="sec-head"><h3>Curation</h3><span class="note">public, attributed, weighted by the curator's verified work</span></div>
     <div class="kv" id="curations"></div>
+    <div class="prose" id="curate-cta" style="margin-top:10px"></div>
   </div>
 </section>
 
@@ -103,7 +104,7 @@ loadData(S => {
   --decl Your.Lean.Name --gloss "your plain-language reading of the statement"`;
   }
 
-  // Challenge window: the latest round still in its sealing or reveal
+  // Reading window: the latest round still in its sealing or reveal
   // phase, plus any seals awaiting reveal (shown even after a window ends -
   // an unrevealed seal is a fact worth seeing).
   const round = activeRound(S, p);
@@ -111,7 +112,7 @@ loadData(S => {
   if (round || pending.length) {
     $('sec-round').style.display = '';
     if (round) {
-      $('round-title').innerHTML = `Challenge window <span class="badge gold"${tip('window')}>${round.phase === 'sealing' ? 'open — sealed readings invited' : 'reveal phase'}</span>`;
+      $('round-title').innerHTML = `Reading window <span class="badge gold"${tip('window')}>${round.phase === 'sealing' ? 'open — sealed readings invited' : 'reveal phase'}</span>`;
       $('round-body').innerHTML = round.phase === 'sealing'
         ? `<p>Window <b>${esc(round.id)}</b>, opened by ${personLink(round.author)}: seal your own Lean reading of this
            proposal before <b>${fmtDay(round.closes_at)}</b>, reveal it by <b>${fmtDay(round.reveal_by)}</b>.
@@ -140,11 +141,10 @@ razor seal-statement --id SEAL-you --proposal ${esc(p.id)} --author you --commit
   }
 
   const curs = curatorsOf(S, p.id);
-  if (curs.length) {
-    $('sec-cur').style.display = '';
-    $('curations').innerHTML = curs.map(([who, , note]) =>
-      `<div class="k">☆ ${personLink(who)}</div><div class="v">${note ? `“${esc(note)}”` : ''} <span style="color:var(--muted)">(weight ${1 + (S.people?.[who]?.solved || 0)})</span></div>`).join('');
-  }
+  $('sec-cur').style.display = '';
+  $('curations').innerHTML = curs.map(([who, , note]) =>
+    `<div class="k">☆ ${personLink(who)}</div><div class="v">${note ? `“${esc(note)}”` : ''} <span style="color:var(--muted)">(weight ${1 + (S.people?.[who]?.solved || 0)})</span></div>`).join('');
+  if (!$('curate-cta').innerHTML) $('curate-cta').innerHTML = curateButton(p.id);
 
   const clumps = p.clumps || [];
   if (clumps.length) {

@@ -7,7 +7,7 @@ import Razor.Sorting.Subgoals
 import Razor.Sorting.Glue
 import Razor.Sorting.Solved
 import Razor.Certificates
-import Razor.Holes.Open
+import Razor.Sorries.Open
 import Razor.Zk.Soundness
 import Razor.Evm.Spec
 import Razor.Anvil.Popcount

@@ -58,7 +58,9 @@ a setup step.)
 
 ## Participate in the hosted registry
 
-The CLI is the interface: after `./install.sh`, participation commands
+Proposing a problem and curating one work straight from the site - no
+install, no account. Everything else goes through the CLI: after
+`./install.sh`, participation commands
 publish directly to [razor.mempoolsurfer.com](https://razor.mempoolsurfer.com).
 `razor account new` registers your handle there; `razor formalize`,
 `razor seal-statement`, `razor submit --file proof.lean` and the rest do
@@ -81,7 +83,10 @@ To work entirely on your machine instead, run `razor remote off`, or add
 
 - Open problems stated with Mathlib's definitions: Fermat's Last Theorem
   (`FermatLastTheorem`, Mathlib's own statement), the Erdos-Straus
-  conjecture, and the Erdos-Turan conjecture on additive bases.
+  conjecture, and the Erdos-Turan conjecture on additive bases. The other
+  pinned sorries today are machinery exercised for real rather than new
+  mathematics: FLT reduction variants and split glue, the anvil's
+  refinement obligations, and a few audit fixtures tagged `test-data`.
 - 975 catalogued theorems with no Lean formalization, imported from the
   [1000+ theorems list](https://1000-plus.github.io/) (snapshot dated
   2026-07-03). Each is a proposal waiting for someone to write its Lean
@@ -96,7 +101,8 @@ To work entirely on your machine instead, run `razor remote off`, or add
   language. Anyone can file a candidate Lean statement for it, together
   with a gloss: the author's own plain-language reading of their Lean.
   Statements proven equivalent by the kernel are grouped into clumps.
-  During a challenge window, statements can be filed sealed - a hash first,
+  During a reading window (a dated invitation to file sealed readings of
+  one proposal), statements can be filed sealed - a hash first,
   the statement itself later - so statements sealed before one another's
   reveals were provably written without seeing each other. The equivalence
   of two statements can itself be registered as a sorry, called a bridge, so

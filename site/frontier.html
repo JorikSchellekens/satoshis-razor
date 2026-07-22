@@ -29,12 +29,13 @@
     <summary>What the numbers on each card mean</summary>
     <p style="margin-top:8px">Each card shows any bounty attached to the exact statement, who has curated it
     and why, every attempt with the checker's verdict, and the full event history. The
-    <strong>attention</strong> sort is one estimate of how much a sorry currently matters: bounty credits,
-    plus fixed weights for each community signal - people independently writing equivalent statements,
-    curations (counting more from people with accepted proofs), earlier wordings replaced, registered
-    splits, and attempts - with a small bump while it is open, minus the weight of any supersession marks
-    (attributed notes that a better wording exists). It is a reading aid: every input is listed on the
-    sorry's own page, and hovering any badge explains it.</p>
+    <strong>attention</strong> sort is one estimate of how much a sorry currently matters: bounty credits at
+    face value, plus fixed weights for each community signal - 900 per clump-weight point (people
+    independently writing equivalent statements), 800 per equivalence proof, 700 per curation-weight point
+    (curations count more from people with accepted proofs), 600 per earlier wording replaced, 500 per
+    registered split, and 250 per attempt - plus 400 while it is open, minus 700 per supersession-mark
+    weight point (attributed notes that a better wording exists). The weights are convention, not judgment:
+    every input is listed on the sorry's own page, and hovering any badge explains it.</p>
   </details>
 </div>
 
@@ -98,7 +99,8 @@
     has formalized yet: a to-do list for formalized mathematics. Each needs a pinned statement in the
     Mathlib environment before it is a solvable sorry - filing that statement is itself attributed,
     timestamped work on the log. To claim one: open it, read the background, then
-    <code>razor formalize --gloss "your plain-language reading"</code>.</p>
+    <code>razor formalize --gloss "your plain-language reading"</code>. A problem missing from the
+    list can be <a href="propose.html">proposed straight from the browser</a> - no Lean, no account.</p>
     <div class="controls">
       <input id="backlog-search" type="search" placeholder="search the backlog" aria-label="search backlog">
       <span class="note" id="backlog-count"></span>
@@ -269,7 +271,7 @@ function renderProposals(S) {
     return `<article class="card wide">
       <div class="row1">
         ${propLink(p.id)}
-        ${round ? `<span class="badge gold"${tip('window')}>◷ ${round.phase === 'sealing' ? `challenge window open — ${daysLeft(round.closes_at)} to seal a reading (by ${fmtDay(round.closes_at)})` : `reveals due by ${fmtDay(round.reveal_by)} — ${daysLeft(round.reveal_by)}`}</span>` : ''}
+        ${round ? `<span class="badge gold"${tip('window')}>◷ ${round.phase === 'sealing' ? `reading window open — ${daysLeft(round.closes_at)} to seal a reading (by ${fmtDay(round.closes_at)})` : `reveals due by ${fmtDay(round.reveal_by)} — ${daysLeft(round.reveal_by)}`}</span>` : ''}
         ${pending ? `<span class="badge"${tip('sealed')}>⏣ ${pending} sealed reading${pending > 1 ? 's' : ''} pending</span>` : ''}
         ${curationWeight(S, p.id) ? `<span class="badge gold">curation ${curationWeight(S, p.id)}</span>` : ''}
         ${p.statements.length ? `<span class="badge blue">${p.statements.length} candidate statement${p.statements.length > 1 ? 's' : ''}</span>`

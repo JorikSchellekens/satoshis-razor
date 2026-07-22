@@ -27,7 +27,7 @@ pub enum Event {
     /// `decl` proves a -> b. Together with the converse's absence this
     /// mechanically exposes "b is strictly weaker" - no adjudication needed.
     Implies { a: String, b: String, decl: String },
-    /// A challenge window on a proposal: a dated invitation to file *sealed*
+    /// A reading window on a proposal: a dated invitation to file *sealed*
     /// candidate statements (hash commitments) until `closes_at`, then
     /// reveal them by `reveal_by`. The window is a coordination signal, not
     /// a gate - the registry never enforces it and a late seal or reveal
@@ -346,7 +346,7 @@ pub struct Proposal {
     pub statements: Vec<String>,
     /// Derived: candidate statements grouped by machine-checked equivalence.
     pub clumps: Vec<Clump>,
-    /// Challenge windows opened on this proposal, in log order.
+    /// Reading windows opened on this proposal, in log order.
     #[serde(default)]
     pub rounds: Vec<String>,
     /// Statement seals filed on this proposal, in log order (revealed or not).
@@ -354,7 +354,7 @@ pub struct Proposal {
     pub seals: Vec<String>,
 }
 
-/// A challenge window, as recorded on the log. Never enforced: it is a
+/// A reading window, as recorded on the log. Never enforced: it is a
 /// dated invitation, and the trust math (mutual blindness of seals) is
 /// computed from event order, not from these dates.
 #[derive(Serialize, Clone, Debug)]
@@ -699,7 +699,7 @@ pub struct Rig {
 pub struct State {
     pub proposals: BTreeMap<String, Proposal>,
     pub statements: BTreeMap<String, Statement>,
-    /// Challenge windows, by id.
+    /// Reading windows, by id.
     pub rounds: BTreeMap<String, Round>,
     /// Statement seals, by id - revealed and pending alike.
     pub seals: BTreeMap<String, Seal>,

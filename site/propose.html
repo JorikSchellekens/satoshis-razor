@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Propose a problem — Satoshi's Razor</title>
+<meta name="description" content="File an open problem in plain language, straight from the browser. Proposing needs no Lean and no account.">
+<meta property="og:title" content="Propose a problem — Satoshi's Razor">
+<meta property="og:description" content="File an open problem in plain language, straight from the browser. Proposing needs no Lean and no account.">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="razor.css">
+</head>
+<body>
+
+<header class="mast">
+  <div class="wrap">
+    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <nav class="pages"></nav>
+  </div>
+</header>
+
+<div class="pagehead wrap">
+  <h2>Propose a problem</h2>
+  <p class="lede">A proposal is an open problem stated in plain language: the first stage of
+  <a href="how.html">the path</a>. It costs nothing, needs no Lean and no account, and records the
+  idea - and who had it first - as a permanent event on the public log. Formalizing it into a
+  solvable sorry is a separate, attributed step that anyone can take later, including you.</p>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>File it</h3><span class="note">goes on the append-only log; there is no delete</span></div>
+    <form class="participate" id="propose-form">
+      <label>title - the problem in one line
+        <input id="p-title" required maxlength="200" placeholder="e.g. Every even number greater than 2 is the sum of two primes">
+      </label>
+      <label>body - context, precise wording, references (optional but useful to a formalizer)
+        <textarea id="p-body" rows="5" placeholder="State it as precisely as prose allows. Link the literature. Say what a faithful Lean statement must and must not include."></textarea>
+      </label>
+      <label>your handle - recorded as the proposal's author
+        <input id="p-author" required maxlength="32" pattern="[a-z0-9-]+" placeholder="lowercase letters, digits, dashes">
+      </label>
+      <label class="hp" aria-hidden="true">leave this empty
+        <input id="p-website" tabindex="-1" autocomplete="off">
+      </label>
+      <button type="submit" id="p-go">propose it</button>
+      <div class="form-msg" id="p-msg"></div>
+    </form>
+    <p class="prose" style="margin-top:14px">Events from this form are recorded <strong>unsigned</strong>
+    (open participation - the log marks them so). If your handle has a registered account, the registry
+    will refuse the event without your key's signature; use the CLI instead, which signs automatically:
+    <code>razor propose --id PRP-you-1 --title "..." --author you</code>. The
+    <a href="download.html">get-started page</a> has the one-line install.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>A proposal becomes solvable when someone formalizes it - the <a href="frontier.html#backlog">backlog</a> shows hundreds waiting.</span>
+    <span class="right"><a href="frontier.html">← the frontier</a></span>
+  </div>
+</footer>
+
+<script src="razor.js"></script>
+<script>
+loadData(() => {});
+
+// Proposal ids are user-chosen in the CLI; the form derives one from the
+// title plus a random suffix, and retries are cheap since a collision is
+// refused by the server before anything is recorded.
+function proposeId(title) {
+  const slug = title.toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `PRP-${slug ? slug + '-' : ''}${rand}`;
+}
+
+document.getElementById('propose-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const msg = document.getElementById('p-msg');
+  if (document.getElementById('p-website').value) return;   // honeypot
+  const title = document.getElementById('p-title').value.trim();
+  const body = document.getElementById('p-body').value.trim();
+  const author = document.getElementById('p-author').value.trim().toLowerCase();
+  if (!title || !author) return;
+  const id = proposeId(title);
+  const btn = document.getElementById('p-go');
+  btn.disabled = true;
+  msg.className = 'form-msg';
+  msg.textContent = 'appending to the log…';
+  const r = await postEvent({ type: 'propose', id, title, body, author });
+  if (r.ok) {
+    msg.className = 'form-msg ok';
+    msg.innerHTML = `recorded - event #${esc(r.seq)}. Your proposal: ` +
+      `<a href="proposal.html?id=${encodeURIComponent(id)}">${esc(id)}</a>`;
+  } else {
+    msg.className = 'form-msg bad';
+    msg.textContent = `refused: ${r.msg}`;
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

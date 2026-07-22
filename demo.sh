@@ -106,7 +106,7 @@ $RAZOR verify --submission SUB-103
 # the party who chose to trust an unconverged statement, and the lesson is
 # public: fund a statement after a clump forms around it, not before.
 
-step "A challenge window opens: the corrected statement, formalized blind"
+step "A reading window opens: the corrected statement, formalized blind"
 # Sealed readings turn independence from an assumption into a recorded fact:
 # alice and bob each commit a hash of their statement file before either
 # reveals, so neither could have seen the other's Lean. The window dates are

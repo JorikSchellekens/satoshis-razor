@@ -96,7 +96,7 @@ duplicate formalization as a feature: a proposal can fund several statement effo
 plus the equivalence proofs between their outputs.
 
 Independence is the load-bearing assumption, and the registry turns as much of
-it as possible into recorded fact (see "Challenge windows" below): a statement
+it as possible into recorded fact (see "Reading windows" below): a statement
 can be filed *sealed* - a hash commitment first, the reveal later - and two
 statements each sealed before the other was revealed were provably written
 blind to each other. A clump therefore carries two counts: its **weight**
@@ -115,7 +115,7 @@ One-way **implication proofs** are recorded too: a proof of A → B with no conv
 mechanically exposes B as no stronger than A, and often as strictly weaker. This
 orders competing readings without any adjudication.
 
-### Challenge windows and sealed readings
+### Reading windows and sealed readings
 
 Convergence is only as strong as the independence behind it, and by default
 nothing produces independence: the second formalizer can simply read the first
@@ -123,7 +123,7 @@ candidate statement and paraphrase it. The registry's answer is sealing, the
 same commit-reveal scheme private proof submissions already use, applied to
 statements:
 
-- A **challenge window** (`razor round`) is a dated invitation on a proposal:
+- A **reading window** (`razor round`) is a dated invitation on a proposal:
   seal your reading by one date, reveal it by another. The window is a
   coordination signal, not a gate - the registry never enforces it, and a late
   seal or reveal simply carries its own timestamps.
@@ -373,7 +373,7 @@ machinery is the same two tools, applied harder:
   excludes the known non-examples. A definition that provably behaves correctly in
   every way the literature can articulate is very hard to get wrong silently.
 
-Definition sorries carry longer challenge windows and the strongest expectation of
+Definition sorries carry longer reading windows and the strongest expectation of
 convergence evidence, proportional to their blast radius.
 
 ## Application to Satoshi's Anvil
@@ -383,7 +383,7 @@ question is "does this Lean spec capture the intended behavior?" (e.g. does this
 formalization actually match RFC 8439). Anvil's equivalents:
 
 - Statement sorries become **spec-authoring bounties**; candidate specs run
-  differential tests against reference implementations during the challenge window -
+  differential tests against reference implementations during the reading window -
   an executable-spec certificate unavailable to pure mathematics.
 - The bounty rule is Anvil's spec-bug policy: a challenge pool pays for the pinned
   executable spec exactly as written, so an implementation that wins by exploiting

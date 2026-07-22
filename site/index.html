@@ -30,6 +30,7 @@
   <div class="cta">
     <a class="primary" href="frontier.html">browse the open problems →</a>
     <a href="how.html">how it works</a>
+    <a href="propose.html">propose a problem</a>
     <a href="download.html">get started</a>
   </div>
   <div class="stats" id="stats"></div>
@@ -74,8 +75,8 @@
       <div class="card">
         <h4>The frontier</h4>
         <p>Every proposal and every sorry in the registry, grouped by the problem they serve. For each sorry:
-        the exact Lean statement a solution must prove, whether it is open or solved, the credits attached,
-        who has attempted it, and its complete event history.</p>
+        the exact Lean statement a solution must prove, whether it is open or solved, who has attempted it,
+        and its complete event history.</p>
         <a class="go" href="frontier.html">browse the frontier →</a>
       </div>
       <div class="card">
@@ -122,25 +123,26 @@ loadData(S => {
     .filter(p => !(p.statements || []).length && !curationWeight(S, p.id)).length;
   const admitted = S.events.filter(e => e.type === 'verdict' && e.admitted && !eventIsTest(S, e)).length;
   // The numbers a visitor can act on come first; a zero is not a headline,
-  // so zero-valued stats are dropped rather than displayed.
+  // so zero-valued stats are dropped rather than displayed. A stat with a
+  // href is an invitation, not just a count.
   $('stats').innerHTML = [
     [liveSorries.filter(h => h.status === 'open').length, 'open problems'],
     [pool, 'credits in bounties'],
-    [backlogN, 'theorems awaiting formalization'],
+    [backlogN, 'theorems waiting for a first formalization — claim one', 'frontier.html#backlog'],
     [admitted, 'proofs admitted'],
     [liveProposals.length, 'proposals'],
     [S.events.length, 'events on the log'],
   ].filter(([b]) => b > 0)
-   .map(([b, l]) => `<div class="stat"><b>${b.toLocaleString()}</b>${l}</div>`).join('');
+   .map(([b, l, href]) => `<div class="stat"><b>${b.toLocaleString()}</b>${href ? `<a href="${href}">${l}</a>` : l}</div>`).join('');
 
-  // An open challenge window is the site's one deadline - show it as one.
+  // An open reading window is the site's one deadline - show it as one.
   const windows = liveProposals.map(p => ({ p, r: activeRound(S, p) })).filter(x => x.r);
   if (windows.length) {
     const { p, r } = windows[0];
     $('window-line').style.display = '';
     $('window-line').innerHTML = r.phase === 'sealing'
-      ? `◷ challenge window open on ${propLink(p.id)} — ${daysLeft(r.closes_at)} to seal a blind reading`
-      : `◷ challenge window on ${propLink(p.id)} — reveals due, ${daysLeft(r.reveal_by)}`;
+      ? `◷ reading window open on ${propLink(p.id)} — ${daysLeft(r.closes_at)} to seal a blind reading`
+      : `◷ reading window on ${propLink(p.id)} — reveals due, ${daysLeft(r.reveal_by)}`;
   }
 
   // ── the flagship problem: largest registered reduction, drawn as a map ──

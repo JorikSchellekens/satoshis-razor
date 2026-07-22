@@ -58,6 +58,10 @@
         used everywhere on this site. A failing check is recorded as a rejection. Nobody rules;
         the kernel checks.</span></li>
     </ol>
+    <p class="prose">One kernel check shows up under three words, one per thing it settles: the
+    <em>submission</em> that passed is <strong>admitted</strong>, the <em>sorry</em> it proved
+    becomes <strong>solved</strong>, and a clump containing a solved statement is
+    <strong>proven</strong> - proving one member proves them all.</p>
     <p class="prose">Everything else on this site is a record that attaches to some point on this
     path. None of those records closes anything or overrules anyone - each is a signed, permanent
     note that readers weigh.</p>
@@ -70,7 +74,7 @@
     <div class="tgroup">
       <h4>Is the wording right?</h4>
       <dl class="terms">
-        <div><dt>challenge window</dt>
+        <div><dt>reading window</dt>
           <dd>A dated invitation to file sealed readings of one proposal, with a closing date and a
           reveal deadline. Several people translating blind at once is the point: statements each
           sealed before the others were revealed are provably independent. The window itself is
@@ -90,6 +94,12 @@
           right. The statement is composed mechanically from the two declarations, the proof goes
           through the same kernel check as any other solve, and a proven bridge merges the two
           readings' clumps.</dd></div>
+        <div><dt>repin</dt>
+          <dd>A wording migration. When the library a statement is written against renames or
+          respells a definition, the sorry's pinned type can be swapped for the new wording - but
+          only together with a kernel-checked proof that the new wording is equivalent to the old.
+          Both wordings and the equivalence proof stay on the log, so proofs admitted against the
+          old wording remain valid.</dd></div>
       </dl>
     </div>
     <div class="tgroup">
@@ -113,8 +123,24 @@
           included, with no adjudication and no refunds. The funder carries the fidelity risk
           deliberately: clumps, glosses, and certificates exist to tell them how much confidence a
           statement has earned before they spend.</dd></div>
+        <div><dt>upstreamed</dt>
+          <dd>An admitted proof carried onward to the library its statement belongs in, usually
+          Mathlib, with the pull request recorded on the log. The registry measures itself by
+          upstreamed proofs, not admitted ones: the goal is mathematics that lands where the rest
+          of formal mathematics lives.</dd></div>
+        <div><dt>private work · zero-knowledge</dt>
+          <dd>A solver can file a hash of a proof now and reveal the file later, establishing
+          priority without exposure - or go further and send a cryptographic proof of possession
+          that the registry checks without ever seeing the solution. Both are on
+          <a href="zk.html">the zero-knowledge page</a>.</dd></div>
       </dl>
     </div>
+    <p class="prose">The same machinery has a second life for programs: on
+    <a href="anvil.html">the anvil</a>, a <em>challenge</em> pins a formal specification, a
+    submitted implementation is admitted only with a kernel-checked proof that it computes what
+    the specification says (that proof obligation is an ordinary sorry), and admitted
+    implementations then compete on measured speed. The anvil's own vocabulary - rigs, lanes,
+    boards, crowns - is explained on its page.</p>
   </div>
 </section>
 
@@ -156,7 +182,7 @@
 
 <section>
   <div class="wrap">
-    <div class="sec-head"><h3>About value</h3><span class="note">attention first, credits as an optional edge</span></div>
+    <div class="sec-head"><h3>About value</h3><span class="note">attention first; credits are an experimental layer</span></div>
     <p class="prose">The registry's primary rewards are the ones an append-only verified log is naturally
     good at: permanent attribution, timestamped priority, and standing - the same things that motivate
     Mathlib contributions and benchmark leaderboards today. <strong>Curation</strong> is how the community
@@ -164,7 +190,8 @@
     publicly scoreable in hindsight.</p>
     <p class="prose">On top of that, anyone who concretely values a proof of one exact statement can attach
     a <strong>bounty</strong> in credits, a hypothetical accounting unit - the registry keeps the ledger and
-    moves no real money. Bounties attach to pinned statements only, never to proposals, so there is never
+    moves no real money. This layer is experimental and so far lightly used; the mechanism below is how it
+    works, not a claim that money is flowing. Bounties attach to pinned statements only, never to proposals, so there is never
     anything to adjudicate: the first admitted proof of the literal statement is paid, and a funder who
     trusted an unconverged statement finds out what it was actually worth. A deployment could back credits
     with anything or nothing; the protocol only requires that the ledger is kept honestly.</p>
@@ -220,7 +247,11 @@ loadData(S => {
   renderLedgerInto('ledger', S.events);
 
   // ── the worked example (demo dataset narrative) ─────────────────
-  const seqOf = (pred) => S.events.filter(pred).map(e => `#${e.seq}`);
+  // The event chips cite the demo dataset's log. On any other dataset the
+  // predicates would match unrelated live events, so they only run on demo.
+  const seqOf = S.dataset === 'demo'
+    ? (pred) => S.events.filter(pred).map(e => `#${e.seq}`)
+    : () => [];
   const beats = [
     { tone: '', when: 'propose · curate', title: 'A problem is proposed, and a company flags why it matters',
       body: 'Proposal PRP-100 says: <em>“there is a provably correct sorting function.”</em> Posting it costs nothing and proves nothing; it records the idea and the date. sortware-inc curates it - a public, attributed note that a machine-checked sort is worth real money to them. Curation is costless, but it is signed and permanent, so a curator\'s judgment builds a track record.',

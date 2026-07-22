@@ -3,7 +3,7 @@ import Razor.Sorting.Defs
 /-!
 The open frontier.
 
-Holes that are registered and unsolved. Each `sorry` here is a
+Sorries that are registered and unsolved. Each `sorry` here is a
 target: fill it, submit the file, and the registry verifier checks it against
 the pinned statement with no sorry and no extra axioms.
 -/

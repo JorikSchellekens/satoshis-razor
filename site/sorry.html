@@ -154,6 +154,7 @@ loadData(S => {
     m.convergence ? ['convergence', `${m.convergence} machine-checked equivalence proof${m.convergence > 1 ? 's' : ''} on its statement`] : null,
     m.lineage ? ['lineage', `${m.lineage} earlier wording${m.lineage > 1 ? 's' : ''} point${m.lineage > 1 ? '' : 's'} here — attempt ${m.lineage + 1} at stating this problem`] : null,
     curs.length ? ['curated by', curs.map(([who, , note]) => `${personLink(who)}${note ? ` — “${esc(note)}”` : ''}`).join('<br>')] : null,
+    curateButton(h.id) ? ['curate it', `${curateButton(h.id)} <span style="color:var(--muted)">— a public, attributed mark that this problem is worth working on</span>`] : null,
     marks.length ? ['marked superseded', marks.map(([by, r, note]) => `by ${personLink(by)} in favor of ${sorryLink(r)}${note ? ` — “${esc(note)}”` : ''}`).join('<br>')] : null,
     (h.part_of || []).length ? ['serves in', `split${h.part_of.length > 1 ? 's' : ''} ${h.part_of.map(esc).join(', ')}`] : null,
     h.allowed_axioms.length ? ['extra axioms allowed', h.allowed_axioms.map(esc).join(', ')] : null,

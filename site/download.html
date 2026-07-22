@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Get started — Satoshi's Razor</title>
-<meta name="description" content="Install the registry toolchain, host the registry locally, and solve your first sorry.">
+<meta name="description" content="Install the registry toolchain, then pick a path: solve a sorry, propose or formalize a problem, or benchmark on the anvil.">
 <meta property="og:title" content="Get started — Satoshi's Razor">
-<meta property="og:description" content="Install the registry toolchain, host the registry locally, and solve your first sorry.">
+<meta property="og:description" content="Install the registry toolchain, then pick a path: solve a sorry, propose or formalize a problem, or benchmark on the anvil.">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="razor.css">
@@ -24,7 +24,8 @@
   <h2>Get started</h2>
   <p class="lede">One script builds the whole stack — the Lean package, the registry CLI, the benchmark
   harness, the Groth16 prover — and puts the tools on your PATH. That is all it does: it writes no
-  dataset and starts no server. Hosting the registry locally is one command afterwards.</p>
+  dataset and starts no server. Install once, then pick the path below that matches what you want
+  to do; everything deeper lives in the expanders at the bottom.</p>
 </div>
 
 <section>
@@ -48,79 +49,118 @@ cd satoshis-razor &amp;&amp; ./install.sh</div>
       <a href="install.sh">Read the script before you run it</a> — you should not have to trust this page's word
       about what it does. The source of everything, this site included, is
       <a href="https://github.com/jorikschellekens/satoshis-razor">github.com/jorikschellekens/satoshis-razor</a>.</p>
+      <p>The installer points your CLI at this registry, so the commands below publish here, from your
+      terminal, in seconds — no pull request, no log file to touch. Your key signs every event locally;
+      the private key never leaves your machine. Prefer to keep everything on your machine?
+      <code>razor remote off</code>, or <code>--local</code> on any single command.</p>
+      <div class="codeblock">razor account new   <span class="c"># once - your handle, your Ed25519 key, your signature on everything after</span>
+razor status        <span class="c"># the live registry, in your terminal</span></div>
+    </div>
+  </div>
+</section>
 
-      <h4>Host the registry locally</h4>
-      <div class="codeblock">razor serve   <span class="c"># browse it at http://localhost:8420</span></div>
-      <p>The clone already contains the live log (<code>registry/data/events.jsonl</code>), so there is
-      nothing to load: <code>razor serve</code> re-derives <code>data.json</code> from it on every
-      request - append an event from the CLI and every open page updates within a few seconds. To see
-      the scripted walkthrough with fictional participants instead, run <code>./demo.sh</code> first
-      (and restore afterwards with <code>git checkout registry/data/events.jsonl</code>).</p>
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>Path 1 · Solve a sorry</h3><span class="note">the whole loop is one command once the proof exists</span></div>
+    <div class="prose">
+      <p>Pick an open sorry on <a href="frontier.html">the frontier</a> — its page shows the exact
+      statement a solution must prove and pre-fills the commands. Write the proof in any
+      <code>.lean</code> file under <code>lean/Razor/</code> (or <code>lean-mathlib/RazorMathlib/</code>
+      for Mathlib-environment sorries); the build picks it up automatically, and the verifier finds
+      the declaration wherever it is defined. FLT-RED — every exponent at least 3 factors through 4
+      or an odd prime — is self-contained number theory and a genuinely provable first sorry on the
+      live board.</p>
+      <div class="codeblock"><span class="c"># check your proof builds, then submit - the kernel is the referee</span>
+cd lean &amp;&amp; lake build &amp;&amp; cd ..
+razor submit --id SUB-you --sorry FLT-RED --solver you \
+  --decl Your.proof --file your-proof.lean   <span class="c"># kernel-checked on the spot; the verdict comes back in seconds</span></div>
+      <p>Want a practice round first? <code>./demo.sh</code> keeps two sorries open in your clone's
+      local log for exactly this: prove RZR-104 or RZR-105 in <code>lean/Razor/Sorries/Open.lean</code>
+      (replace the <code>sorry</code>), then submit with <code>--local</code> — practice stays on your
+      machine, and the public registry never sees it.</p>
+      <div class="codeblock">razor submit --local --id SUB-me --sorry RZR-104 \
+  --solver you --decl Razor.Sorting.merge_sorted
+razor verify --local --submission SUB-me</div>
+    </div>
+  </div>
+</section>
 
-      <h4>What you have afterwards</h4>
-      <p>Three commands on your PATH (linked into <code>~/.cargo/bin</code>, so a rebuild updates them in
-      place), and two files that are the system's entire state:</p>
-      <div class="codeblock">razor                       <span class="c"># the registry CLI: append events, verify proofs, serve the site</span>
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>Path 2 · Propose or formalize a problem</h3><span class="note">proposing needs no Lean; formalizing is attributed work</span></div>
+    <div class="prose">
+      <p>A proposal is a problem in plain language — costless to post, no Lean required (it can even
+      be filed <a href="propose.html">straight from the browser</a>). To make a
+      problem solvable, formalize it: file your candidate Lean statement with a <strong>gloss</strong>
+      (your own plain-language reading, which is what reviewers compare against the proposal), then
+      pin the exact statement as a sorry. The <a href="frontier.html#backlog">backlog</a> lists
+      hundreds of catalogued theorems waiting for exactly this — filing the first formal statement
+      of one is attributed, timestamped work on the log.</p>
+      <div class="codeblock">razor propose --id PRP-you-1 --title "..." --author you --body "..."
+razor formalize --id STM-you-1 --proposal PRP-you-1 --author you \
+  --decl Your.Lean.Name --gloss "your plain-language reading"
+razor sorry --id YOUR-1 --title "..." --lean-type "..." \
+  --proposal PRP-you-1 --env mathlib   <span class="c"># the CLI elaborates the statement before pinning</span></div>
+      <p>Formalizing a proposal someone else already formalized? Good — independent readings are the
+      registry's whole fidelity mechanism. Strengthen a clump by proving your statement equivalent
+      to an existing one: <code>razor bridge</code> pins the equivalence as its own sorry, and your
+      admitted proof of it merges the clumps.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>Path 3 · Benchmark on the anvil</h3><span class="note">proven-correct programs, ranked by measured speed</span></div>
+    <div class="prose">
+      <p>Write a faster implementation of a challenge spec in <code>anvil/impls/</code>, hand-translate
+      it to a Lean model in <code>lean/Razor/Anvil/</code>, prove it refines the executable spec, then
+      submit and bench. Your lane appears on <a href="anvil.html">the leaderboards</a> next to its
+      proof.</p>
+      <div class="codeblock"><span class="c"># e.g. against ANV-001 (popcount): pin your refinement proof as a sorry, then enter</span>
+razor anvil-submit --id ANV-001-you --challenge ANV-001 --impl your-impl \
+  --solver you --proof-decl Your.refines --refinement-sorry YOUR-PROOF-SORRY
+razor bench --challenge ANV-001 --rig your-rig</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>The details</h3><span class="note">everything else, one expander each</span></div>
+    <div class="prose">
+
+      <details>
+        <summary>Host the registry locally</summary>
+        <div class="codeblock">razor serve   <span class="c"># browse it at http://localhost:8420</span></div>
+        <p>The clone already contains the live log (<code>registry/data/events.jsonl</code>), so there is
+        nothing to load: <code>razor serve</code> re-derives <code>data.json</code> from it on every
+        request - append an event from the CLI and every open page updates within a few seconds. To see
+        the scripted walkthrough with fictional participants instead, run <code>./demo.sh</code> first
+        (and restore afterwards with <code>git checkout registry/data/events.jsonl</code>).</p>
+        <p>What you have after install: three commands on your PATH (linked into <code>~/.cargo/bin</code>,
+        so a rebuild updates them in place), and two files that are the system's entire state:</p>
+        <div class="codeblock">razor                       <span class="c"># the registry CLI: append events, verify proofs, serve the site</span>
 anvil-harness               <span class="c"># fuel + native benchmarks</span>
 zk-prover                   <span class="c"># Groth16 setup / prove / verify, any list length 2-32</span>
 registry/data/events.jsonl  <span class="c"># the append-only log - the registry IS this file</span>
 site/data.json              <span class="c"># everything above, folded into one snapshot for these pages</span></div>
-    </div>
-  </div>
-</section>
+      </details>
 
-<section>
-  <div class="wrap">
-    <div class="sec-head"><h3>Participate — the CLI publishes directly</h3><span class="note">no pull request, no log file to touch: the commands are the interface</span></div>
-    <div class="prose">
-      <p>The installer points your CLI at this registry, so the participation commands on this site do
-      what they say: <code>razor formalize</code>, <code>razor seal-statement</code>,
-      <code>razor submit</code> and the rest publish here, from your terminal, in seconds.
-      Your key signs every event locally; the private key never leaves your machine.</p>
-      <div class="codeblock">razor account new                <span class="c"># once - your handle, your Ed25519 key, your signature on everything after</span>
-razor status                     <span class="c"># the live registry, in your terminal</span>
-<span class="c"># then exactly the commands each page shows, e.g.:</span>
-razor submit --id SUB-you --sorry FLT-RED --solver you \
-  --decl Your.proof --file your-proof.lean   <span class="c"># kernel-checked on the spot; the verdict comes back</span></div>
-      <p>What the registry does with an event: it re-validates it, requires a valid signature for any
-      registered handle, assigns it the next position on the log, and - for proof submissions - runs
-      the kernel check in a throwaway container with no network before recording the verdict. It
-      cannot forge your events, and its verdicts are re-checkable by anyone:
-      <code>razor recheck --submission SUB-you</code> replays the check on your own machine.</p>
-      <p>Prefer to keep everything on your machine? <code>razor remote off</code> (or
-      <code>--local</code> on any single command) switches to your clone's local log - the demo and
-      the scripts always run locally regardless. The public log is mirrored to
-      <a href="https://github.com/jorikschellekens/satoshis-razor">the repository</a> on every append,
-      so auditors can replay it from a checkout without trusting this server.</p>
-    </div>
-  </div>
-</section>
+      <details>
+        <summary>What the registry does with your event</summary>
+        <p>It re-validates it, requires a valid signature for any registered handle, assigns it the next
+        position on the log, and - for proof submissions - runs the kernel check in a throwaway container
+        with no network before recording the verdict. It cannot forge your events, and its verdicts are
+        re-checkable by anyone: <code>razor recheck --submission SUB-you</code> replays the check on your
+        own machine. The public log is mirrored to
+        <a href="https://github.com/jorikschellekens/satoshis-razor">the repository</a> on every append,
+        so auditors can replay it from a checkout without trusting this server.</p>
+      </details>
 
-<section>
-  <div class="wrap">
-    <div class="sec-head"><h3>Solve your first sorry</h3><span class="note">the whole loop, five commands</span></div>
-    <div class="prose">
-      <p>The demo dataset keeps two sorries open for exactly this purpose: RZR-104 (merge preserves
-      sortedness) and RZR-105 (merge preserves counts). They exist only in your clone's local log,
-      so these commands take <code>--local</code> - practice stays on your machine, and the public
-      registry never sees it. Run <code>./demo.sh</code>, prove one in
-      <code>lean/Razor/Sorries/Open.lean</code> (replace the <code>sorry</code>), then:</p>
-      <p>Proofs can also live in a new file: put any <code>.lean</code> file under
-      <code>lean/Razor/</code> (or <code>lean-mathlib/RazorMathlib/</code> for Mathlib-environment
-      sorries) - the build picks it up automatically, and the verifier finds the declaration wherever
-      it is defined.</p>
-      <div class="codeblock"><span class="c"># check your proof builds</span>
-cd lean &amp;&amp; lake build &amp;&amp; cd ..
-
-<span class="c"># submit and verify (the kernel is the referee)</span>
-razor submit --local --id SUB-me --sorry RZR-104 \
-  --solver you --decl Razor.Sorting.merge_sorted
-razor verify --local --submission SUB-me</div>
-      <p>Every open page of your local <code>razor serve</code> updates within a few seconds of a
-      verdict - there is no export step.</p>
-
-      <h4>Prefer to work in private?</h4>
-      <div class="codeblock"><span class="c"># commit a hash first (priority without exposure) …</span>
+      <details>
+        <summary>Work in private, or zero-knowledge</summary>
+        <div class="codeblock"><span class="c"># commit a hash first (priority without exposure) …</span>
 razor seal --file my-proof.lean --salt my-secret
 razor commit --local --id SUB-me --sorry RZR-104 --solver you --commitment &lt;hash&gt;
 <span class="c"># … reveal when ready</span>
@@ -131,30 +171,18 @@ razor reveal --local --submission SUB-me --file my-proof.lean \
 zk-prover prove --list 42,7,255,7
 razor zk-submit --local --id SUB-me-zk --sorry ZKH-001 --route ZKR-001 \
   --solver you --public &lt;hex&gt; --proof &lt;hex&gt;</div>
-      <p class="note">On the public registry, commit-reveal works without <code>--local</code> too:
-      <code>razor commit</code> posts the hash there, and <code>razor submit --file</code> reveals
-      when you are ready.</p>
+        <p class="note">On the public registry, commit-reveal works without <code>--local</code> too:
+        <code>razor commit</code> posts the hash there, and <code>razor submit --file</code> reveals
+        when you are ready. The full trust story is on <a href="zk.html">the zero-knowledge page</a>.</p>
+      </details>
 
-      <h4>Work on the live registry</h4>
-      <p>The live registry - this one - carries real open problems from the Lean community's
-      current frontier. Most are still proposals waiting for a formal statement; the Erdos-Straus
-      conjecture already has one pinned sorry per environment (ES-001 in core Lean, ES-002 in Mathlib's
-      definitions), and Fermat's Last Theorem is pinned in core Lean (FLT-000) with two registered splits
-      whose glue proofs are already admitted. FLT-RED - every exponent at least 3 factors through 4 or an
-      odd prime - is self-contained number theory and a genuinely provable first sorry on the live board.</p>
-      <p>Add your own candidate statement with <code>razor formalize --gloss "..."</code> - the gloss is
-      your plain-language reading, which is what reviewers compare against the proposal - and strengthen a
-      clump by proving your statement equivalent to an existing one: <code>razor bridge</code> pins the
-      equivalence as its own sorry, and your admitted proof of it merges the clumps. (<code>razor
-      converge</code> records an equivalence without a kernel check, so it works only against a local
-      registry.)</p>
-
-      <h4>Share partial progress as a split</h4>
-      <p>If you can prove a sorry from lemmas you cannot yet prove - in a Lean file, a proof with
-      <code>sorry</code> in the gaps - register the gaps as sorries and the reduction as a split. The CLI
-      composes the glue statement mechanically from the pinned types, so there is nothing to get subtly
-      wrong:</p>
-      <div class="codeblock"><span class="c"># state each gap as its own sorry … (the CLI elaborates the statement before pinning)</span>
+      <details>
+        <summary>Share partial progress as a split</summary>
+        <p>If you can prove a sorry from lemmas you cannot yet prove - in a Lean file, a proof with
+        <code>sorry</code> in the gaps - register the gaps as sorries and the reduction as a split. The CLI
+        composes the glue statement mechanically from the pinned types, so there is nothing to get subtly
+        wrong:</p>
+        <div class="codeblock"><span class="c"># state each gap as its own sorry … (the CLI elaborates the statement before pinning)</span>
 razor sorry --id MY-LEMMA-1 --title "..." --lean-type "..."
 <span class="c"># … tie them to the parent; this pins MY-SPLIT-glue to (lemma 1) → … → parent</span>
 razor split --id MY-SPLIT --parent FLT-000 --author you \
@@ -162,50 +190,51 @@ razor split --id MY-SPLIT --parent FLT-000 --author you \
 <span class="c"># prove the glue like any sorry - checkable while every child is still open</span>
 razor submit --id SUB-glue --sorry MY-SPLIT-glue --solver you \
   --decl You.my_glue --file glue.lean</div>
-      <p>When all children and the glue are admitted, the split reads <em>complete</em>: the parent is
-      provable by composition, which in your original file is just replacing each <code>sorry</code> with
-      the admitted proof. If the plan turns out wrong, register a better split next to it - splits are
-      never edited, because an admitted glue is a true theorem either way.</p>
+        <p>When all children and the glue are admitted, the split reads <em>complete</em>: the parent is
+        provable by composition, which in your original file is just replacing each <code>sorry</code> with
+        the admitted proof. If the plan turns out wrong, register a better split next to it - splits are
+        never edited, because an admitted glue is a true theorem either way.</p>
+      </details>
 
-      <h4>Accounts, signatures, and the sandbox</h4>
-      <p><code>razor account new</code> generates an Ed25519 keypair: the public key goes on the log as your
-      handle's identity, the signing key stays on your machine, in <code>~/.config/razor/keys/</code> -
-      outside the clone, so no script or checkout surgery can touch it. <strong>Back that file up</strong>:
-      it signs everything you do and cannot be regenerated. From then
-      on every event you author is signed automatically, the CLI refuses to append events in a registered
-      handle's name without its key, and <code>razor verify-log</code> re-checks every signature on the log.
-      Handles without accounts can still do everything - their events are simply marked as unsigned.</p>
-      <p>Verification treats a submission as untrusted code, because Lean elaboration can run programs: the
-      checker runs with network access denied (<code>sandbox-exec</code> on macOS, <code>bwrap</code> on
-      Linux) and is killed after a time limit. Linux does not ship <code>bwrap</code> by default —
-      install it with <code>sudo apt install bubblewrap</code>; without it the checker warns and runs
-      unsandboxed.</p>
+      <details>
+        <summary>Accounts, signatures, and the sandbox</summary>
+        <p><code>razor account new</code> generates an Ed25519 keypair: the public key goes on the log as your
+        handle's identity, the signing key stays on your machine, in <code>~/.config/razor/keys/</code> -
+        outside the clone, so no script or checkout surgery can touch it. <strong>Back that file up</strong>:
+        it signs everything you do and cannot be regenerated. From then
+        on every event you author is signed automatically, the CLI refuses to append events in a registered
+        handle's name without its key, and <code>razor verify-log</code> re-checks every signature on the log.
+        Handles without accounts can still do everything - their events are simply marked as unsigned.</p>
+        <p>Verification treats a submission as untrusted code, because Lean elaboration can run programs: the
+        checker runs with network access denied (<code>sandbox-exec</code> on macOS, <code>bwrap</code> on
+        Linux) and is killed after a time limit. Linux does not ship <code>bwrap</code> by default —
+        install it with <code>sudo apt install bubblewrap</code>; without it the checker warns and runs
+        unsandboxed.</p>
+      </details>
 
-      <h4>Proofs that use Mathlib</h4>
-      <p>Sorries registered with <code>--env mathlib</code> pin statements written with Mathlib's definitions
-      and are verified in the <code>lean-mathlib/</code> package, which requires Mathlib v4.31.0 (matching
-      the pinned toolchain, so the prebuilt cache applies). Fetch it once with
-      <code>./mathlib-env.sh</code> - it is several gigabytes. Until then the registry refuses to verify
-      Mathlib-environment submissions and says why.</p>
+      <details>
+        <summary>Proofs that use Mathlib</summary>
+        <p>Sorries registered with <code>--env mathlib</code> pin statements written with Mathlib's definitions
+        and are verified in the <code>lean-mathlib/</code> package, which requires Mathlib v4.31.0 (matching
+        the pinned toolchain, so the prebuilt cache applies). Fetch it once with
+        <code>./mathlib-env.sh</code> - it is several gigabytes. Until then the registry refuses to verify
+        Mathlib-environment submissions and says why.</p>
+      </details>
 
-      <h4>Enter the anvil</h4>
-      <p>Write a faster implementation of a challenge spec in <code>anvil/impls/</code>, hand-translate it to a
-      Lean model in <code>lean/Razor/Anvil/</code>, prove it refines the executable spec, then
-      <code>razor anvil-submit</code> and <code>razor bench</code>. Your lane appears on
-      <a href="anvil.html">the leaderboards</a> next to its proof.</p>
-
-      <h4>Bring a rig in Docker</h4>
-      <p>Native scores name the machine they were measured on, and a rig can be a container instead of
-      bare hardware: it registers a runner command, and <code>razor bench --rig</code> executes the
-      harness through it. One script builds a Linux image with the harness inside, registers it, and
-      measures every challenge in it — on a Mac this means real Linux scores (Docker runs containers in a
-      Linux virtual machine) appear on the boards next to your host's native scores:</p>
-      <div class="codeblock">./demo.sh        <span class="c"># the challenges (skip if already seeded)</span>
+      <details>
+        <summary>Bring a rig in Docker</summary>
+        <p>Native scores name the machine they were measured on, and a rig can be a container instead of
+        bare hardware: it registers a runner command, and <code>razor bench --rig</code> executes the
+        harness through it. One script builds a Linux image with the harness inside, registers it, and
+        measures every challenge in it — on a Mac this means real Linux scores (Docker runs containers in a
+        Linux virtual machine) appear on the boards next to your host's native scores:</p>
+        <div class="codeblock">./demo.sh        <span class="c"># the challenges (skip if already seeded)</span>
 ./docker-rig.sh  <span class="c"># build image, register rig docker-linux-&lt;arch&gt;, bench everything in it</span></div>
+      </details>
+
     </div>
   </div>
 </section>
-
 
 <footer>
   <div class="wrap">

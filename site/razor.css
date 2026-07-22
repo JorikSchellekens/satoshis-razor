@@ -369,3 +369,44 @@ a.backlink:hover { color: var(--chalk); }
 .lb.boardcard { background: var(--surface); border: 1px solid var(--faint); border-radius: 10px;
   padding: 14px 18px 12px; margin-top: 14px; }
 .lb.boardcard .chart { margin-top: 10px; border-top: 1px dashed var(--faint); padding-top: 10px; }
+
+/* a stat whose label is a link is an invitation; keep it quiet until hovered */
+.stat a { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
+.stat a:hover { color: var(--chalk); }
+
+/* get-started details expanders */
+.prose > details { border: 1px solid var(--faint); border-radius: 10px; padding: 10px 16px; margin: 10px 0; background: var(--surface); }
+.prose > details summary { cursor: pointer; font-family: var(--mono); font-size: 13px; color: var(--chalk); padding: 2px 0; }
+.prose > details summary:hover { color: var(--gold); }
+.prose > details[open] summary { margin-bottom: 6px; }
+
+/* one narrow-screen pass: the auto-fill grids already collapse on their own;
+   these are the few fixed-width leftovers that do not */
+@media (max-width: 640px) {
+  .pagehead { padding-top: 18px; }
+  .pagehead h2 { font-size: 24px; }
+  .stats { gap: 14px; }
+  .stat b { font-size: 21px; }
+  .lb .rowbar { grid-template-columns: 92px 1fr 64px; gap: 6px; }
+  .ledger { font-size: 11px; }
+  .cta a { padding: 8px 12px; }
+}
+
+/* browser participation: curate button and the propose form */
+.curate-btn { font-family: var(--mono); font-size: 12.5px; color: var(--gold); background: none;
+  border: 1px solid var(--faint); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.curate-btn:hover { border-color: var(--gold); }
+.curate-btn:disabled { opacity: 0.6; cursor: default; }
+.curate-msg { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-left: 10px; }
+form.participate { display: flex; flex-direction: column; gap: 10px; max-width: 620px; }
+form.participate label { font-family: var(--mono); font-size: 12.5px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+form.participate input, form.participate textarea { font: 15px/1.5 var(--serif, serif); color: var(--chalk);
+  background: var(--surface); border: 1px solid var(--faint); border-radius: 8px; padding: 8px 10px; }
+form.participate input:focus, form.participate textarea:focus { outline: none; border-color: var(--gold); }
+form.participate button { align-self: flex-start; font-family: var(--mono); font-size: 13px; color: var(--bg);
+  background: var(--gold); border: none; border-radius: 8px; padding: 9px 16px; cursor: pointer; }
+form.participate button:disabled { opacity: 0.6; cursor: default; }
+form.participate .hp { position: absolute; left: -9999px; height: 0; overflow: hidden; }
+.form-msg { font-family: var(--mono); font-size: 13px; }
+.form-msg.ok { color: var(--gold); }
+.form-msg.bad { color: var(--danger); }

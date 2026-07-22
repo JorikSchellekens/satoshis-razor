@@ -1,6 +1,8 @@
 # Satoshi's Anvil
 
-**Running today** at [razor.mempoolsurfer.com/anvil.html](https://razor.mempoolsurfer.com/anvil.html):
+## Running today
+
+Live at [razor.mempoolsurfer.com/anvil.html](https://razor.mempoolsurfer.com/anvil.html):
 six challenges (popcount, sum, sort8, count-leading-zeros, bit-reversal, a small EVM
 interpreter), every contender admitted by a kernel-checked refinement proof, scored on
 the deterministic wasm-fuel referee and on real registered rigs (an Apple M3 Pro, a
@@ -55,7 +57,15 @@ maturing fast.
   AI produces is either proven correct or rejected. This removes the single biggest
   blocker to deploying AI-generated systems code in production.
 
-## Core objects
+## The full design
+
+Everything from here down is design, not description. The on-chain settlement,
+TEE attestation, streaming reward pools, staked committees, and ZK-verified
+admission described below are not built; what runs today is exactly the section
+at the top - an off-chain signed log, Tier 1 fuel metering, and registered rigs
+benched over ssh. The design is kept here in full because it is what the running
+subset is built toward, and because its trust analysis (which parts are
+machine-checkable, which need an oracle) shapes decisions being made now.
 
 ### Challenge
 
