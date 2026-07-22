@@ -64,6 +64,16 @@ const IMPLS: &[Impl] = &[
     cpu("sum-closed", "sum", sum_closed::solve),
     cpu("sort8-bubble", "sort8", sort8_bubble::solve),
     cpu("sort8-network", "sort8", sort8_network::solve),
+    cpu("sort8-batcher", "sort8", sort8_batcher::solve),
+    cpu("sort8-swar", "sort8", sort8_swar::solve),
+    Impl {
+        name: "sort8-simd",
+        challenge: "sort8",
+        solve: sort8_simd::solve,
+        batch: Some(sort8_simd::bench_batch),
+        many: Some(sort8_simd::solve_many),
+        avail: || true,
+    },
     Impl {
         name: "sort8-gpu",
         challenge: "sort8",

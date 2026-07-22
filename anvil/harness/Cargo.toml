@@ -13,6 +13,9 @@ sum-closed = { path = "../impls/sum-closed" }
 sort8-bubble = { path = "../impls/sort8-bubble" }
 sort8-network = { path = "../impls/sort8-network" }
 sort8-gpu = { path = "../impls/sort8-gpu" }
+sort8-batcher = { path = "../impls/sort8-batcher" }
+sort8-swar = { path = "../impls/sort8-swar" }
+sort8-simd = { path = "../impls/sort8-simd" }
 clz-naive = { path = "../impls/clz-naive" }
 clz-branchless = { path = "../impls/clz-branchless" }
 bitrev-naive = { path = "../impls/bitrev-naive" }

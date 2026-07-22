@@ -46,9 +46,12 @@ dependencies = [
  "evm-tos",
  "popcount-naive",
  "popcount-swar",
+ "sort8-batcher",
  "sort8-bubble",
  "sort8-gpu",
  "sort8-network",
+ "sort8-simd",
+ "sort8-swar",
  "sum-closed",
  "sum-loop",
  "wasmtime",
@@ -1812,6 +1815,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sort8-batcher"
+version = "0.1.0"
+dependencies = [
+ "anvil-abi",
+]
+
+[[package]]
 name = "sort8-bubble"
 version = "0.1.0"
 dependencies = [
@@ -1829,6 +1839,20 @@ dependencies = [
 
 [[package]]
 name = "sort8-network"
+version = "0.1.0"
+dependencies = [
+ "anvil-abi",
+]
+
+[[package]]
+name = "sort8-simd"
+version = "0.1.0"
+dependencies = [
+ "anvil-abi",
+]
+
+[[package]]
+name = "sort8-swar"
 version = "0.1.0"
 dependencies = [
  "anvil-abi",
