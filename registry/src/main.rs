@@ -1607,6 +1607,12 @@ fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed: u64, 
                 Some(r) => run_json_via(&r.runner, &native_args),
                 None => run_json(&harness, &native_args),
             };
+            // The rig's environment may lack hardware this lane needs even
+            // when this host has it (a GPU lane timed on a GPU-less rig).
+            if let Some(why) = tn.get("skip").and_then(|v| v.as_str()) {
+                eprintln!("  {} {} not measurable on this rig: {why}", ui::gold("⚠"), entry.impl_name);
+                continue;
+            }
             append(log_path, Event::Bench {
                 submission: entry.id.clone(),
                 tier: "native".into(),
