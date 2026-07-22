@@ -55,6 +55,7 @@ const holeLink = (id) => `<a class="idlink" href="hole.html?id=${encodeURICompon
 const stmtLink = (id) => `<a class="idlink" href="statement.html?id=${encodeURIComponent(id)}">${esc(id)}</a>`;
 const propLink = (id) => `<a class="idlink" href="proposal.html?id=${encodeURIComponent(id)}">${esc(id)}</a>`;
 const personLink = (h) => `<a class="idlink" href="person.html?id=${encodeURIComponent(h)}">${esc(h)}</a>`;
+const chalLink = (id) => `<a class="idlink" href="challenge.html?id=${encodeURIComponent(id)}">${esc(id)}</a>`;
 
 // Every export is labeled with the dataset it came from. The demo dataset
 // is a scripted walkthrough with fictional participants (the verifications

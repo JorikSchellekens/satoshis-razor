@@ -339,3 +339,22 @@ details.ctl .ctl-body { flex: 1 0 100%; display: flex; gap: 10px; align-items: c
   font-size: 13px; color: var(--muted); }
 .card .split .k { color: var(--chalk); font-family: var(--mono); }
 .card .split .note { font-style: italic; }
+
+/* anvil index: challenge cards */
+.card.chal { gap: 8px; }
+.card.chal h4 { font-size: 18px; }
+.card.chal .champs { display: flex; flex-direction: column; gap: 3px; font-family: var(--mono); font-size: 12px; }
+.card.chal .champs .crown { color: var(--gold); }
+.card.chal .meta { margin-top: 2px; }
+.chart.mini { margin: 2px 0 0; }
+.chart.mini svg { height: 46px; width: 100%; }
+
+/* anvil: champions table and boards-held column */
+#champions .boards-held { font-size: 11px; color: var(--muted); max-width: 420px; white-space: normal; }
+
+/* challenge page */
+a.backlink { font-family: var(--mono); font-size: 12px; color: var(--muted); text-decoration: none; }
+a.backlink:hover { color: var(--chalk); }
+.lb.boardcard { background: var(--surface); border: 1px solid var(--faint); border-radius: 10px;
+  padding: 14px 18px 12px; margin-top: 14px; }
+.lb.boardcard .chart { margin-top: 10px; border-top: 1px dashed var(--faint); padding-top: 10px; }

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Challenge — Satoshi's Razor</title>
+<meta name="description" content="One anvil challenge: its specification, every competing lane with its admission proof, each rig's leaderboard, and progress over time.">
+<meta property="og:title" content="Challenge — Satoshi's Razor">
+<meta property="og:description" content="One anvil challenge: its specification, every competing lane with its admission proof, each rig's leaderboard, and progress over time.">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="razor.css">
+</head>
+<body>
+
+<header class="mast">
+  <div class="wrap">
+    <h1><a href="index.html">Satoshi's <span class="razor">Razor</span></a></h1>
+    <nav class="pages"></nav>
+  </div>
+</header>
+
+<div class="pagehead wrap detail-head">
+  <div class="row1"><a class="backlink" href="anvil.html">← the anvil</a></div>
+  <div class="row1" id="chips"></div>
+  <h2 id="title">Challenge</h2>
+  <p class="lede" id="lede"></p>
+  <div class="stats" id="stats"></div>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>The specification</h3><span class="note">the reference program defines the correct answer; the obligation is what every lane must prove</span></div>
+    <div class="kv" id="spec"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>Lanes</h3><span class="note">every competing program; a lane is benchmarked only after its proof is admitted</span></div>
+    <div class="tablewrap"><table class="data" id="lanes"></table></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>Leaderboards, rig by rig</h3><span class="note">♛ current leader · lower is better · the chart under each board is every measurement ever recorded on it</span></div>
+    <div id="boards"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>Run it yourself</h3><span class="note">every wasm-fuel score is exactly reproducible; native scores need your own rig</span></div>
+    <div class="codeblock" id="runit"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>History</h3><span class="note">every event touching this challenge, from the log</span></div>
+    <div class="ledger" id="history"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>To enter a lane: write an implementation, prove it matches the specification, then <code>razor anvil-submit</code> and <code>razor bench --rig</code>.</span>
+    <span class="right"><a href="download.html">get started</a></span>
+  </div>
+</footer>
+
+<script src="razor.js"></script>
+<script src="anvil.js"></script>
+<script>
+loadData(S => {
+  const c = S.challenges[qid()];
+  if (!c) {
+    $('title').textContent = `unknown challenge: ${qid() || '(no id)'}`;
+    $('lede').innerHTML = datasetHint(S);
+    return;
+  }
+  document.title = `${c.id} · ${c.title} — Satoshi's Razor`;
+  const history = benchHistory(S);
+  const mine = history.filter(b => b.c.id === c.id);
+  const boards = boardsOf(c);
+  const boardKeys = Object.keys(boards).sort(boardOrder);
+  const totalPool = c.pool + Object.values(c.arch_pools || {}).reduce((a, b) => a + b, 0);
+
+  $('chips').innerHTML = `<span class="hid">${esc(c.id)}</span>` + tagChips(S, c.id) +
+    (totalPool ? `<span class="badge gold">pool ${totalPool.toLocaleString()}</span>` : '');
+  $('title').textContent = c.title;
+  $('lede').textContent = 'A performance competition over a fixed specification: every lane below is proven - ' +
+    'by a machine-checked Lean proof - to compute exactly what the reference program computes, and then ranked by speed.';
+  const rigsUsed = new Set(mine.map(b => b.rig || 'wasm-referee'));
+  $('stats').innerHTML = [
+    [c.entries.length, 'lanes'],
+    [boardKeys.length, 'boards'],
+    [rigsUsed.size, 'rigs reporting'],
+    [mine.length, 'measurements'],
+    ...(totalPool ? [[totalPool.toLocaleString(), 'credits pooled']] : []),
+  ].map(([n, l]) => `<div class="stat"><b>${n}</b>${l}</div>`).join('');
+
+  // ── the specification ──────────────────────────────────────────
+  const regEv = S.events.find(e => e.type === 'register_challenge' && e.id === c.id);
+  $('spec').innerHTML = [
+    ['reference implementation', `<code>${esc(c.spec_impl)}</code> <span style="color:var(--muted)">(its source is in the repository under anvil/impls/)</span>`],
+    ['proof obligation', `<code>${esc(c.obligation)}</code>`],
+    regEv ? ['registered', `event #${regEv.seq}, ${fmtWhen(regEv.ts)}`] : null,
+    ...(Object.keys(c.arch_pools || {}).length
+      ? [['architecture pools', Object.entries(c.arch_pools).map(([a, v]) =>
+          `${esc(a)}: <span style="color:var(--gold)">${v.toLocaleString()}</span>`).join(' · ')]]
+      : []),
+  ].filter(Boolean).map(([k, v]) => `<div class="k">${k}</div><div class="v">${v}</div>`).join('');
+
+  // ── lanes ──────────────────────────────────────────────────────
+  const crownCount = (e) => boardKeys.filter(k => boards[k][0]?.e.id === e.id).length;
+  $('lanes').innerHTML = `<tr><th>lane</th><th>entered by</th><th>admission</th><th>crowns</th><th>best result</th></tr>` +
+    c.entries.map((e, i) => {
+      const admission = e.is_reference
+        ? '<span style="color:var(--muted)">is the specification</span>'
+        : e.admitted
+          ? `<span style="color:var(--solved)">✓ admitted</span> by <code>${esc(e.proof_decl)}</code>` +
+            (e.refinement_hole ? ` (hole ${holeLink(e.refinement_hole)})` : '')
+          : `<span style="color:var(--open)">… pending</span>` +
+            (e.refinement_hole ? ` - hole ${holeLink(e.refinement_hole)} has no admitted proof yet` : '');
+      const best = boardKeys.map(k => {
+        const rows = boards[k];
+        const r = rows.find(x => x.e.id === e.id);
+        if (!r) return null;
+        const spec = rows.find(x => x.e.is_reference);
+        return { r, spec, better: spec && spec.score > r.score ? spec.score / r.score : 0 };
+      }).filter(Boolean).sort((a, b) => b.better - a.better)[0];
+      const bestTxt = best
+        ? `${fmtScore(best.r.score)} ${esc(best.r.unit)}` +
+          (best.better > 1 ? ` <span style="color:var(--gold)">(${best.better.toLocaleString(undefined, { maximumFractionDigits: 1 })}× vs spec)</span>` : '')
+        : '<span style="color:var(--muted)">not yet measured</span>';
+      return `<tr><td>${laneDot(i)}${esc(e.impl_name)}${e.is_reference ? ' <span style="color:var(--muted)">(spec)</span>' : ''}</td>` +
+        `<td>${personLink(e.solver)}</td><td>${admission}</td>` +
+        `<td style="white-space:nowrap">${crownCount(e) ? `<span style="color:var(--gold)">♛</span>${crownCount(e) > 1 ? ' ×' + crownCount(e) : ''}` : '—'}</td><td>${bestTxt}</td></tr>`;
+    }).join('');
+
+  // ── boards ─────────────────────────────────────────────────────
+  $('boards').innerHTML = decollide(boardKeys.map(key => {
+    const rows = boards[key];
+    const { tier, arch, rig } = boardParts(key);
+    const max = Math.max(...rows.map(r => r.score));
+    const spec = rows.find(r => r.e.is_reference);
+    const rigRec = rig ? S.rigs?.[rig] : null;
+    const archPool = c.arch_pools?.[arch]
+      ? ` · <span style="color:var(--gold)">arch pool ${c.arch_pools[arch].toLocaleString()}</span>` : '';
+    const rigNote = rigRec
+      ? ` · rig ${esc(rig)} (${personLink(rigRec.owner)})` : rig ? ` · rig ${esc(rig)}` : '';
+    const series = boardSeries(history, c, key);
+    const nPts = series.reduce((a, s) => a + s.points.length, 0);
+    const chart = nPts > series.length ? historyChart(series, rows[0]?.unit || '') : '';
+    return `<div class="lb boardcard"><div class="lb-title">${esc(tier)} · ${esc(arch)}${archPool}${rigNote}</div>` +
+      rows.map((r, i) => `
+        <div class="rowbar ${r.e.is_reference ? 'ref' : ''}" title="checksum ${r.checksum}">
+          <span class="who">${i === 0 ? '<span class="crown">♛</span> ' : ''}${laneDot(r.lane)}${esc(r.e.impl_name)}${r.e.is_reference ? ' <span style="color:var(--muted)">(spec)</span>' : ''}</span>
+          <span class="track"><span class="bar" style="width:${Math.max(1.2, (r.score / max) * 100)}%;background:${r.e.is_reference ? '' : laneColor(r.lane)}"></span></span>
+          <span class="val">${fmtScore(r.score)} ${esc(r.unit)}${spec && !r.e.is_reference && spec.score !== r.score ? `<span class="speed">${(spec.score / r.score).toLocaleString(undefined, { maximumFractionDigits: 1 })}× vs spec</span>` : ''}</span>
+        </div>`).join('') + chart + `</div>`;
+  }).join(''));
+
+  // ── run it yourself ────────────────────────────────────────────
+  $('runit').innerHTML =
+    `<span class="c"># the deterministic board: same seed, same count, same number - on any machine</span>\n` +
+    `anvil-harness tier1 --wasm target/wasm32-unknown-unknown/release/${esc(c.spec_impl.replace(/-/g, '_'))}.wasm --iters 200000\n\n` +
+    `<span class="c"># check any lane against the executable spec on the exact benchmark inputs</span>\n` +
+    c.entries.filter(e => !e.is_reference).map(e => `anvil-harness check --impl ${esc(e.impl_name)} --iters 200000\n`).join('') +
+    `\n<span class="c"># put your own machine on these boards</span>\n` +
+    `razor rig --id my-rig --owner you --arch &lt;arch&gt; --tier native --note "..."\n` +
+    `razor bench --challenge ${esc(c.id)} --iters 200000 --rig my-rig`;
+
+  // ── history ────────────────────────────────────────────────────
+  const laneIds = new Set(c.entries.map(e => e.id));
+  const holeIds = new Set(c.entries.map(e => e.refinement_hole).filter(Boolean));
+  const proofSubs = new Set(S.events.filter(e => e.type === 'submit' && holeIds.has(e.hole)).map(e => e.id));
+  const events = S.events.filter(e => {
+    switch (e.type) {
+      case 'register_challenge': return e.id === c.id;
+      case 'anvil_submit': return e.challenge === c.id;
+      case 'bench': return laneIds.has(e.submission);
+      case 'fund': case 'payout': case 'tag': return e.target === c.id;
+      case 'register_hole': return holeIds.has(e.id);
+      case 'submit': return holeIds.has(e.hole);
+      case 'verdict': return proofSubs.has(e.submission);
+      default: return false;
+    }
+  });
+  renderLedgerInto('history', events, 60);
+});
+</script>
+</body>
+</html>
