@@ -66,7 +66,7 @@ Posted on-chain by a sponsor. Contains:
     `R : Input -> Output -> Prop`),
   - the input domain and validity predicate,
   - the exact refinement obligation the submitter must prove, as a named theorem
-    signature with a `sorry` body (the "hole"). Example:
+    signature with a `sorry` body (the "sorry"). Example:
     `theorem refines (x : Input) (h : Valid x) : impl x = spec x`.
 - **Interface contract**: the exact Rust `extern`/crate API the implementation must
   export (types, ownership discipline, allowed dependencies, `no_std` or not,
@@ -81,7 +81,7 @@ Posted on-chain by a sponsor. Contains:
 ### Submission
 
 - Rust source (published, or committed privately - see Privacy).
-- Lean proof artifact filling the challenge's theorem hole, checked against the pinned
+- Lean proof artifact filling the challenge's theorem sorry, checked against the pinned
   toolchain versions (rustc, Charon, Aeneas, Lean, Mathlib) declared in the challenge.
 - Build lockfile: fully reproducible build (pinned rustc, flags, dependencies).
   Compiler flags are chosen by the *challenge*, not the submitter, so the competition
@@ -282,7 +282,7 @@ Chosen so the spec is statable today and the performance market is real:
 - **Cost-model gap**: Tier 1 crowns can differ from real-silicon crowns; challenges
   wanting real numbers must accept Tier 2 trust assumptions. There is no free lunch
   here and the platform says so.
-- **Spec bugs**: a proof only transfers trust to the spec. Mitigation: the hole
+- **Spec bugs**: a proof only transfers trust to the spec. Mitigation: the sorry
   funnel ([FUNNEL.md](FUNNEL.md)) - spec-authoring bounties with challenge windows,
   executable-spec differential testing against reference implementations, staked
   ratification, and the exploit-as-audit rule (a submission that exploits a spec bug

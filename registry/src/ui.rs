@@ -60,7 +60,7 @@ pub fn section(title: &str, count: Option<usize>) {
     println!("{} {} {}{}{}", dim("──"), bold(title), dim(&fill), dim(&tail), dim("──"));
 }
 
-/// Status chip for a hole: `● open` / `✓ solved`.
+/// Status chip for a sorry: `● open` / `✓ solved`.
 pub fn chip(status: &str) -> String {
     match status {
         "solved" => green("✓ solved"),

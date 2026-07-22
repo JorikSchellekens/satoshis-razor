@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How it works — Satoshi's Razor</title>
-<meta name="description" content="The whole system in reading order: the vocabulary, what is already proved elsewhere, how wrong wordings lose, what the rewards are, and a worked example where every step is a real event on the log.">
+<meta name="description" content="The whole system in reading order: the path a problem travels, the machinery around it, what is already proved elsewhere, how wrong wordings lose, and a worked example where every step is a real event on the log.">
 <meta property="og:title" content="How it works — Satoshi's Razor">
-<meta property="og:description" content="The whole system in reading order: the vocabulary, what is already proved elsewhere, how wrong wordings lose, what the rewards are, and a worked example where every step is a real event on the log.">
+<meta property="og:description" content="The whole system in reading order: the path a problem travels, the machinery around it, what is already proved elsewhere, how wrong wordings lose, and a worked example where every step is a real event on the log.">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="razor.css">
@@ -22,69 +22,99 @@
 
 <div class="pagehead wrap">
   <h2>How it works</h2>
-  <p class="lede">The whole system, in reading order: the vocabulary every page uses, what is already
-  proved elsewhere, how a wrong formalization loses without anyone ruling on it, what the rewards are,
-  and a worked example in which every step is a real event on a real log.</p>
+  <p class="lede">The whole system, in reading order: the path a problem travels from idea to
+  admitted proof, the records that attach to that path, what is already proved elsewhere, how a
+  wrong formalization loses without anyone ruling on it, and a worked example in which every step
+  is a real event on a real log.</p>
 </div>
 
 <section>
   <div class="wrap">
-    <div class="sec-head"><h3>How a problem moves through the system</h3><span class="note">the terms used everywhere on this site, in the order they happen</span></div>
-    <dl class="terms">
-      <div><dt>proposal</dt>
-        <dd>An open problem described in plain language. Posting one is cheap and carries no formal weight;
-        it just records the idea and who had it first.</dd></div>
-      <div><dt>candidate statement · gloss</dt>
-        <dd>The proposal translated into the Lean proof language, filed together with the author's own
-        plain-language reading of it - the gloss. Translation can go wrong, and no machine can check whether
-        a Lean statement says what a sentence of English says, so the registry never asks anyone to certify
-        that.</dd></div>
-      <div><dt>challenge window · sealed reading</dt>
-        <dd>A dated invitation to translate a proposal <em>blind</em>: participants file only a hash of
-        their statement (a seal), then reveal after the window closes. Two statements each sealed before
-        the other was revealed were provably written without seeing each other - so when they later turn
-        out equivalent, their independence is a recorded fact, not an assumption. The window itself is
-        never enforced; a late seal simply carries its own timestamps.</dd></div>
-      <div><dt>certificates · convergence · implications</dt>
-        <dd>What it collects instead is what can be checked: small machine-checked sanity theorems
-        (certificates), machine-checked proofs that two statements are equivalent (convergence), and
-        machine-checked one-way implications, which mechanically expose one statement as strictly weaker
-        than another.</dd></div>
-      <div><dt>bridge hole</dt>
-        <dd>The equivalence of two candidate statements, pinned as a solvable hole in its own right. The
-        statement is composed mechanically from the two declarations, and the proof goes through the same
-        kernel check as any other solve - attributed, fundable, and checked. A proven bridge
-        merges the two readings' clumps.</dd></div>
-      <div><dt>clump · dominant</dt>
-        <dd>Statements proven equivalent form a clump. Its weight counts distinct authors: two people who
-        independently wrote equivalent formalizations are strong evidence that both say what the proposal
-        means. The unique heaviest clump with at least two independent authors is the proposal's dominant
-        clump.</dd></div>
-      <div><dt>hole</dt>
-        <dd>A statement pinned for solving. It fixes the exact Lean statement a solution must prove,
-        character for character, and the environment it is checked in (core Lean, or Mathlib).</dd></div>
-      <div><dt>submission · admitted</dt>
-        <dd>A claimed solution, checked automatically: the proof must have exactly the required statement,
-        contain no unfinished parts (Lean's <code>sorry</code>), and rely on no unapproved axioms. A
-        submission that passes is <strong>admitted</strong> - the checker's word for accepted, used
-        everywhere on this site. A failed check is a rejection, and the rejection is recorded.</dd></div>
-      <div><dt>split · glue</dt>
-        <dd>Partial progress made public: a plan reducing a hole to smaller child holes, plus a glue hole
-        whose statement is, mechanically, "the children jointly imply the parent". Each gap becomes its own
-        hole anyone can attack, and the admitted glue proof is a machine-checked guarantee that solving the
-        children finishes the parent. A hole can carry several splits, and a split is never edited:
-        replanning means registering another one alongside.</dd></div>
-      <div><dt>curation</dt>
-        <dd>A public, attributed mark that someone considers a problem worth working on, with a note saying
-        why. Costless to file, weighted by the curator's verified work, and timestamped - so the taste of
-        people who have actually solved things counts for more, and a curator's judgment builds a track
-        record of its own.</dd></div>
-      <div><dt>bounty</dt>
-        <dd>Credits attached to one exact pinned statement by someone confident a proof of that precise
-        wording is valuable to them. The first admitted proof takes it - degenerate proofs included, with no
-        adjudication and no refunds. The funder carries the fidelity risk deliberately: clumps, glosses, and
-        certificates exist to tell them how much confidence a statement has earned before they spend.</dd></div>
-    </dl>
+    <div class="sec-head"><h3>The path of one problem</h3><span class="note">five stages, each one an event on the log</span></div>
+    <ol class="path">
+      <li><b>proposal</b>
+        <span>An open problem, stated in plain language. Costless to post and carrying no formal
+        weight: it records the idea, and who had it first.</span></li>
+      <li><b>sealed reading</b>
+        <span>Someone translates the proposal into Lean but files only a hash of their wording - a
+        seal - and reveals the Lean later. The hash proves the reading existed before anyone
+        else's was public. Sealing is optional; what it buys is that independence between two
+        readings becomes provable instead of claimed.</span></li>
+      <li><b>candidate statement · gloss</b>
+        <span>The Lean wording goes on the log together with its gloss: the author's own
+        plain-language reading of what their Lean actually says. No machine can check that a Lean
+        statement means what an English sentence means, so the gloss is a claim to compare,
+        never a certificate.</span></li>
+      <li><b>sorry</b>
+        <span>One exact statement is pinned for solving: the Lean a solution must prove, character
+        for character, and the environment it is checked in (core Lean, or Mathlib). The name is
+        Lean's own - <code>sorry</code> is the placeholder a Lean file uses where a proof should
+        be but nobody has written one. A sorry on this site is one of those, made public,
+        attributed, and claimable.</span></li>
+      <li><b>admitted proof</b>
+        <span>A submitted proof is checked automatically: it must prove exactly the pinned
+        statement, contain no <code>sorry</code> inside, and rely on no unapproved axioms. A
+        submission that passes is <strong>admitted</strong> - the checker's word for accepted,
+        used everywhere on this site. A failing check is recorded as a rejection. Nobody rules;
+        the kernel checks.</span></li>
+    </ol>
+    <p class="prose">Everything else on this site is a record that attaches to some point on this
+    path. None of those records closes anything or overrules anyone - each is a signed, permanent
+    note that readers weigh.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h3>The machinery around the path</h3><span class="note">the remaining terms, grouped by what they are for</span></div>
+    <div class="tgroup">
+      <h4>Is the wording right?</h4>
+      <dl class="terms">
+        <div><dt>challenge window</dt>
+          <dd>A dated invitation to file sealed readings of one proposal, with a closing date and a
+          reveal deadline. Several people translating blind at once is the point: statements each
+          sealed before the others were revealed are provably independent. The window itself is
+          never enforced - a late seal simply carries its own timestamps.</dd></div>
+        <div><dt>certificates · convergence · implications</dt>
+          <dd>What the registry records about a wording is what can be machine-checked: small
+          sanity theorems about a statement (certificates), kernel-checked proofs that two
+          statements are equivalent (convergence), and one-way implications, which mechanically
+          expose one statement as strictly weaker than another.</dd></div>
+        <div><dt>clump · dominant</dt>
+          <dd>Statements proven equivalent form a clump, and a clump's weight counts its distinct
+          authors: two people who independently wrote equivalent Lean is strong evidence that both
+          wrote what the proposal means. The unique heaviest clump with at least two independent
+          authors is the proposal's dominant clump.</dd></div>
+        <div><dt>bridge sorry</dt>
+          <dd>The equivalence of two candidate statements, pinned as a solvable sorry in its own
+          right. The statement is composed mechanically from the two declarations, the proof goes
+          through the same kernel check as any other solve, and a proven bridge merges the two
+          readings' clumps.</dd></div>
+      </dl>
+    </div>
+    <div class="tgroup">
+      <h4>Sharing the work, and what it pays</h4>
+      <dl class="terms">
+        <div><dt>split · glue</dt>
+          <dd>Partial progress made public: a plan reducing a sorry to smaller child sorries, plus a
+          glue sorry whose statement is, mechanically, "the children jointly imply the parent". Each
+          gap becomes its own sorry anyone can attack, and the admitted glue proof is a
+          machine-checked guarantee that solving the children finishes the parent. A sorry can carry
+          several splits, and a split is never edited: replanning means registering another one
+          alongside.</dd></div>
+        <div><dt>curation</dt>
+          <dd>A public, attributed mark that someone considers a problem worth working on, with a
+          note saying why. Costless to file, weighted by the curator's verified work, and
+          timestamped - so the taste of people who have actually solved things counts for more, and
+          a curator's judgment builds a track record of its own.</dd></div>
+        <div><dt>bounty</dt>
+          <dd>Credits attached to one exact pinned statement by someone confident a proof of that
+          precise wording is valuable to them. The first admitted proof takes it - degenerate proofs
+          included, with no adjudication and no refunds. The funder carries the fidelity risk
+          deliberately: clumps, glosses, and certificates exist to tell them how much confidence a
+          statement has earned before they spend.</dd></div>
+      </dl>
+    </div>
   </div>
 </section>
 
@@ -93,8 +123,8 @@
     <div class="sec-head"><h3>Already proved elsewhere</h3><span class="note">recognized corpora: verified work the registry does not repeat</span></div>
     <p class="prose">The registry does not start from zero and does not duplicate work that is already
     machine-checked elsewhere. A recognized <strong>corpus</strong> is an external body of verified work,
-    recorded on the log with sourced statistics. Its contents count as solved: a hole whose statement turns
-    out to already exist in a corpus is closed by citing it, not by proving it again. New holes should state
+    recorded on the log with sourced statistics. Its contents count as solved: a sorry whose statement turns
+    out to already exist in a corpus is closed by citing it, not by proving it again. New sorries should state
     what the corpora do not yet contain - that boundary is the frontier.</p>
     <div class="corpus" id="corpora"></div>
   </div>
@@ -109,14 +139,14 @@
     in the first place: independent people converge on it, and people with a verified record curate it.
     Work, attention, and money follow those weights.</p>
     <p class="prose">When a better wording exists, anyone may file a <strong>supersession mark</strong>: a
-    public, attributed note that one hole is better stated by another, with the reason. Like curations,
+    public, attributed note that one sorry is better stated by another, with the reason. Like curations,
     marks are weighted by the filer's verified work, so a mark from someone who has actually solved things
     counts for more - and every mark is signed and permanent, so it goes on the filer's own record too. A
-    mark changes no status. The marked hole stays exactly as provable as before, its admitted proofs and
+    mark changes no status. The marked sorry stays exactly as provable as before, its admitted proofs and
     payouts stand, and anyone who disagrees can keep working on it or file a mark pointing elsewhere.</p>
     <p class="prose">What changes is what readers see: on <a href="frontier.html">the frontier</a>, a marked
-    hole's card shows who considers it superseded and by what, sorts down in proportion to the weight
-    against it, and links forward. A hole's <strong>lineage</strong> number counts the earlier wordings
+    sorry's card shows who considers it superseded and by what, sorts down in proportion to the weight
+    against it, and links forward. A sorry's <strong>lineage</strong> number counts the earlier wordings
     whose marks point at it - lineage 2 means the third attempt at stating the same problem. A long lineage
     is not embarrassing; it is evidence the statement has been tested. Bounties are unaffected by marks: a
     funder pays for a literal wording and the first admitted proof of it is paid regardless, which is why
@@ -154,10 +184,10 @@
 
 <section>
   <div class="wrap">
-    <div class="sec-head"><h3>The registry as a graph</h3><span class="note">how the current dataset's holes relate</span></div>
+    <div class="sec-head"><h3>The registry as a graph</h3><span class="note">how the current dataset's sorries relate</span></div>
     <div class="board">
-      <svg id="graph" role="img" aria-label="Graph of the registry's holes: supersession marks pointing to better wordings, and splits pointing to their child holes."></svg>
-      <div class="cap">dashed red = a supersession mark pointing to the better wording · solid = a split pointing to its child holes</div>
+      <svg id="graph" role="img" aria-label="Graph of the registry's sorries: supersession marks pointing to better wordings, and splits pointing to their child sorries."></svg>
+      <div class="cap">dashed red = a supersession mark pointing to the better wording · solid = a split pointing to its child sorries</div>
     </div>
   </div>
 </section>
@@ -210,16 +240,16 @@ loadData(S => {
     { tone: 'good', when: 'implies', title: 'The implication order places dave\'s statement strictly below the clump\'s',
       body: 'A machine-checked proof (<code>v2_implies_v1</code>) shows the clump\'s statement implies dave\'s. The converse has no proof - and cannot have an easy one, since dave\'s statement is satisfied by the empty-list function while the clump\'s demands a real sorting function. Strictly weaker, established by the kernel rather than by argument.',
       evs: seqOf(e => e.type === 'implies') },
-    { tone: 'bad', when: 'supersede ×2', title: 'alice and bob mark the weak hole superseded - nothing closes',
-      body: 'alice and bob each file a supersession mark: a public, attributed note that RZR-103 is better stated by RZR-103v2, the clump\'s hole, with the reason. The registry issued no verdict and closed nothing - RZR-103 stays provable, mallory\'s proof and payout stand, and the facts (proven true, weight 1, milliseconds to check, strictly weaker than the dominant clump) were already on the log for anyone to read. The marks just make the community\'s reading visible and weighted: readers see who considers the wording dead and why, and the frontier sorts it down accordingly.',
+    { tone: 'bad', when: 'supersede ×2', title: 'alice and bob mark the weak sorry superseded - nothing closes',
+      body: 'alice and bob each file a supersession mark: a public, attributed note that RZR-103 is better stated by RZR-103v2, the clump\'s sorry, with the reason. The registry issued no verdict and closed nothing - RZR-103 stays provable, mallory\'s proof and payout stand, and the facts (proven true, weight 1, milliseconds to check, strictly weaker than the dominant clump) were already on the log for anyone to read. The marks just make the community\'s reading visible and weighted: readers see who considers the wording dead and why, and the frontier sorts it down accordingly.',
       evs: seqOf(e => e.type === 'supersede') },
     { tone: 'gold', when: 'fund · verify ×3 · payout', title: 'The funder waits for convergence this time - and the parts are solved',
-      body: 'sortware-inc funds RZR-103v2, whose statement two people independently converged on. grace\'s machine-checked split reduces it to two child holes plus a glue proof; heidi solves the first child, ivan the second, and the main result follows from the glue. heidi\'s admitted proof of the pinned statement takes the bounty - by exactly the same no-adjudication rule that paid mallory. The rule did not change; the funder\'s information did.',
+      body: 'sortware-inc funds RZR-103v2, whose statement two people independently converged on. grace\'s machine-checked split reduces it to two child sorries plus a glue proof; heidi solves the first child, ivan the second, and the main result follows from the glue. heidi\'s admitted proof of the pinned statement takes the bounty - by exactly the same no-adjudication rule that paid mallory. The rule did not change; the funder\'s information did.',
       evs: seqOf(e => ['SUB-103a', 'SUB-103b', 'SUB-103v2', 'SUB-103g'].includes(e.submission) || (e.type === 'fund' && e.target === 'RZR-103v2') || (e.type === 'payout' && e.target === 'RZR-103v2')) },
     { tone: '', when: 'submit · verify', title: 'An incomplete proof is rejected',
-      body: 'Two related holes remain open, one carrying a small bounty and two curations. mallory attempts one with a proof that still contains Lean\'s <code>sorry</code> placeholder - an unfinished part. The checker detects it and rejects the submission. Rejections are recorded on the log like everything else.',
+      body: 'Two related sorries remain open, one carrying a small bounty and two curations. mallory attempts one with a proof that still contains Lean\'s <code>sorry</code> placeholder - an unfinished part. The checker detects it and rejects the submission. Rejections are recorded on the log like everything else.',
       evs: seqOf(e => e.submission === 'SUB-104x') },
-    { tone: 'gold', when: 'commit · reveal · verify', title: 'Afterword: nina solves a hole without showing her work first',
+    { tone: 'gold', when: 'commit · reveal · verify', title: 'Afterword: nina solves a sorry without showing her work first',
       body: 'nina registers a hash of her proof file, which establishes when she had it without showing it to anyone. Later she reveals the file; the registry confirms it matches the hash, checks the proof, and accepts it. On the <a href="zk.html">zero-knowledge page</a>, peggy goes one step further and is paid without ever revealing her solution at all.',
       evs: seqOf(e => e.submission === 'SUB-106' || (e.type === 'commit' && e.id === 'SUB-106') || (e.type === 'reveal' && e.submission === 'SUB-106')) },
   ];
@@ -230,7 +260,7 @@ loadData(S => {
     <div class="evs">${b.evs.map(x => `<span class="ev">event ${esc(x)}</span>`).join('')}</div>
   </div>`).join('');
 
-  renderHoleGraph('graph', S);
+  renderSorryGraph('graph', S);
 });
 </script>
 </body>

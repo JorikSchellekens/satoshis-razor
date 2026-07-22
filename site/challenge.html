@@ -121,9 +121,9 @@ loadData(S => {
         ? '<span style="color:var(--muted)">is the specification</span>'
         : e.admitted
           ? `<span style="color:var(--solved)">✓ admitted</span> by <code>${esc(e.proof_decl)}</code>` +
-            (e.refinement_hole ? ` (hole ${holeLink(e.refinement_hole)})` : '')
+            (e.refinement_sorry ? ` (sorry ${sorryLink(e.refinement_sorry)})` : '')
           : `<span style="color:var(--open)">… pending</span>` +
-            (e.refinement_hole ? ` - hole ${holeLink(e.refinement_hole)} has no admitted proof yet` : '');
+            (e.refinement_sorry ? ` - sorry ${sorryLink(e.refinement_sorry)} has no admitted proof yet` : '');
       const best = boardKeys.map(k => {
         const rows = boards[k];
         const r = rows.find(x => x.e.id === e.id);
@@ -175,16 +175,16 @@ loadData(S => {
 
   // ── history ────────────────────────────────────────────────────
   const laneIds = new Set(c.entries.map(e => e.id));
-  const holeIds = new Set(c.entries.map(e => e.refinement_hole).filter(Boolean));
-  const proofSubs = new Set(S.events.filter(e => e.type === 'submit' && holeIds.has(e.hole)).map(e => e.id));
+  const sorryIds = new Set(c.entries.map(e => e.refinement_sorry).filter(Boolean));
+  const proofSubs = new Set(S.events.filter(e => e.type === 'submit' && sorryIds.has(e.sorry)).map(e => e.id));
   const events = S.events.filter(e => {
     switch (e.type) {
       case 'register_challenge': return e.id === c.id;
       case 'anvil_submit': return e.challenge === c.id;
       case 'bench': return laneIds.has(e.submission);
       case 'fund': case 'payout': case 'tag': return e.target === c.id;
-      case 'register_hole': return holeIds.has(e.id);
-      case 'submit': return holeIds.has(e.hole);
+      case 'register_sorry': return sorryIds.has(e.id);
+      case 'submit': return sorryIds.has(e.sorry);
       case 'verdict': return proofSubs.has(e.submission);
       default: return false;
     }

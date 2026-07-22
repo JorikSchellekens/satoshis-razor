@@ -1,9 +1,9 @@
 /-!
-Hole RZR-002 (solved): reversal is an involution.
+Sorry RZR-002 (solved): reversal is an involution.
 
 Deliberately proved for a from-scratch accumulator-based reversal rather than
 `List.reverse` (for which core already ships the lemma) - the non-triviality
-certificate for this hole is precisely that the statement is about a fresh
+certificate for this sorry is precisely that the statement is about a fresh
 definition, not a library restatement.
 -/
 

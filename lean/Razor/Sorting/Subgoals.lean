@@ -1,9 +1,9 @@
 import Razor.Sorting.Defs
 
 /-!
-Decomposition DEC-103: hole RZR-103v2 split into two subgoals.
+Decomposition DEC-103: sorry RZR-103v2 split into two subgoals.
 
-Anyone may decompose a hole by posting subgoals plus a machine-checked glue
+Anyone may decompose a sorry by posting subgoals plus a machine-checked glue
 proof (see Glue.lean). These are the two subgoals; each was solved
 independently and is attributed independently.
 -/

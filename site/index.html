@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Satoshi's Razor — the frontier registry</title>
-<meta name="description" content="A public registry of open formal problems, checked by machine instead of by committee. Anyone - human or AI - can attempt a hole; admission is a kernel check, recorded on an append-only log.">
+<meta name="description" content="A public registry of open formal problems, checked by machine instead of by committee. Anyone - human or AI - can attempt a sorry; admission is a kernel check, recorded on an append-only log.">
 <meta property="og:title" content="Satoshi's Razor — the frontier registry">
-<meta property="og:description" content="A public registry of open formal problems, checked by machine instead of by committee. Anyone - human or AI - can attempt a hole; admission is a kernel check, recorded on an append-only log.">
+<meta property="og:description" content="A public registry of open formal problems, checked by machine instead of by committee. Anyone - human or AI - can attempt a sorry; admission is a kernel check, recorded on an append-only log.">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="razor.css">
@@ -22,8 +22,9 @@
 
 <div class="pagehead wrap">
   <h2>A public registry of open problems, checked by machine instead of by committee.</h2>
-  <p class="lede">Each open problem is a <strong>hole</strong>: a statement pinned precisely in the Lean
-  proof language. Anyone - human or AI - can attempt one, and a claimed proof is checked automatically by
+  <p class="lede">Each open problem is a <strong>sorry</strong>: an exact statement pinned in the Lean
+  proof language, named for <code>sorry</code>, the placeholder a Lean file uses where a proof is still
+  missing. Anyone - human or AI - can attempt one, and a claimed proof is checked automatically by
   the Lean kernel, so accepting it requires no trust in whoever sent it. Every page on this site is
   computed from a single append-only log of events.</p>
   <div class="cta">
@@ -37,14 +38,14 @@
 
 <section id="sec-featured" style="display:none">
   <div class="wrap">
-    <div class="sec-head"><h3>The flagship problem</h3><span class="note">the hole with the largest machine-checked reduction into subproblems</span></div>
+    <div class="sec-head"><h3>The flagship problem</h3><span class="note">the sorry with the largest machine-checked reduction into subproblems</span></div>
     <div class="featured" id="featured"></div>
   </div>
 </section>
 
 <section id="sec-start" style="display:none">
   <div class="wrap">
-    <div class="sec-head"><h3>Start here</h3><span class="note">an open hole curated as genuinely provable - the first admitted proof takes permanent priority</span></div>
+    <div class="sec-head"><h3>Start here</h3><span class="note">an open sorry curated as genuinely provable - the first admitted proof takes permanent priority</span></div>
     <div class="featured" id="start"></div>
   </div>
 </section>
@@ -61,7 +62,7 @@
 
 <section id="sec-firsts" style="display:none">
   <div class="wrap">
-    <div class="sec-head"><h3>First solves</h3><span class="note">who holds priority: the first admitted proof of each solved hole</span></div>
+    <div class="sec-head"><h3>First solves</h3><span class="note">who holds priority: the first admitted proof of each solved sorry</span></div>
     <div class="anvil" id="firsts"></div>
   </div>
 </section>
@@ -72,7 +73,7 @@
     <div class="overview">
       <div class="card">
         <h4>The frontier</h4>
-        <p>Every proposal and every hole in the registry, grouped by the problem they serve. For each hole:
+        <p>Every proposal and every sorry in the registry, grouped by the problem they serve. For each sorry:
         the exact Lean statement a solution must prove, whether it is open or solved, the credits attached,
         who has attempted it, and its complete event history.</p>
         <a class="go" href="frontier.html">browse the frontier →</a>
@@ -109,13 +110,13 @@
 <script src="razor.js"></script>
 <script>
 loadData(S => {
-  const holes = Object.values(S.holes);
+  const sorries = Object.values(S.sorries);
   // The marquee reports the live registry: items tagged test-data (kept as
   // pipeline smoke tests) stay on the log and keep their pages, but they
   // are not headline numbers and not featured.
-  const liveHoles = holes.filter(h => !holeIsTest(S, h));
+  const liveSorries = sorries.filter(h => !sorryIsTest(S, h));
   const liveProposals = Object.values(S.proposals || {}).filter(p => !isTestData(S, p.id));
-  const pool = liveHoles.reduce((a, h) => a + h.pool, 0)
+  const pool = liveSorries.reduce((a, h) => a + h.pool, 0)
     + Object.values(S.challenges).reduce((a, c) => a + c.pool + Object.values(c.arch_pools || {}).reduce((x, y) => x + y, 0), 0);
   const backlogN = liveProposals
     .filter(p => !(p.statements || []).length && !curationWeight(S, p.id)).length;
@@ -123,7 +124,7 @@ loadData(S => {
   // The numbers a visitor can act on come first; a zero is not a headline,
   // so zero-valued stats are dropped rather than displayed.
   $('stats').innerHTML = [
-    [liveHoles.filter(h => h.status === 'open').length, 'open problems'],
+    [liveSorries.filter(h => h.status === 'open').length, 'open problems'],
     [pool, 'credits in bounties'],
     [backlogN, 'theorems awaiting formalization'],
     [admitted, 'proofs admitted'],
@@ -143,7 +144,7 @@ loadData(S => {
   }
 
   // ── the flagship problem: largest registered reduction, drawn as a map ──
-  const featured = liveHoles
+  const featured = liveSorries
     .filter(h => (h.splits || []).length)
     .map(h => ({ h, size: h.splits.reduce((a, sp) => a + sp.children.length, 0) }))
     .sort((a, b) => b.size - a.size)[0]?.h;
@@ -162,8 +163,8 @@ loadData(S => {
     // One band per split: parent on the left, its parts to the right.
     const W = 940, bandH = 96, H = splits.length * bandH + 26;
     const color = { open: 'var(--open)', solved: 'var(--solved)' };
-    const node = (id, st, x, y, sub) => `<a href="hole.html?id=${encodeURIComponent(id)}"><g class="gnode">
-      <title>${esc(prettyMath((S.holes[id] || {}).title || id))}</title>
+    const node = (id, st, x, y, sub) => `<a href="sorry.html?id=${encodeURIComponent(id)}"><g class="gnode">
+      <title>${esc(prettyMath((S.sorries[id] || {}).title || id))}</title>
       <ellipse cx="${x}" cy="${y}" rx="58" ry="24" fill="var(--bg)" stroke="${color[st] || 'var(--muted)'}" stroke-width="1.8"/>
       <text x="${x}" y="${y - 1}" text-anchor="middle">${esc(id)}</text>
       <text class="sub" x="${x}" y="${y + 12}" text-anchor="middle">${esc(sub)}</text>
@@ -186,38 +187,38 @@ loadData(S => {
 
     $('sec-featured').style.display = '';
     $('featured').innerHTML = `
-      <div class="row1">${holeLink(featured.id)} ${chip(featured.status)}
+      <div class="row1">${sorryLink(featured.id)} ${chip(featured.status)}
         ${featured.env === 'mathlib' ? '<span class="badge blue">Mathlib environment</span>' : ''}
         <span style="margin-left:auto">${pbar(done, total, 'parts solved')}</span></div>
       <h3>${esc(prettyMath(featured.title))}</h3>
       ${informal ? `<p class="informal">${esc(prettyMath(informal))}</p>` : ''}
       <p class="prose">Too big to attack whole - so it has been <strong>split</strong>: each registered plan
-      reduces it to subproblems plus a glue hole whose statement is, mechanically, "the children jointly
-      imply the parent". Every node below is a hole anyone can attack on its own, and each admitted glue
+      reduces it to subproblems plus a glue sorry whose statement is, mechanically, "the children jointly
+      imply the parent". Every node below is a sorry anyone can attack on its own, and each admitted glue
       proof is a machine-checked guarantee that solving the children finishes the whole thing.</p>
       <div class="board" style="margin-top:14px"><svg role="img" viewBox="0 0 ${W} ${H}"
-        aria-label="The flagship problem and its registered splits: each split's child holes and glue hole, solved ones marked.">${svg}</svg></div>
-      <a class="go" href="hole.html?id=${encodeURIComponent(featured.id)}">the full record: the exact statement, every split, every attempt →</a>`;
+        aria-label="The flagship problem and its registered splits: each split's child sorries and glue sorry, solved ones marked.">${svg}</svg></div>
+      <a class="go" href="sorry.html?id=${encodeURIComponent(featured.id)}">the full record: the exact statement, every split, every attempt →</a>`;
   }
 
-  // ── start here: the curated, open, genuinely attemptable hole ──
-  const starter = liveHoles
+  // ── start here: the curated, open, genuinely attemptable sorry ──
+  const starter = liveSorries
     .filter(h => h.status === 'open' && curationWeight(S, h.id) > 0)
     .sort((a, b) => curationWeight(S, b.id) - curationWeight(S, a.id)
-      || holeMetrics(S, b).attention - holeMetrics(S, a).attention)[0];
+      || sorryMetrics(S, b).attention - sorryMetrics(S, a).attention)[0];
   if (starter) {
     const curs = curatorsOf(S, starter.id);
     const informal = informalOf(S, starter);
     const origin = location.protocol.startsWith('http') ? location.origin : 'https://razor.mempoolsurfer.com';
     const attempts = (starter.submissions || []).length;
     const cmd = starter.env === 'mathlib'
-      ? `razor submit --local --id SUB-you --hole ${esc(starter.id)} --solver you --decl Your.Lean.Name
+      ? `razor submit --local --id SUB-you --sorry ${esc(starter.id)} --solver you --decl Your.Lean.Name
 razor verify --local --submission SUB-you   <span class="c"># Mathlib env: checked on your machine (./mathlib-env.sh once)</span>`
-      : `razor submit --id SUB-you --hole ${esc(starter.id)} --solver you \\
+      : `razor submit --id SUB-you --sorry ${esc(starter.id)} --solver you \\
   --decl Your.Lean.Name --file your-proof.lean   <span class="c"># kernel-checked here; the verdict comes back in seconds</span>`;
     $('sec-start').style.display = '';
     $('start').innerHTML = `
-      <div class="row1">${holeLink(starter.id)} ${chip(starter.status)}
+      <div class="row1">${sorryLink(starter.id)} ${chip(starter.status)}
         ${starter.env === 'mathlib' ? '<span class="badge blue">Mathlib environment</span>' : ''}
         ${starter.pool ? `<span class="pool"${tip('bounty')}>bounty ${starter.pool.toLocaleString()}</span>` : ''}
         ${attempts ? `<span class="badge">${attempts} attempt${attempts > 1 ? 's' : ''} so far</span>`
@@ -228,7 +229,7 @@ razor verify --local --submission SUB-you   <span class="c"># Mathlib env: check
       <div class="codeblock">curl -sSf ${esc(origin)}/install.sh | bash   <span class="c"># once — builds the toolchain (details on the get-started page)</span>
 <span class="c"># write the proof in any .lean file, then:</span>
 ${cmd}</div>
-      <a class="go" href="hole.html?id=${encodeURIComponent(starter.id)}">the exact statement this must prove, character for character →</a>`;
+      <a class="go" href="sorry.html?id=${encodeURIComponent(starter.id)}">the exact statement this must prove, character for character →</a>`;
   }
 
   renderFeedInto('feed', S, 10);
@@ -238,7 +239,7 @@ ${cmd}</div>
   if (firsts.length >= 3) {
     const max = firsts[0].n;
     $('sec-firsts').style.display = '';
-    $('firsts').innerHTML = `<div class="lb">` + firsts.map(({ who, holes: hs, n }, i) => `
+    $('firsts').innerHTML = `<div class="lb">` + firsts.map(({ who, sorries: hs, n }, i) => `
       <div class="rowbar">
         <span class="who">${i === 0 ? '<span class="crown">♛</span> ' : ''}${personLink(who)}</span>
         <span class="track"><span class="bar" style="width:${Math.round(100 * n / max)}%"></span></span>

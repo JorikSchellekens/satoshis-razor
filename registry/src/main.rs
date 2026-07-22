@@ -14,7 +14,15 @@ use model::{Entry, Event, State};
 use std::path::PathBuf;
 
 fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    // The pre-rename vocabulary stays accepted forever: "sorry" was the old
+    // name for a sorry, and scripts in the wild still say it.
+    if args.first().is_some_and(|a| a == "hole") { args[0] = "sorry".into(); }
+    for a in args.iter_mut() {
+        if a == "--hole" { *a = "--sorry".into(); }
+        if a == "--refinement-hole" { *a = "--refinement-sorry".into(); }
+    }
+    let args = args;
     let cmd = args.first().map(String::as_str).unwrap_or("help");
     check_flags(cmd, &args);
     let root = repo_root();
@@ -47,16 +55,16 @@ fn main() {
         "implies" => append(&log_path, Event::Implies {
             a: req(&args, "--a"), b: req(&args, "--b"), decl: req(&args, "--decl"),
         }),
-        "hole" => {
+        "sorry" => {
             let lean_type = req(&args, "--lean-type");
             let env = opt(&args, "--env");
             // A pin is permanent, so catch a malformed statement now, not
-            // at the first submission: elaborate the type in the hole's
+            // at the first submission: elaborate the type in the sorry's
             // environment when the toolchain is available.
             if !has_flag(&args, "--unchecked") {
                 precheck_lean_type(&root, env.as_deref(), &lean_type);
             }
-            append(&log_path, Event::RegisterHole {
+            append(&log_path, Event::RegisterSorry {
                 id: req(&args, "--id"), title: req(&args, "--title"),
                 statement: opt(&args, "--statement").unwrap_or_default(),
                 lean_type,
@@ -79,13 +87,13 @@ fn main() {
         // The id is positional, but the flag spellings every sibling command
         // uses are accepted too.
         "cite" => cmd_cite(&log_path, &opt(&args, "--submission")
-            .or_else(|| opt(&args, "--hole"))
+            .or_else(|| opt(&args, "--sorry"))
             .or_else(|| args.get(1).filter(|a| !a.starts_with("--")).cloned())
             .unwrap_or_default()),
         // The filer flag is --author like every sibling command; --by is
         // kept as an alias (it is the event's field name on the log).
         "supersede" => append(&log_path, Event::Supersede {
-            hole: req(&args, "--hole"),
+            sorry: req(&args, "--sorry"),
             by: opt(&args, "--author").or_else(|| opt(&args, "--by")).unwrap_or_else(|| {
                 ui::die("missing --author (who files the mark; --by works too)");
             }),
@@ -100,7 +108,7 @@ fn main() {
             id: req(&args, "--id"), challenge: req(&args, "--challenge"),
             impl_name: req(&args, "--impl"), solver: req(&args, "--solver"),
             proof_decl: opt(&args, "--proof-decl").unwrap_or_default(),
-            refinement_hole: opt(&args, "--refinement-hole"),
+            refinement_sorry: opt(&args, "--refinement-sorry"),
         }),
         "curate" => append(&log_path, Event::Curate {
             curator: req(&args, "--curator"), target: req(&args, "--target"),
@@ -121,10 +129,10 @@ fn main() {
             });
         }
         // --target is canonical (a bounty can fund a challenge too);
-        // --hole is accepted because it is what people type.
+        // --sorry is accepted because it is what people type.
         "fund" => append(&log_path, Event::Fund {
-            target: opt(&args, "--target").or_else(|| opt(&args, "--hole")).unwrap_or_else(|| {
-                ui::die("missing --target (the hole or challenge the bounty attaches to)");
+            target: opt(&args, "--target").or_else(|| opt(&args, "--sorry")).unwrap_or_else(|| {
+                ui::die("missing --target (the sorry or challenge the bounty attaches to)");
             }),
             amount: req(&args, "--amount").parse().expect("--amount"),
             funder: req(&args, "--funder"),
@@ -149,27 +157,27 @@ fn main() {
             println!("{}", commitment_of(&file, &salt));
         }
         "commit" => append(&log_path, Event::Commit {
-            id: req(&args, "--id"), hole: req(&args, "--hole"),
+            id: req(&args, "--id"), sorry: req(&args, "--sorry"),
             solver: req(&args, "--solver"), commitment: req(&args, "--commitment"),
         }),
         "reveal" => cmd_reveal(&root, &log_path, &req(&args, "--submission"),
             &req(&args, "--file"), &req(&args, "--salt"), &req(&args, "--decl")),
         "zk-route" => {
-            // Attach a zero-knowledge route to an existing hole: run the
+            // Attach a zero-knowledge route to an existing sorry: run the
             // trusted setup and pin the verifying key, circuit size, and
-            // the bridge tying constraint satisfaction to the hole's
+            // the bridge tying constraint satisfaction to the sorry's
             // pinned statement.
-            let hole_id = req(&args, "--hole");
+            let sorry_id = req(&args, "--sorry");
             let state = State::fold(load(&log_path));
-            if !state.holes.contains_key(&hole_id) {
-                ui::die(&format!("unknown hole: {hole_id} - a route attaches to an existing hole"));
+            if !state.sorries.contains_key(&sorry_id) {
+                ui::die(&format!("unknown sorry: {sorry_id} - a route attaches to an existing sorry"));
             }
             let zk = root.join("target/release/zk-prover");
             let n = opt(&args, "--n").unwrap_or("4".into());
             let setup = run_json(&zk, &["setup", "--n", &n]);
             append(&log_path, Event::ZkRoute {
                 id: req(&args, "--id"),
-                hole: hole_id,
+                sorry: sorry_id,
                 vk_path: setup["vk"].as_str().unwrap().into(),
                 vk_hash: setup["vk_hash"].as_str().unwrap().into(),
                 constraints: setup["constraints"].as_u64().unwrap(),
@@ -182,7 +190,7 @@ fn main() {
                     setup["vk_hash"].as_str().unwrap_or("?")))));
         }
         "zk-submit" => append(&log_path, Event::ZkSubmit {
-            id: req(&args, "--id"), hole: req(&args, "--hole"),
+            id: req(&args, "--id"), sorry: req(&args, "--sorry"),
             route: req(&args, "--route"),
             solver: req(&args, "--solver"), public: req(&args, "--public"),
             proof: req(&args, "--proof"),
@@ -236,19 +244,19 @@ fn print_help(cmd: &str) {
             ("formalize", "file a candidate Lean statement for a proposal"),
             ("certify", "attach a sanity certificate to a statement"),
             ("converge", "prove two statements equivalent (they clump)"),
-            ("bridge", "pin the equivalence of two statements as its own hole"),
+            ("bridge", "pin the equivalence of two statements as its own sorry"),
             ("implies", "prove one statement implies another"),
             ("round", "open a challenge window: sealed readings until a deadline"),
             ("seal-statement", "commit a hash of your statement file - a reading, sealed"),
             ("reveal-statement", "open a statement seal; it enters the funnel with provenance"),
-            ("hole", "pin an exact Lean statement as a solvable hole"),
-            ("split", "reduce a hole to children plus a glue hole"),
-            ("repin", "migrate a hole's wording (needs an equivalence proof)"),
-            ("supersede", "mark a hole superseded by a better wording"),
+            ("sorry", "pin an exact Lean statement as a solvable sorry"),
+            ("split", "reduce a sorry to children plus a glue sorry"),
+            ("repin", "migrate a sorry's wording (needs an equivalence proof)"),
+            ("supersede", "mark a sorry superseded by a better wording"),
             ("propose-batch", "append proposals from a JSONL file (ingestion)"),
         ]),
         ("solving", &[
-            ("submit", "claim a hole with a proof declaration or a .lean file"),
+            ("submit", "claim a sorry with a proof declaration or a .lean file"),
             ("verify", "kernel-check a submission against the pinned type"),
             ("recheck", "independently re-verify a claimed solve (read-only)"),
             ("upstream", "draft a home-library PR from an admitted proof"),
@@ -263,7 +271,7 @@ fn print_help(cmd: &str) {
             ("seal", "hash a private proof file (no registry write)"),
             ("commit", "post the hash: priority without exposure"),
             ("reveal", "open a commitment; the registry rebuilds and checks it"),
-            ("zk-route", "attach a Groth16 route to a hole (runs trusted setup)"),
+            ("zk-route", "attach a Groth16 route to a sorry (runs trusted setup)"),
             ("zk-submit", "submit a proof of knowledge - the witness stays home"),
             ("zk-verify", "check a zk submission against its route's key"),
         ]),
@@ -280,11 +288,11 @@ fn print_help(cmd: &str) {
         ]),
         ("reading + auditing", &[
             ("status", "the whole registry, folded from the log"),
-            ("cite", "a citation (BibTeX) for a hole or admitted proof"),
+            ("cite", "a citation (BibTeX) for a sorry or admitted proof"),
             ("log", "the raw event log, one JSON object per line"),
             ("corpus", "recognize an external verified corpus (e.g. Mathlib)"),
             ("export", "write site/data.json for the explorer"),
-            ("export-benchmark", "emit open holes as prover-ready JSONL targets"),
+            ("export-benchmark", "emit open sorries as prover-ready JSONL targets"),
             ("serve", "host the site; data.json re-derived per request"),
             ("verify-log", "audit every event signature against registered keys"),
             ("remote", "set/show the registry commands publish to (--local opts out)"),
@@ -292,8 +300,8 @@ fn print_help(cmd: &str) {
     ];
     println!();
     println!("  {}  {}", ui::accent("razor"), "the proof frontier, machine-checked");
-    println!("  {}", ui::dim("a hole is a Lean statement with a sorry in it; the registry records"));
-    println!("  {}", ui::dim("who states, funds, and fills them. admission is a kernel check."));
+    println!("  {}", ui::dim("a sorry is a pinned Lean statement whose proof nobody has written yet;"));
+    println!("  {}", ui::dim("the registry records who states, funds, and fills them. admission is a kernel check."));
     println!();
     println!("  {} razor <command> {}", ui::dim("usage:"), ui::dim("[--flag value]..."));
     for (title, cmds) in groups {
@@ -469,9 +477,9 @@ fn cmd_profile(log_path: &PathBuf, handle: &str) {
     if !p.proposals.is_empty() {
         println!("     {}  {}", ui::dim("proposals"), p.proposals.join(", "));
     }
-    if !p.open_holes_authored.is_empty() {
-        println!("     {}  {}  {}", ui::dim("waiting on"), p.open_holes_authored.join(", "),
-            ui::dim("(open holes under their proposals)"));
+    if !p.open_sorries_authored.is_empty() {
+        println!("     {}  {}  {}", ui::dim("waiting on"), p.open_sorries_authored.join(", "),
+            ui::dim("(open sorries under their proposals)"));
     }
     println!();
 }
@@ -490,7 +498,7 @@ fn commitment_of(file: &str, salt: &str) -> String {
 fn cmd_reveal(root: &PathBuf, log_path: &PathBuf, submission: &str, file: &str, salt: &str, decl: &str) {
     let state = State::fold(load(log_path));
     let sub = state
-        .holes
+        .sorries
         .values()
         .flat_map(|h| h.submissions.iter())
         .find(|s| s.id == submission)
@@ -666,7 +674,7 @@ pub fn persist_statement_file(log_path: &PathBuf, statement: &str, bytes: &[u8],
     let _ = std::fs::write(dir.join(format!("{statement}.salt")), salt);
 }
 
-/// Pin the equivalence of two candidate statements as its own hole. The
+/// Pin the equivalence of two candidate statements as its own sorry. The
 /// pinned type is composed mechanically - `(a's decl) ↔ (b's decl)` - so
 /// there is nothing to get subtly wrong, and the proof goes through the
 /// ordinary submit/verify path: kernel-checked, attributed, fundable. An
@@ -685,8 +693,8 @@ fn cmd_bridge(log_path: &PathBuf, args: &[String]) {
         ui::die(&format!("{a} and {b} read different proposals - a bridge joins two readings of the same one"));
     }
     // The bridge verifies in one environment, which must define both decls.
-    let env_a = state.holes.values().find(|h| h.statement == a).and_then(|h| h.env.clone());
-    let env_b = state.holes.values().find(|h| h.statement == b).and_then(|h| h.env.clone());
+    let env_a = state.sorries.values().find(|h| h.statement == a).and_then(|h| h.env.clone());
+    let env_b = state.sorries.values().find(|h| h.statement == b).and_then(|h| h.env.clone());
     let env = opt(args, "--env").or_else(|| match (&env_a, &env_b) {
         (Some(x), Some(y)) if x != y => ui::die(&format!(
             "{a} and {b} verify in different environments ({x} vs {y}); a bridge needs one \
@@ -705,7 +713,7 @@ fn cmd_bridge(log_path: &PathBuf, args: &[String]) {
                  the bridge is provable only if the proof file submitted to it defines it")));
         }
     }
-    append(log_path, Event::RegisterHole {
+    append(log_path, Event::RegisterSorry {
         id: id.clone(),
         title: opt(args, "--title")
             .unwrap_or_else(|| format!("bridge: {a} and {b} state the same problem")),
@@ -721,13 +729,13 @@ fn cmd_bridge(log_path: &PathBuf, args: &[String]) {
         ui::bold(&id), ui::cyan(&a), ui::dim("≡?"), ui::cyan(&b)));
     ui::kv("pinned", &lean_type);
     ui::kv("next", &ui::dim(&format!(
-        "prove it like any hole: razor submit --hole {id} … - an admitted proof merges the clumps")));
+        "prove it like any sorry: razor submit --sorry {id} … - an admitted proof merges the clumps")));
 }
 
-/// The verification environment a hole was registered with: the Lean
+/// The verification environment a sorry was registered with: the Lean
 /// package directory and its root import.
-fn env_of(root: &PathBuf, hole: &model::Hole) -> (PathBuf, &'static str) {
-    match hole.env.as_deref() {
+fn env_of(root: &PathBuf, sorry: &model::Sorry) -> (PathBuf, &'static str) {
+    match sorry.env.as_deref() {
         Some("mathlib") => (root.join("lean-mathlib"), "RazorMathlib"),
         _ => (root.join("lean"), "Razor"),
     }
@@ -735,13 +743,13 @@ fn env_of(root: &PathBuf, hole: &model::Hole) -> (PathBuf, &'static str) {
 
 fn require_env_ready(lean_dir: &PathBuf, root_import: &str) {
     if root_import == "RazorMathlib" && !lean_dir.join(".lake/packages/mathlib").exists() {
-        eprintln!("{} this hole verifies in the Mathlib environment, which has not been fetched yet.", ui::red("✕"));
+        eprintln!("{} this sorry verifies in the Mathlib environment, which has not been fetched yet.", ui::red("✕"));
         eprintln!("  {}", ui::dim("run ./mathlib-env.sh once (several GB of prebuilt cache), then retry."));
         std::process::exit(2);
     }
 }
 
-/// A hole's pinned statement is permanent, so `razor hole` elaborates the
+/// A sorry's pinned statement is permanent, so `razor sorry` elaborates the
 /// type before appending anything: a typo caught here is a typo that never
 /// reaches the log. Skipped with --unchecked, when the environment is not
 /// fetched, or when the toolchain is missing (the pin is then taken as
@@ -814,15 +822,15 @@ fn decl_in_packages(root: &PathBuf, decl: &str) -> bool {
     ["lean/Razor", "lean-mathlib/RazorMathlib"].iter().any(|d| scan(&root.join(d), last))
 }
 
-/// Claim a hole. Two forms:
-///   razor submit --hole H --solver S --decl Name.Of.Proof
-///   razor submit --hole H --solver S --decl Name --file proof.lean
-/// With --file, the CLI installs the file into the hole's Lean package as a
+/// Claim a sorry. Two forms:
+///   razor submit --sorry H --solver S --decl Name.Of.Proof
+///   razor submit --sorry H --solver S --decl Name --file proof.lean
+/// With --file, the CLI installs the file into the sorry's Lean package as a
 /// fresh module and builds it - no package surgery by the solver. The decl
 /// must be the fully qualified name of the proof inside that file.
 fn cmd_submit(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
     let id = req(args, "--id");
-    let hole_id = req(args, "--hole");
+    let sorry_id = req(args, "--sorry");
     let solver = req(args, "--solver");
     let decl = req(args, "--decl");
     // Remote mode: send the claim (and the proof file, if any) to the
@@ -830,17 +838,17 @@ fn cmd_submit(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
     // the verdict - submit and verify in one call.
     if let Some(url) = remote() {
         let state = State::fold(load(log_path));
-        let Some(hole) = state.holes.get(&hole_id) else {
-            // The classic trap: a demo-dataset hole exists in the local log
+        let Some(sorry) = state.sorries.get(&sorry_id) else {
+            // The classic trap: a demo-dataset sorry exists in the local log
             // but not on the public registry. Say so instead of "unknown".
             let local = State::fold(load(&root.join("registry/data/events.jsonl")));
-            if local.holes.contains_key(&hole_id) {
-                ui::die(&format!("{hole_id} exists in your local log but not on {url} - \
+            if local.sorries.contains_key(&sorry_id) {
+                ui::die(&format!("{sorry_id} exists in your local log but not on {url} - \
                     it is demo/local data; re-run with --local to work against your local registry"));
             }
-            ui::die(&format!("unknown hole: {hole_id}"));
+            ui::die(&format!("unknown sorry: {sorry_id}"));
         };
-        let (_, root_import) = env_of(root, hole);
+        let (_, root_import) = env_of(root, sorry);
         let (module, file_b64) = match opt(args, "--file") {
             Some(file) => {
                 let bytes = std::fs::read(&file).unwrap_or_else(|e| {
@@ -851,7 +859,7 @@ fn cmd_submit(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
             None => (None, None),
         };
         let event = Event::Submit {
-            id: id.clone(), hole: hole_id.clone(), solver, decl, module,
+            id: id.clone(), sorry: sorry_id.clone(), solver, decl, module,
         };
         let sig = sign_event(log_path, &event);
         let mut body = serde_json::json!({ "event": event, "sig": sig });
@@ -868,10 +876,10 @@ fn cmd_submit(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
     }
     let module = opt(args, "--file").map(|file| {
         let state = State::fold(load(log_path));
-        let Some(hole) = state.holes.get(&hole_id) else {
-            ui::die(&format!("unknown hole: {hole_id}"));
+        let Some(sorry) = state.sorries.get(&sorry_id) else {
+            ui::die(&format!("unknown sorry: {sorry_id}"));
         };
-        let (lean_dir, root_import) = env_of(root, hole);
+        let (lean_dir, root_import) = env_of(root, sorry);
         require_env_ready(&lean_dir, root_import);
         let module = submission_module(root_import, &id);
         let dest = lean_dir.join(module.replace('.', "/") + ".lean");
@@ -900,7 +908,7 @@ fn cmd_submit(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
         module
     });
     append(log_path, Event::Submit {
-        id: id.clone(), hole: hole_id.clone(), solver, decl, module,
+        id: id.clone(), sorry: sorry_id.clone(), solver, decl, module,
     });
     // With a remote configured, a bare `razor verify` would go there and
     // not find this local submission - the hint must carry the --local.
@@ -909,38 +917,38 @@ fn cmd_submit(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
         ui::dim(&format!("- next: razor verify {local}--submission {id}"))));
 }
 
-/// Migrate a hole's pinned statement to a new wording. The registry only
+/// Migrate a sorry's pinned statement to a new wording. The registry only
 /// accepts the repin if `--equiv-decl` kernel-checks as a proof of
-/// `new ↔ old` in the hole's environment; the old wording, the new wording,
-/// and the equivalence stay on the log. This is how a hole survives library
+/// `new ↔ old` in the sorry's environment; the old wording, the new wording,
+/// and the equivalence stay on the log. This is how a sorry survives library
 /// churn (Mathlib renames, definition refactors) without losing its
 /// history: proofs admitted against the old wording remain valid because
 /// the equivalence is itself a checked theorem.
 fn cmd_repin(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
-    let hole_id = req(args, "--hole");
+    let sorry_id = req(args, "--sorry");
     let author = req(args, "--author");
     let new_type = req(args, "--lean-type");
     let equiv = req(args, "--equiv-decl");
     let note = opt(args, "--note").unwrap_or_default();
     let state = State::fold(load(log_path));
-    let Some(hole) = state.holes.get(&hole_id) else {
-        ui::die(&format!("unknown hole: {hole_id}"));
+    let Some(sorry) = state.sorries.get(&sorry_id) else {
+        ui::die(&format!("unknown sorry: {sorry_id}"));
     };
-    let old_type = hole.lean_type.clone();
+    let old_type = sorry.lean_type.clone();
     if old_type == new_type {
         ui::die("the new wording is identical to the current one");
     }
-    let (lean_dir, root_import) = env_of(root, hole);
+    let (lean_dir, root_import) = env_of(root, sorry);
     require_env_ready(&lean_dir, root_import);
-    ui::step(&format!("repinning {} {}", ui::cyan(&hole_id), ui::dim("- equivalence must kernel-check")));
+    ui::step(&format!("repinning {} {}", ui::cyan(&sorry_id), ui::dim("- equivalence must kernel-check")));
     ui::kv("old", &old_type);
     ui::kv("new", &new_type);
     ui::kv("equiv", &equiv);
     let iff_type = format!("({new_type}) ↔ ({old_type})");
     let module = find_decl_module(&lean_dir, root_import, &equiv);
-    let v = verify::verify(&lean_dir, root_import, &iff_type, &equiv, &hole.allowed_axioms, module.as_deref());
+    let v = verify::verify(&lean_dir, root_import, &iff_type, &equiv, &sorry.allowed_axioms, module.as_deref());
     ui::verdict(v.admitted, if v.admitted {
-        "wordings are provably equivalent; hole repinned"
+        "wordings are provably equivalent; sorry repinned"
     } else {
         &v.detail
     });
@@ -948,7 +956,7 @@ fn cmd_repin(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
         std::process::exit(1);
     }
     append(log_path, Event::Repin {
-        hole: hole_id.clone(), author, lean_type: new_type, equiv_decl: equiv, note,
+        sorry: sorry_id.clone(), author, lean_type: new_type, equiv_decl: equiv, note,
     });
     ui::kv("kept", &ui::dim("old wording + equivalence proof stay on the log; prior admissions remain valid"));
 }
@@ -1015,13 +1023,13 @@ fn log_hash_through(log_path: &PathBuf, seq: u64) -> String {
     format!("{:x}", h.finalize())
 }
 
-/// Emit a BibTeX citation for a hole or a submission. The citation pins the
+/// Emit a BibTeX citation for a sorry or a submission. The citation pins the
 /// event's sequence number and a hash of the log up to it, so the cited
 /// fact is checkable: anyone with the log can recompute the hash and re-run
 /// the verification.
 fn cmd_cite(log_path: &PathBuf, id: &str) {
     if id.is_empty() {
-        ui::die("usage: razor cite <hole-or-submission-id>");
+        ui::die("usage: razor cite <sorry-or-submission-id>");
     }
     let mut state = State::fold(load(log_path));
     state.aggregate_people();
@@ -1031,9 +1039,9 @@ fn cmd_cite(log_path: &PathBuf, id: &str) {
             .unwrap_or_else(|| handle.to_string())
     };
     // A submission: cite the proof.
-    let as_sub = state.holes.values()
+    let as_sub = state.sorries.values()
         .find_map(|h| h.submissions.iter().find(|s| s.id == id).map(|s| (h, s)));
-    let (key, title, author, seq, note) = if let Some((hole, sub)) = as_sub {
+    let (key, title, author, seq, note) = if let Some((sorry, sub)) = as_sub {
         let seq = state.events.iter().find(|e| matches!(&e.event,
             Event::Submit { id: sid, .. } | Event::Commit { id: sid, .. } if sid == id))
             .map(|e| e.seq)
@@ -1044,32 +1052,32 @@ fn cmd_cite(log_path: &PathBuf, id: &str) {
             None => "not yet verified".to_string(),
         };
         (format!("razor-{id}"),
-         format!("A machine-checked proof of {}: {}", hole.id, hole.title),
+         format!("A machine-checked proof of {}: {}", sorry.id, sorry.title),
          display_of(&sub.solver),
          seq,
-         format!("{status}; pinned statement: {}", hole.lean_type))
-    } else if let Some(hole) = state.holes.get(id) {
+         format!("{status}; pinned statement: {}", sorry.lean_type))
+    } else if let Some(sorry) = state.sorries.get(id) {
         let seq = state.events.iter().find(|e| matches!(&e.event,
-            Event::RegisterHole { id: hid, .. } if hid == id))
+            Event::RegisterSorry { id: hid, .. } if hid == id))
             .map(|e| e.seq)
             .unwrap_or(0);
-        // Whoever pinned the hole is its author; the proposal's author is
-        // the fallback for holes from before the field existed.
-        let author = hole.registered_by.as_ref().map(|h| display_of(h))
-            .or_else(|| hole.proposal.as_ref()
+        // Whoever pinned the sorry is its author; the proposal's author is
+        // the fallback for sorries from before the field existed.
+        let author = sorry.registered_by.as_ref().map(|h| display_of(h))
+            .or_else(|| sorry.proposal.as_ref()
                 .and_then(|p| state.proposals.get(p))
                 .map(|p| display_of(&p.author)))
             .unwrap_or_else(|| "the registry".into());
-        let status = match hole.status.as_str() {
-            "solved" => format!("solved (submission {})", hole.solved_by.clone().unwrap_or_default()),
+        let status = match sorry.status.as_str() {
+            "solved" => format!("solved (submission {})", sorry.solved_by.clone().unwrap_or_default()),
             s => s.to_string(),
         };
         (format!("razor-{id}"),
-         format!("{}: {}", hole.id, hole.title),
+         format!("{}: {}", sorry.id, sorry.title),
          author, seq,
-         format!("{status}; pinned Lean statement: {}", hole.lean_type))
+         format!("{status}; pinned Lean statement: {}", sorry.lean_type))
     } else {
-        ui::die(&format!("unknown hole or submission: {id}"));
+        ui::die(&format!("unknown sorry or submission: {id}"));
     };
     let ts = state.events.get(seq as usize).map(|e| e.ts).unwrap_or(0);
     let hash = log_hash_through(log_path, seq);
@@ -1086,23 +1094,23 @@ fn cmd_cite(log_path: &PathBuf, id: &str) {
 fn cmd_zk_verify(root: &PathBuf, log_path: &PathBuf, submission: &str) {
     let state = State::fold(load(log_path));
     // The full proof lives on the log; state keeps only a prefix.
-    let (hole_id, route_id, solver, public, proof) = state
+    let (sorry_id, route_id, solver, public, proof) = state
         .events
         .iter()
         .find_map(|e| match &e.event {
-            Event::ZkSubmit { id, hole, route, solver, public, proof } if id == submission => {
-                Some((hole.clone(), route.clone(), solver.clone(), public.clone(), proof.clone()))
+            Event::ZkSubmit { id, sorry, route, solver, public, proof } if id == submission => {
+                Some((sorry.clone(), route.clone(), solver.clone(), public.clone(), proof.clone()))
             }
             _ => None,
         })
         .unwrap_or_else(|| {
             ui::die(&format!("unknown zk submission: {submission}"));
         });
-    let hole = state.holes.get(&hole_id).expect("hole for submission");
-    let route = hole.zk_routes.iter().find(|r| r.id == route_id).unwrap_or_else(|| {
-        ui::die(&format!("hole {hole_id} has no zk route {route_id}"));
+    let sorry = state.sorries.get(&sorry_id).expect("sorry for submission");
+    let route = sorry.zk_routes.iter().find(|r| r.id == route_id).unwrap_or_else(|| {
+        ui::die(&format!("sorry {sorry_id} has no zk route {route_id}"));
     });
-    ui::step(&format!("verifying {} {} {}", ui::bold(submission), ui::dim("against"), ui::cyan(&hole_id)));
+    ui::step(&format!("verifying {} {} {}", ui::bold(submission), ui::dim("against"), ui::cyan(&sorry_id)));
     ui::kv("vk", &format!("{}…  {}", &route.vk_hash[..16], ui::dim(&format!("({} constraints)", route.constraints))));
     ui::kv("bridge", &format!("{} {}", ui::dim(&format!("[{}]", route.bridge_kind)), route.bridge));
     let zk = root.join("target/release/zk-prover");
@@ -1118,8 +1126,8 @@ fn cmd_zk_verify(root: &PathBuf, log_path: &PathBuf, submission: &str) {
         .and_then(|v| v["reason"].as_str().map(String::from))
         .unwrap_or(raw);
     ui::verdict(admitted, if admitted { "the witness was never seen" } else { &detail });
-    let pool = hole.pool;
-    let already_solved = hole.status == "solved";
+    let pool = sorry.pool;
+    let already_solved = sorry.status == "solved";
     append(log_path, Event::Verdict {
         submission: submission.into(),
         admitted,
@@ -1129,10 +1137,10 @@ fn cmd_zk_verify(root: &PathBuf, log_path: &PathBuf, submission: &str) {
     });
     if admitted && !already_solved && pool > 0 {
         append(log_path, Event::Payout {
-            target: hole_id.clone(),
+            target: sorry_id.clone(),
             recipient: solver,
             amount: pool,
-            reason: format!("first admitted zk solution of {hole_id}"),
+            reason: format!("first admitted zk solution of {sorry_id}"),
         });
     }
 }
@@ -1147,7 +1155,7 @@ pub struct VerifyOutcome {
 }
 
 /// The verification core, shared by the CLI and the serve API: kernel-check
-/// a revealed submission against its hole's pinned statement, record the
+/// a revealed submission against its sorry's pinned statement, record the
 /// verdict (and the payout, when a bounty is taken) on the log. Appends run
 /// under `log_lock`; the kernel check itself does not hold it.
 fn verify_and_record(
@@ -1157,8 +1165,8 @@ fn verify_and_record(
     log_lock: &std::sync::Mutex<()>,
 ) -> Result<VerifyOutcome, String> {
     let state = State::fold(load(log_path));
-    let Some((hole, sub)) = state
-        .holes
+    let Some((sorry, sub)) = state
+        .sorries
         .values()
         .find_map(|h| h.submissions.iter().find(|s| s.id == submission).map(|s| (h, s)))
     else {
@@ -1167,19 +1175,19 @@ fn verify_and_record(
     if !sub.revealed {
         return Err(format!("{} is committed but not yet revealed - nothing to verify", sub.id));
     }
-    ui::step(&format!("verifying {} {} {}", ui::bold(&sub.id), ui::dim("against"), ui::cyan(&hole.id)));
+    ui::step(&format!("verifying {} {} {}", ui::bold(&sub.id), ui::dim("against"), ui::cyan(&sorry.id)));
     ui::kv("claims", &sub.decl);
-    ui::kv("pinned", &hole.lean_type);
-    // Pick the verification environment the hole was registered with.
-    let (lean_dir, root_import) = env_of(root, hole);
+    ui::kv("pinned", &sorry.lean_type);
+    // Pick the verification environment the sorry was registered with.
+    let (lean_dir, root_import) = env_of(root, sorry);
     if root_import == "RazorMathlib" && !lean_dir.join(".lake/packages/mathlib").exists() {
-        return Err("this hole verifies in the Mathlib environment, which has not been fetched yet - \
+        return Err("this sorry verifies in the Mathlib environment, which has not been fetched yet - \
             run ./mathlib-env.sh once (several GB of prebuilt cache), then retry".into());
     }
     let module = sub.module.clone()
         .or_else(|| find_decl_module(&lean_dir, root_import, &sub.decl));
     let t0 = std::time::Instant::now();
-    let v = verify::verify(&lean_dir, root_import, &hole.lean_type, &sub.decl, &hole.allowed_axioms, module.as_deref());
+    let v = verify::verify(&lean_dir, root_import, &sorry.lean_type, &sub.decl, &sorry.allowed_axioms, module.as_deref());
     let cost_ms = t0.elapsed().as_millis() as u64;
     // Infrastructure failures (no toolchain, no container runtime) are not
     // verdicts; nothing is recorded and the caller sees why.
@@ -1190,10 +1198,10 @@ fn verify_and_record(
     ui::kv("kernel", &format!("{cost_ms} ms"));
     ui::verdict(v.admitted, if v.admitted { "" } else { &v.detail });
     let recipient = sub.solver.clone();
-    let hole_id = hole.id.clone();
-    let pool = hole.pool;
-    let already_solved = hole.status == "solved";
-    let pinned = hole.lean_type.clone();
+    let sorry_id = sorry.id.clone();
+    let pool = sorry.pool;
+    let already_solved = sorry.status == "solved";
+    let pinned = sorry.lean_type.clone();
     let outcome = VerifyOutcome {
         admitted: v.admitted,
         axioms: v.axioms.clone(),
@@ -1214,10 +1222,10 @@ fn verify_and_record(
     // adjudication - the funder took the fidelity risk when they funded it.
     if outcome.payout > 0 {
         append_entry(log_path, Event::Payout {
-            target: hole_id.clone(),
+            target: sorry_id.clone(),
             recipient,
             amount: pool,
-            reason: format!("first admitted proof of {hole_id}, exactly as pinned"),
+            reason: format!("first admitted proof of {sorry_id}, exactly as pinned"),
         }, None);
     }
     Ok(outcome)
@@ -1257,7 +1265,7 @@ fn cmd_verify(root: &PathBuf, log_path: &PathBuf, submission: &str) {
                 // local log (a --local submit), not on the remote.
                 if e.contains("unknown submission") {
                     let local = State::fold(load(&root.join("registry/data/events.jsonl")));
-                    if local.holes.values().any(|h| h.submissions.iter().any(|s| s.id == submission)) {
+                    if local.sorries.values().any(|h| h.submissions.iter().any(|s| s.id == submission)) {
                         ui::die(&format!("{submission} exists on your local log but not on {url} - \
                             it was submitted with --local; re-run: razor verify --local --submission {submission}"));
                     }
@@ -1298,11 +1306,11 @@ fn event_sig_status(entries: &[Entry], seq: u64) -> Option<bool> {
         if e.seq == seq {
             let actor = e.event.actor()?;
             let vk = keys.get(actor)?;
-            let msg = serde_json::to_string(&e.event).unwrap();
             return Some(e.sig.as_deref()
                 .and_then(bytes_of_hex)
                 .and_then(|b| <[u8; 64]>::try_from(b).ok())
-                .map(|b| vk.verify(msg.as_bytes(), &Signature::from_bytes(&b)).is_ok())
+                .map(|b| model::canonical_forms(&e.event).iter()
+                    .any(|msg| vk.verify(msg.as_bytes(), &Signature::from_bytes(&b)).is_ok()))
                 .unwrap_or(false));
         }
     }
@@ -1317,8 +1325,8 @@ fn event_sig_status(entries: &[Entry], seq: u64) -> Option<bool> {
 /// reading one line.
 fn cmd_recheck(root: &PathBuf, log_path: &PathBuf, submission: &str) {
     let state = State::fold(load(log_path));
-    let (hole, sub) = state
-        .holes
+    let (sorry, sub) = state
+        .sorries
         .values()
         .find_map(|h| h.submissions.iter().find(|s| s.id == submission).map(|s| (h, s)))
         .unwrap_or_else(|| {
@@ -1340,9 +1348,9 @@ fn cmd_recheck(root: &PathBuf, log_path: &PathBuf, submission: &str) {
         .map(|e| e.seq)
         .unwrap_or_else(|| ui::die(&format!("no claim event for {submission}")));
     ui::step(&format!("rechecking {} {} {} {}", ui::bold(&sub.id), ui::dim("against"),
-        ui::cyan(&hole.id), ui::dim("(read-only - the log is not touched)")));
+        ui::cyan(&sorry.id), ui::dim("(read-only - the log is not touched)")));
     ui::kv("claims", &sub.decl);
-    ui::kv("pinned", &hole.lean_type);
+    ui::kv("pinned", &sorry.lean_type);
     ui::kv("recorded", &format!("{} at event {vseq}",
         if *recorded { ui::green("admitted") } else { ui::red("rejected") }));
     ui::kv("log hash", &format!("{} {}", log_hash_through(log_path, vseq),
@@ -1358,7 +1366,7 @@ fn cmd_recheck(root: &PathBuf, log_path: &PathBuf, submission: &str) {
             format!("none - @{} has no registered account (open participation)", sub.solver)
         }),
     });
-    let (lean_dir, root_import) = env_of(root, hole);
+    let (lean_dir, root_import) = env_of(root, sorry);
     require_env_ready(&lean_dir, root_import);
     let module = sub.module.clone()
         .or_else(|| find_decl_module(&lean_dir, root_import, &sub.decl));
@@ -1389,8 +1397,8 @@ fn cmd_recheck(root: &PathBuf, log_path: &PathBuf, submission: &str) {
         }
     }
     let t0 = std::time::Instant::now();
-    let v = verify::verify(&lean_dir, root_import, &hole.lean_type, &sub.decl,
-        &hole.allowed_axioms, module.as_deref());
+    let v = verify::verify(&lean_dir, root_import, &sorry.lean_type, &sub.decl,
+        &sorry.allowed_axioms, module.as_deref());
     ui::kv("axioms", &if v.axioms.is_empty() { ui::dim("none") } else { v.axioms.join(", ") });
     ui::kv("kernel", &format!("{} ms", t0.elapsed().as_millis()));
     ui::verdict(v.admitted, if v.admitted { "" } else { &v.detail });
@@ -1408,30 +1416,30 @@ fn cmd_recheck(root: &PathBuf, log_path: &PathBuf, submission: &str) {
 /// the contribution: a self-contained .lean file holding the proof source
 /// under a provenance header that pins the registry facts (submission,
 /// verdict event, log hash), ready to adapt into a Mathlib pull request.
-/// With --pr it records where the proof landed; the hole then shows as
+/// With --pr it records where the proof landed; the sorry then shows as
 /// upstreamed everywhere. The registry measures itself by upstreamed
 /// proofs, not admitted ones: a proof is only useful where people build on
 /// it.
 fn cmd_upstream(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
-    let hole_id = req(args, "--hole");
+    let sorry_id = req(args, "--sorry");
     let state = State::fold(load(log_path));
-    let Some(hole) = state.holes.get(&hole_id) else {
-        ui::die(&format!("unknown hole: {hole_id}"));
+    let Some(sorry) = state.sorries.get(&sorry_id) else {
+        ui::die(&format!("unknown sorry: {sorry_id}"));
     };
     if let Some(pr) = opt(args, "--pr") {
         append(log_path, Event::Upstream {
-            hole: hole_id.clone(), by: req(args, "--by"), pr_url: pr.clone(),
+            sorry: sorry_id.clone(), by: req(args, "--by"), pr_url: pr.clone(),
             note: opt(args, "--note").unwrap_or_default(),
         });
-        ui::step(&format!("recorded: {} upstreamed {}", ui::cyan(&hole_id), ui::dim(&format!("- {pr}"))));
+        ui::step(&format!("recorded: {} upstreamed {}", ui::cyan(&sorry_id), ui::dim(&format!("- {pr}"))));
         return;
     }
-    if hole.status != "solved" {
-        ui::die(&format!("{hole_id} is still open - only an admitted proof can be upstreamed"));
+    if sorry.status != "solved" {
+        ui::die(&format!("{sorry_id} is still open - only an admitted proof can be upstreamed"));
     }
-    let solved_by = hole.solved_by.clone().unwrap_or_default();
-    let Some(sub) = hole.submissions.iter().find(|s| s.id == solved_by) else {
-        ui::die(&format!("{hole_id} was solved by a zero-knowledge submission - there is no proof text to upstream"));
+    let solved_by = sorry.solved_by.clone().unwrap_or_default();
+    let Some(sub) = sorry.submissions.iter().find(|s| s.id == solved_by) else {
+        ui::die(&format!("{sorry_id} was solved by a zero-knowledge submission - there is no proof text to upstream"));
     };
     let vseq = state.events.iter().rev()
         .find(|e| matches!(&e.event, Event::Verdict { submission: s, .. } if *s == sub.id))
@@ -1440,7 +1448,7 @@ fn cmd_upstream(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
     let solver = state.accounts.get(&sub.solver)
         .map(|a| format!("{} (@{})", a.display, a.handle))
         .unwrap_or_else(|| sub.solver.clone());
-    let (lean_dir, _) = env_of(root, hole);
+    let (lean_dir, _) = env_of(root, sorry);
     // The proof source: the installed module file if the proof arrived as
     // one, otherwise the declaration's source from the package index.
     let source = sub.module.as_ref()
@@ -1452,37 +1460,37 @@ fn cmd_upstream(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
             if !ns.is_empty() { s.push_str(&format!("\n\nend {ns}")); }
             s
         }));
-    let target = if hole.env.as_deref() == Some("mathlib") { "Mathlib" } else { "its home library" };
+    let target = if sorry.env.as_deref() == Some("mathlib") { "Mathlib" } else { "its home library" };
     let mut text = format!(
         "/-\n{}: {}\n\nProved by {}, admitted by kernel check in the Satoshi's Razor registry.\n\
          Provenance: submission {}, verdict event {}, log sha256 through that\n\
          event: {}.\n\
          Independent recheck: razor recheck --submission {}\n\
          Pinned statement: {}\n-/\n\n",
-        hole.id, hole.title, solver, sub.id, vseq, hash, sub.id, hole.lean_type);
+        sorry.id, sorry.title, solver, sub.id, vseq, hash, sub.id, sorry.lean_type);
     match source {
         Some(src) => text.push_str(&src),
         None => text.push_str(&format!(
             "-- The proof lives at {} in the registry's Lean package; inline it here.\n\
              theorem {} : {} := {}\n",
             sub.decl,
-            hole.id.to_lowercase().replace(|c: char| !c.is_ascii_alphanumeric(), "_"),
-            hole.lean_type, sub.decl)),
+            sorry.id.to_lowercase().replace(|c: char| !c.is_ascii_alphanumeric(), "_"),
+            sorry.lean_type, sub.decl)),
     }
     if !text.ends_with('\n') { text.push('\n'); }
-    let out = opt(args, "--out").unwrap_or_else(|| format!("upstream/{hole_id}.lean"));
+    let out = opt(args, "--out").unwrap_or_else(|| format!("upstream/{sorry_id}.lean"));
     let dest = root.join(&out);
     std::fs::create_dir_all(dest.parent().unwrap()).ok();
     std::fs::write(&dest, &text).unwrap_or_else(|e| ui::die(&format!("cannot write {out}: {e}")));
     ui::step(&format!("drafted {} {}", ui::bold(&out), ui::dim(&format!("- a contribution draft for {target}, with registry provenance"))));
     ui::kv("next", &ui::dim(&format!("adapt naming/placement to {target}'s conventions and open the PR")));
-    ui::kv("then", &ui::dim(&format!("razor upstream --hole {hole_id} --pr <url> --by <you>  (records it; the hole shows as upstreamed)")));
+    ui::kv("then", &ui::dim(&format!("razor upstream --sorry {sorry_id} --pr <url> --by <you>  (records it; the sorry shows as upstreamed)")));
 }
 
 /// Emit the frontier as machine-consumable proving targets: one JSON
-/// object per open hole, in the shape prover benchmarks (miniF2F and its
+/// object per open sorry, in the shape prover benchmarks (miniF2F and its
 /// descendants) already consume - a header, a formal statement ending in
-/// sorry, and the informal text it came from, plus the hole's recorded
+/// sorry, and the informal text it came from, plus the sorry's recorded
 /// fidelity facts. This is how the frontier flows to where the provers
 /// are; a claimed solve comes back through razor submit / verify /
 /// recheck.
@@ -1493,7 +1501,7 @@ fn cmd_export_benchmark(log_path: &PathBuf, args: &[String]) {
     let all = args.iter().any(|a| a == "--all");
     let index = lean_decl_index(&repo_root());
     let mut lines: Vec<String> = vec![];
-    for h in state.holes.values() {
+    for h in state.sorries.values() {
         if !all && h.status != "open" { continue; }
         // The header a consumer needs: when the pinned type only uses names
         // the underlying library itself defines (e.g. Mathlib's own
@@ -1630,8 +1638,8 @@ fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed: u64, 
     print_leaderboards(&State::fold(load(log_path)), Some(challenge_id));
 }
 
-/// Register a split: one named way of reducing a parent hole to child
-/// holes. The children must already be registered holes; the glue hole is
+/// Register a split: one named way of reducing a parent sorry to child
+/// sorries. The children must already be registered sorries; the glue sorry is
 /// created here, with its statement composed mechanically from the pinned
 /// types - `(child 1) → ... → (child n) → parent` - so there is nothing
 /// for the splitter to get subtly wrong. Proving the glue (through the
@@ -1646,13 +1654,13 @@ fn cmd_split(log_path: &PathBuf, args: &[String]) {
         ui::die("a split needs at least one --child");
     }
     let state = State::fold(load(log_path));
-    let Some(parent) = state.holes.get(&parent_id) else {
-        ui::die(&format!("unknown parent hole: {parent_id}"));
+    let Some(parent) = state.sorries.get(&parent_id) else {
+        ui::die(&format!("unknown parent sorry: {parent_id}"));
     };
     let mut glue_type = String::new();
     for c in &children {
-        let Some(ch) = state.holes.get(c) else {
-            ui::die(&format!("unknown child hole: {c} (register it with `razor hole` first)"));
+        let Some(ch) = state.sorries.get(c) else {
+            ui::die(&format!("unknown child sorry: {c} (register it with `razor sorry` first)"));
         };
         if ch.env != parent.env {
             ui::die(&format!("child {c} verifies in a different environment than {parent_id}; a split cannot cross environments"));
@@ -1661,7 +1669,7 @@ fn cmd_split(log_path: &PathBuf, args: &[String]) {
     }
     glue_type.push_str(&parent.lean_type);
     let glue_id = format!("{id}-glue");
-    append(log_path, Event::RegisterHole {
+    append(log_path, Event::RegisterSorry {
         id: glue_id.clone(),
         title: format!("glue of split {id}: children jointly imply {parent_id}"),
         statement: String::new(),
@@ -1680,7 +1688,7 @@ fn cmd_split(log_path: &PathBuf, args: &[String]) {
         ui::bold(&id), ui::cyan(&parent_id), ui::dim("←"), children.join(", ")));
     ui::kv("glue", &ui::cyan(&glue_id));
     ui::kv("pinned", &glue_type);
-    ui::kv("next", &ui::dim(&format!("prove it and verify like any hole: razor submit --hole {glue_id} …")));
+    ui::kv("next", &ui::dim(&format!("prove it and verify like any sorry: razor submit --sorry {glue_id} …")));
 }
 
 fn cmd_status(log_path: &PathBuf) {
@@ -1748,8 +1756,8 @@ fn cmd_status(log_path: &PathBuf) {
             ui::dim(&format!("certs {} · converges {} · implies {}",
                 s.certificates.len(), s.convergences.len(), s.implies.len())));
     }
-    ui::section("holes", Some(state.holes.len()));
-    for h in state.holes.values() {
+    ui::section("sorries", Some(state.sorries.len()));
+    for h in state.sorries.values() {
         let extra = match h.status.as_str() {
             "solved" => format!("  {}", ui::dim(&format!("by {}", h.solved_by.clone().unwrap_or_default()))),
             _ => String::new(),
@@ -1868,15 +1876,15 @@ fn export_string(log_path: &PathBuf, dataset: &str) -> (String, usize) {
     state.aggregate_fidelity();
     state.aggregate_splits();
     state.aggregate_people();
-    // Attach the Lean source of each hole's pinned definitions, so the site
+    // Attach the Lean source of each sorry's pinned definitions, so the site
     // shows what a name unfolds to instead of just the name.
     let index = lean_decl_index(&repo_root());
-    for h in state.holes.values_mut() {
+    for h in state.sorries.values_mut() {
         h.lean_source = resolve_lean_sources(&index, &h.lean_type);
         if h.env.as_deref() == Some("mathlib") {
             // Identifiers in the pinned type that resolve in Mathlib rather
             // than locally: the site links each to the Mathlib docs. When
-            // *nothing* in the type is local, the hole pins Mathlib's own
+            // *nothing* in the type is local, the sorry pins Mathlib's own
             // statement - the strongest fidelity fact there is.
             let idents = lean_idents(&h.lean_type);
             h.fidelity.canonical = !idents.iter().any(|w| index.contains_key(w));
@@ -1900,14 +1908,14 @@ fn export_string(log_path: &PathBuf, dataset: &str) -> (String, usize) {
         }
     }
     // Attach each verdict's log position and the log hash through it, so a
-    // hole page can show the exact `razor recheck` / `razor cite` facts.
+    // sorry page can show the exact `razor recheck` / `razor cite` facts.
     let verdict_seqs: std::collections::HashMap<String, u64> = state.events.iter()
         .filter_map(|e| match &e.event {
             Event::Verdict { submission, .. } => Some((submission.clone(), e.seq)),
             _ => None,
         })
         .collect();
-    for h in state.holes.values_mut() {
+    for h in state.sorries.values_mut() {
         for s in h.submissions.iter_mut() {
             if let Some(&seq) = verdict_seqs.get(&s.id) {
                 s.verdict_seq = Some(seq);
@@ -2054,7 +2062,7 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
                         };
                         // Detail pages set their titles from data.json in the
                         // browser, which link-preview crawlers never run. For
-                        // hole.html?id=X etc, stamp the entity's title and a
+                        // sorry.html?id=X etc, stamp the entity's title and a
                         // description into the served HTML so a shared link
                         // shows the mathematics, not the generic page name.
                         let bytes = match (ctype.starts_with("text/html"), query.and_then(query_id)) {
@@ -2110,7 +2118,7 @@ fn detail_meta(log_path: &PathBuf, rel: &str, id: &str) -> Option<(String, Strin
     let mut state = State::fold(load(log_path));
     let brand = |t: String| format!("{t} — Satoshi's Razor");
     match rel {
-        "hole.html" => state.holes.get(id).map(|h| (
+        "sorry.html" => state.sorries.get(id).map(|h| (
             brand(format!("{}: {}", h.id, h.title)),
             format!("{} · a solution must prove exactly: {}", h.status, h.lean_type),
         )),
@@ -2162,7 +2170,7 @@ fn stamp_meta(html: String, title: &str, desc: &str) -> String {
 // A pinned type like "Razor.Frontier.FLT" is a *name*; the reader must be
 // able to see what it unfolds to. These functions build an index of every
 // declaration in the Lean packages (fully qualified name -> source text,
-// including the doc comment) and resolve a hole's pinned type to the
+// including the doc comment) and resolve a sorry's pinned type to the
 // definitions it mentions, transitively.
 
 const LEAN_DECL_KEYWORDS: [&str; 6] = ["def ", "theorem ", "abbrev ", "structure ", "inductive ", "lemma "];
@@ -2476,7 +2484,7 @@ static APPEND_QUIET: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBo
 
 const REMOTE_CMDS: &[&str] = &[
     "propose", "formalize", "seal-statement", "reveal-statement", "round", "bridge",
-    "hole", "split", "curate", "tag", "supersede", "fund", "commit", "submit", "verify",
+    "sorry", "split", "curate", "tag", "supersede", "fund", "commit", "submit", "verify",
     "account", "status", "profile", "cite", "verify-log", "log", "recheck",
     // The anvil: challenges, lanes, rigs, and scores are ordinary log events.
     // Measurements happen on the rig owner's machine; what the remote gets is
@@ -2683,11 +2691,11 @@ fn cmd_verify_log(log_path: &PathBuf) {
         }
         let Some(actor) = e.event.actor() else { continue };
         let Some(vk) = keys.get(actor) else { open += 1; continue };
-        let msg = serde_json::to_string(&e.event).unwrap();
         let ok = e.sig.as_deref()
             .and_then(bytes_of_hex)
             .and_then(|b| <[u8; 64]>::try_from(b).ok())
-            .map(|b| vk.verify(msg.as_bytes(), &Signature::from_bytes(&b)).is_ok())
+            .map(|b| model::canonical_forms(&e.event).iter()
+                .any(|msg| vk.verify(msg.as_bytes(), &Signature::from_bytes(&b)).is_ok()))
             .unwrap_or(false);
         if ok {
             signed += 1;
@@ -2761,7 +2769,7 @@ const CMD_SPECS: &[CmdSpec] = &[
         flags: &["--a", "--b", "--decl"] },
     CmdSpec { name: "implies", usage: "razor implies --a S1 --b S2 --decl D",
         flags: &["--a", "--b", "--decl"] },
-    CmdSpec { name: "hole", usage: "razor hole --id H --title T --lean-type TY [--author A --proposal P --env mathlib --statement S --allow-axiom AX --unchecked]",
+    CmdSpec { name: "sorry", usage: "razor sorry --id H --title T --lean-type TY [--author A --proposal P --env mathlib --statement S --allow-axiom AX --unchecked]",
         flags: &["--id", "--title", "--lean-type", "--author", "--proposal", "--env", "--statement", "--allow-axiom"] },
     CmdSpec { name: "round", usage: "razor round --id R --proposal P --author A (--days N | --closes-at TS) [--reveal-days N | --reveal-by TS] [--note N]",
         flags: &["--id", "--proposal", "--author", "--days", "--closes-at", "--reveal-days", "--reveal-by", "--note"] },
@@ -2773,45 +2781,45 @@ const CMD_SPECS: &[CmdSpec] = &[
         flags: &["--id", "--a", "--b", "--author", "--by", "--title", "--env", "--allow-axiom"] },
     CmdSpec { name: "split", usage: "razor split --id SPL --parent H --author A --child C [--child C2 ...] [--note N]",
         flags: &["--id", "--parent", "--author", "--child", "--note"] },
-    CmdSpec { name: "submit", usage: "razor submit --id SUB --hole H --solver S --decl D [--file F.lean]",
-        flags: &["--id", "--hole", "--solver", "--decl", "--file"] },
-    CmdSpec { name: "repin", usage: "razor repin --hole H --author A --lean-type TY --equiv-decl D [--note N]",
-        flags: &["--hole", "--author", "--lean-type", "--equiv-decl", "--note"] },
+    CmdSpec { name: "submit", usage: "razor submit --id SUB --sorry H --solver S --decl D [--file F.lean]",
+        flags: &["--id", "--sorry", "--solver", "--decl", "--file"] },
+    CmdSpec { name: "repin", usage: "razor repin --sorry H --author A --lean-type TY --equiv-decl D [--note N]",
+        flags: &["--sorry", "--author", "--lean-type", "--equiv-decl", "--note"] },
     CmdSpec { name: "propose-batch", usage: "razor propose-batch --file F.jsonl --author A",
         flags: &["--file", "--author"] },
-    CmdSpec { name: "cite", usage: "razor cite <id>  (or --submission SUB / --hole H)",
-        flags: &["--submission", "--hole"] },
-    CmdSpec { name: "supersede", usage: "razor supersede --hole H --replacement H2 --author A [--note N]",
-        flags: &["--hole", "--replacement", "--author", "--by", "--note"] },
+    CmdSpec { name: "cite", usage: "razor cite <id>  (or --submission SUB / --sorry H)",
+        flags: &["--submission", "--sorry"] },
+    CmdSpec { name: "supersede", usage: "razor supersede --sorry H --replacement H2 --author A [--note N]",
+        flags: &["--sorry", "--replacement", "--author", "--by", "--note"] },
     CmdSpec { name: "challenge", usage: "razor challenge --id C --title T --spec-impl I --obligation O",
         flags: &["--id", "--title", "--spec-impl", "--obligation"] },
-    CmdSpec { name: "anvil-submit", usage: "razor anvil-submit --id A --challenge C --impl I --solver S [--proof-decl D --refinement-hole H]",
-        flags: &["--id", "--challenge", "--impl", "--solver", "--proof-decl", "--refinement-hole"] },
+    CmdSpec { name: "anvil-submit", usage: "razor anvil-submit --id A --challenge C --impl I --solver S [--proof-decl D --refinement-sorry H]",
+        flags: &["--id", "--challenge", "--impl", "--solver", "--proof-decl", "--refinement-sorry"] },
     CmdSpec { name: "curate", usage: "razor curate --curator A --target ID [--note N]",
         flags: &["--curator", "--target", "--note"] },
     CmdSpec { name: "tag", usage: "razor tag --target ID --tag LABEL --author A [--note N]",
         flags: &["--target", "--tag", "--author", "--by", "--note"] },
     CmdSpec { name: "fund", usage: "razor fund --target ID --amount N --funder A [--arch ARCH]",
-        flags: &["--target", "--hole", "--amount", "--funder", "--arch"] },
+        flags: &["--target", "--sorry", "--amount", "--funder", "--arch"] },
     CmdSpec { name: "rig", usage: "razor rig --id R --owner A --arch ARCH --tier T [--runner CMD --note N]",
         flags: &["--id", "--owner", "--arch", "--tier", "--runner", "--note"] },
     CmdSpec { name: "payout", usage: "razor payout --target ID --recipient A --amount N [--reason R]",
         flags: &["--target", "--recipient", "--amount", "--reason"] },
     CmdSpec { name: "seal", usage: "razor seal --file F --salt SALT",
         flags: &["--file", "--salt"] },
-    CmdSpec { name: "commit", usage: "razor commit --id SUB --hole H --solver S --commitment HASH",
-        flags: &["--id", "--hole", "--solver", "--commitment"] },
+    CmdSpec { name: "commit", usage: "razor commit --id SUB --sorry H --solver S --commitment HASH",
+        flags: &["--id", "--sorry", "--solver", "--commitment"] },
     CmdSpec { name: "reveal", usage: "razor reveal --submission SUB --file F --salt SALT --decl D",
         flags: &["--submission", "--file", "--salt", "--decl"] },
-    CmdSpec { name: "zk-route", usage: "razor zk-route --id R --hole H --bridge DECL [--bridge-kind theorem --n N --note NOTE]",
-        flags: &["--id", "--hole", "--bridge", "--bridge-kind", "--n", "--note"] },
-    CmdSpec { name: "zk-submit", usage: "razor zk-submit --id SUB --hole H --route R --solver S --public HEX --proof HEX",
-        flags: &["--id", "--hole", "--route", "--solver", "--public", "--proof"] },
+    CmdSpec { name: "zk-route", usage: "razor zk-route --id R --sorry H --bridge DECL [--bridge-kind theorem --n N --note NOTE]",
+        flags: &["--id", "--sorry", "--bridge", "--bridge-kind", "--n", "--note"] },
+    CmdSpec { name: "zk-submit", usage: "razor zk-submit --id SUB --sorry H --route R --solver S --public HEX --proof HEX",
+        flags: &["--id", "--sorry", "--route", "--solver", "--public", "--proof"] },
     CmdSpec { name: "zk-verify", usage: "razor zk-verify --submission SUB", flags: &["--submission"] },
     CmdSpec { name: "verify", usage: "razor verify --submission SUB", flags: &["--submission"] },
     CmdSpec { name: "recheck", usage: "razor recheck --submission SUB", flags: &["--submission"] },
-    CmdSpec { name: "upstream", usage: "razor upstream --hole H [--out F.lean | --pr URL --by A --note N]",
-        flags: &["--hole", "--out", "--pr", "--by", "--note"] },
+    CmdSpec { name: "upstream", usage: "razor upstream --sorry H [--out F.lean | --pr URL --by A --note N]",
+        flags: &["--sorry", "--out", "--pr", "--by", "--note"] },
     CmdSpec { name: "export-benchmark", usage: "razor export-benchmark [--out F.jsonl --all]",
         flags: &["--out"] },
     CmdSpec { name: "bench", usage: "razor bench --challenge C [--seed N --iters N --rig R]",

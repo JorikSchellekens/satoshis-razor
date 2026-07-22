@@ -18,7 +18,7 @@ def count (x : Nat) : List Nat → Nat
 /-- Two lists are permutations of each other iff every value occurs equally often. -/
 def Perm (l₁ l₂ : List Nat) : Prop := ∀ x, count x l₁ = count x l₂
 
-/-- Formalization A of sortedness (statement hole STM-102, author A):
+/-- Formalization A of sortedness (statement sorry STM-102, author A):
 each element is at most its successor. -/
 inductive SortedChain : List Nat → Prop
   | nil : SortedChain []
@@ -26,7 +26,7 @@ inductive SortedChain : List Nat → Prop
   | cons {x y : Nat} {ys : List Nat} :
       x ≤ y → SortedChain (y :: ys) → SortedChain (x :: y :: ys)
 
-/-- Formalization B of sortedness (statement hole STM-102, author B, independent):
+/-- Formalization B of sortedness (statement sorry STM-102, author B, independent):
 every pair of positions is ordered. -/
 def SortedPairs (l : List Nat) : Prop :=
   ∀ i j, (hi : i < l.length) → (hj : j < l.length) → i ≤ j → l[i] ≤ l[j]
@@ -36,7 +36,7 @@ def insert (x : Nat) : List Nat → List Nat
   | [] => [x]
   | y :: ys => if x ≤ y then x :: y :: ys else y :: insert x ys
 
-/-- Insertion sort: the submitted implementation for hole RZR-103v2. -/
+/-- Insertion sort: the submitted implementation for sorry RZR-103v2. -/
 def isort : List Nat → List Nat
   | [] => []
   | x :: xs => insert x (isort xs)

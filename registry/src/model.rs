@@ -46,8 +46,11 @@ pub enum Event {
     /// it contains enters the funnel as candidate statement `statement` -
     /// an ordinary Formalize, plus the provenance of its seal.
     RevealStatement { seal: String, statement: String, author: String, decl: String, #[serde(default)] gloss: String, #[serde(default)] notes: String },
-    /// A ratified hole: a pinned Lean statement waiting for a proof.
-    RegisterHole {
+    /// A ratified sorry: a pinned Lean statement waiting for a proof.
+    /// (Wire compatibility: before 2026-07 the log called a sorry a "hole" -
+    /// `register_hole` events and `hole` fields deserialize forever.)
+    #[serde(alias = "register_hole")]
+    RegisterSorry {
         id: String,
         title: String,
         statement: String,
@@ -63,21 +66,21 @@ pub enum Event {
         /// the lean-mathlib package - see mathlib-env.sh).
         #[serde(default)]
         env: Option<String>,
-        /// Set on a bridge hole: the two candidate statements whose
-        /// equivalence this hole pins. The CLI composes the pinned type
+        /// Set on a bridge sorry: the two candidate statements whose
+        /// equivalence this sorry pins. The CLI composes the pinned type
         /// mechanically - `(a's decl) ↔ (b's decl)` - so an admitted proof
         /// is a kernel-checked equivalence, and the two statements' clumps
         /// merge. This is `converge` routed through the ordinary
         /// submit/verify path: attributed, fundable, and checked.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         bridge: Option<(String, String)>,
-        /// Who registered the pin. Absent on registry-seeded holes and on
+        /// Who registered the pin. Absent on registry-seeded sorries and on
         /// events from before this field existed.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         author: Option<String>,
     },
-    /// Stage 3: a split - one named way of reducing a parent hole to child
-    /// holes plus a glue hole. The glue hole's pinned statement is exactly
+    /// Stage 3: a split - one named way of reducing a parent sorry to child
+    /// sorries plus a glue sorry. The glue sorry's pinned statement is exactly
     /// `(child 1) → ... → (child n) → parent`, composed by the CLI from
     /// types that are already pinned, so an admitted glue proof is a
     /// kernel-checked fact that the children jointly suffice. Several
@@ -89,23 +92,23 @@ pub enum Event {
         parent: String,
         author: String,
         children: Vec<String>,
-        /// Hole id carrying the composed glue statement.
+        /// Sorry id carrying the composed glue statement.
         glue: String,
         #[serde(default)]
         note: String,
     },
-    /// A claimed solution: `decl` (in the Lean package) allegedly closes `hole`.
+    /// A claimed solution: `decl` (in the Lean package) allegedly closes `sorry`.
     /// `module` is set when the proof arrived as a standalone file that the
     /// CLI installed into the package (razor submit --file).
     Submit {
-        id: String, hole: String, solver: String, decl: String,
+        id: String, #[serde(alias = "hole")] sorry: String, solver: String, decl: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         module: Option<String>,
     },
     /// Private submission, step 1: a hash commitment to a proof file the
     /// solver keeps on their own machine. Establishes priority without
     /// revealing anything; nobody can front-run a hash.
-    Commit { id: String, hole: String, solver: String, commitment: String },
+    Commit { id: String, #[serde(alias = "hole")] sorry: String, solver: String, commitment: String },
     /// Private submission, step 2: the revealed file hashed to the
     /// commitment (checked by the CLI before this event is appended) and was
     /// installed as Lean module `module`; `decl` is the claimed solution.
@@ -115,15 +118,16 @@ pub enum Event {
     /// "this statement was trivially provable" is visible without anyone
     /// having to rule on it.
     Verdict { submission: String, admitted: bool, axioms: Vec<String>, detail: String, #[serde(default)] cost_ms: u64 },
-    /// Statement migration: repin a hole's exact statement to a new wording,
+    /// Statement migration: repin a sorry's exact statement to a new wording,
     /// justified by a machine-checked equivalence proof (`equiv_decl` proves
     /// `new ↔ old` and is kernel-checked by the CLI before this event is
-    /// appended). This is how a hole survives toolchain and library churn:
+    /// appended). This is how a sorry survives toolchain and library churn:
     /// the old wording, the new wording, and the equivalence all stay on the
     /// log, so proofs admitted against either wording remain valid - truth
     /// transfers along the proven equivalence.
     Repin {
-        hole: String,
+        #[serde(alias = "hole")]
+        sorry: String,
         author: String,
         /// The new pinned Lean type.
         lean_type: String,
@@ -136,14 +140,14 @@ pub enum Event {
     /// Mathlib): `pr_url` is the pull request or commit that carried it.
     /// The registry measures itself by these - a proof that lands upstream
     /// is one the rest of formal mathematics actually builds on.
-    Upstream { hole: String, by: String, pr_url: String, #[serde(default)] note: String },
+    Upstream { #[serde(alias = "hole")] sorry: String, by: String, pr_url: String, #[serde(default)] note: String },
     /// An attributed, weighted opinion that `replacement` states the same
-    /// problem better than `hole`. Nothing closes: the hole stays exactly as
+    /// problem better than `sorry`. Nothing closes: the sorry stays exactly as
     /// provable as before and its proofs still count. Marks are weighted by
     /// the filer's verified record, like curations, and several marks - even
-    /// disagreeing ones - can coexist on one hole.
-    Supersede { hole: String, by: String, replacement: String, #[serde(default)] note: String },
-    /// An attributed label on any recorded entity (a hole, proposal,
+    /// disagreeing ones - can coexist on one sorry.
+    Supersede { #[serde(alias = "hole")] sorry: String, by: String, replacement: String, #[serde(default)] note: String },
+    /// An attributed label on any recorded entity (a sorry, proposal,
     /// statement, account, or challenge). Like a curation or a supersession
     /// mark, it changes no status and closes nothing: it is a signed, public
     /// note that travels with the target. The one tag the site itself acts
@@ -167,9 +171,10 @@ pub enum Event {
         solver: String,
         /// Lean theorem: model refines spec. Empty for the reference impl.
         proof_decl: String,
-        /// Hole carrying the pinned refinement statement (verified like any hole).
+        /// Sorry carrying the pinned refinement statement (verified like any sorry).
         #[serde(default)]
-        refinement_hole: Option<String>,
+        #[serde(alias = "refinement_hole")]
+        refinement_sorry: Option<String>,
     },
     /// Anvil: a measured score for an admitted submission. `rig` names the
     /// hardware it was measured on (None = the reference environment).
@@ -191,9 +196,9 @@ pub enum Event {
         #[serde(default, skip_serializing_if = "String::is_empty")]
         github: String,
     },
-    /// A zk route: an attachment that makes an existing hole solvable by a
+    /// A zk route: an attachment that makes an existing sorry solvable by a
     /// zero-knowledge proof. It pins a Groth16 verifying key and the bridge
-    /// tying circuit satisfaction to the hole's pinned statement.
+    /// tying circuit satisfaction to the sorry's pinned statement.
     /// `bridge_kind` is "theorem" - `bridge` names a kernel-checked Lean
     /// theorem that the constraints imply the statement - or "binary-hash" -
     /// `bridge` is the hash of a proof-checker binary executed inside a
@@ -201,10 +206,11 @@ pub enum Event {
     /// a Lean theorem: "the kernel accepts a proof of A implies A" is Lean's
     /// own soundness, unprovable in Lean, so it stays an auditable claim.
     /// `constraints` is the circuit size, which is also the golf score.
-    /// Several routes can coexist on one hole; a route is never edited.
+    /// Several routes can coexist on one sorry; a route is never edited.
     ZkRoute {
         id: String,
-        hole: String,
+        #[serde(alias = "hole")]
+        sorry: String,
         vk_path: String,
         vk_hash: String,
         constraints: u64,
@@ -213,15 +219,15 @@ pub enum Event {
         #[serde(default)]
         note: String,
     },
-    /// A ZK submission: proof + public inputs, no witness. Targets a hole
+    /// A ZK submission: proof + public inputs, no witness. Targets a sorry
     /// through one of its registered routes.
-    ZkSubmit { id: String, hole: String, route: String, solver: String, public: String, proof: String },
+    ZkSubmit { id: String, #[serde(alias = "hole")] sorry: String, route: String, solver: String, public: String, proof: String },
     /// A curation: a public, attributed mark that the curator considers the
-    /// target (a proposal, statement, or hole) worth working on. Costless to
+    /// target (a proposal, statement, or sorry) worth working on. Costless to
     /// file, but weighted by the curator's verified work on the record, so
     /// taste is scoreable the same way proofs are.
     Curate { curator: String, target: String, note: String },
-    /// A bounty attached to one exact pinned statement (a hole or
+    /// A bounty attached to one exact pinned statement (a sorry or
     /// anvil challenge) - never to a proposal. The funder pays for the
     /// literal statement as written: the first admitted proof takes the
     /// pool, degenerate proofs included, with no adjudication and no
@@ -233,7 +239,7 @@ pub enum Event {
     Payout { target: String, recipient: String, amount: u64, reason: String },
     /// Recognition of an external body of already-verified work (for example
     /// Mathlib). The registry does not re-verify or duplicate it; it records
-    /// the corpus so holes can be closed by citation to it and so the site
+    /// the corpus so sorries can be closed by citation to it and so the site
     /// can show what is already done. `stats` are sourced numbers, not
     /// registry-generated ones - `source` and `as_of` say where they came
     /// from and when.
@@ -246,6 +252,20 @@ pub enum Event {
         source: String,
         as_of: String,
     },
+}
+
+/// The canonical JSON forms an event's signature may be over. New clients
+/// sign the current serialization; events signed before the sorry -> sorry
+/// wire rename were signed over the old key names, so verification accepts
+/// either form. The legacy form is rebuilt deterministically by renaming
+/// the keys back on the serialized string.
+pub fn canonical_forms(event: &Event) -> Vec<String> {
+    let new = serde_json::to_string(event).unwrap();
+    let legacy = new
+        .replace("\"type\":\"register_sorry\"", "\"type\":\"register_hole\"")
+        .replace("\"refinement_sorry\":", "\"refinement_hole\":")
+        .replace("\"sorry\":", "\"hole\":");
+    if legacy == new { vec![new] } else { vec![new, legacy] }
 }
 
 impl Event {
@@ -268,7 +288,7 @@ impl Event {
             Event::Curate { curator, .. } => Some(curator),
             Event::Supersede { by, .. } => Some(by),
             Event::Tag { by, .. } => Some(by),
-            Event::RegisterHole { author, .. } => author.as_deref(),
+            Event::RegisterSorry { author, .. } => author.as_deref(),
             Event::Fund { funder, .. } => Some(funder),
             Event::RegisterRig { owner, .. } => Some(owner),
             Event::RegisterAccount { handle, .. } => Some(handle),
@@ -341,7 +361,7 @@ pub struct Seal {
 /// Its weight counts distinct authors (an independence proxy - equivalent
 /// statements from one author are one voice). A clump is dominant when it is
 /// the unique heaviest clump with at least two independent members.
-/// `proven` is a recorded fact, not a judgment: some member's hole has an
+/// `proven` is a recorded fact, not a judgment: some member's sorry has an
 /// admitted proof (truth transfers along equivalence edges to the whole
 /// clump). The registry never rules on why: a proven, weight-1, off-dominant
 /// clump speaks for itself.
@@ -393,7 +413,7 @@ pub struct Statement {
 #[derive(Serialize, Clone, Debug)]
 pub struct Submission {
     pub id: String,
-    pub hole: String,
+    pub sorry: String,
     pub solver: String,
     pub decl: String,
     pub verdict: Option<(bool, Vec<String>, String)>,
@@ -413,7 +433,7 @@ pub struct Submission {
 }
 
 #[derive(Serialize, Clone, Debug)]
-pub struct Hole {
+pub struct Sorry {
     pub id: String,
     pub title: String,
     pub statement: String,
@@ -421,11 +441,11 @@ pub struct Hole {
     pub allowed_axioms: Vec<String>,
     pub proposal: Option<String>,
     pub env: Option<String>,
-    /// Set on a bridge hole: the two statements whose equivalence it pins.
+    /// Set on a bridge sorry: the two statements whose equivalence it pins.
     /// When it is solved, the two statements' clumps merge.
     #[serde(default)]
     pub bridge: Option<(String, String)>,
-    /// Who registered the pin (None on registry-seeded and legacy holes).
+    /// Who registered the pin (None on registry-seeded and legacy sorries).
     #[serde(default)]
     pub registered_by: Option<String>,
     pub status: String, // open | solved
@@ -439,38 +459,38 @@ pub struct Hole {
     /// Derived, filled by `aggregate_fidelity`.
     #[serde(default)]
     pub fidelity: Fidelity,
-    /// Set when an admitted proof of this hole was carried to a home
+    /// Set when an admitted proof of this sorry was carried to a home
     /// library: the pull request or commit URL, from an `Upstream` event.
     #[serde(default)]
     pub upstreamed: Option<String>,
-    /// Supersession marks filed against this hole: (by, replacement, note).
-    /// Opinions, weighted by the reader; the hole itself never closes.
+    /// Supersession marks filed against this sorry: (by, replacement, note).
+    /// Opinions, weighted by the reader; the sorry itself never closes.
     pub superseded_by: Vec<(String, String, String)>,
     pub submissions: Vec<Submission>,
-    /// Zero-knowledge routes registered against this hole (see `ZkRoute`).
+    /// Zero-knowledge routes registered against this sorry (see `ZkRoute`).
     pub zk_routes: Vec<ZkRouteRec>,
     /// Zero-knowledge submissions: Groth16 proofs against a route's
-    /// verifying key. An admitted one solves the hole like any proof.
+    /// verifying key. An admitted one solves the sorry like any proof.
     pub zk_submissions: Vec<ZkSubmission>,
     /// Filled at export time: the Lean source of the definitions the pinned
     /// type mentions (transitively), so a reader can audit the statement
     /// without a checkout. (name, source) pairs, pinned name first.
     #[serde(default)]
     pub lean_source: Vec<(String, String)>,
-    /// Filled at export time, Mathlib-environment holes only: identifiers in
+    /// Filled at export time, Mathlib-environment sorries only: identifiers in
     /// the pinned type that resolve in Mathlib rather than locally, so the
     /// site can link each one to the Mathlib documentation.
     #[serde(default)]
     pub mathlib_names: Vec<String>,
     /// Derived, filled by `aggregate_splits`: every registered way of
-    /// reducing this hole to child holes.
+    /// reducing this sorry to child sorries.
     pub splits: Vec<SplitView>,
-    /// Derived: split ids this hole serves in, as a child or as the glue.
+    /// Derived: split ids this sorry serves in, as a child or as the glue.
     pub part_of: Vec<String>,
     pub pool: u64,
 }
 
-/// Recorded facts about how much independent scrutiny a hole's pinned
+/// Recorded facts about how much independent scrutiny a sorry's pinned
 /// statement has survived. The hardest problem in formalization is not
 /// proving a statement but trusting that the statement is the theorem it
 /// claims to be; these are the log's answers, with no judgment encoded -
@@ -513,7 +533,7 @@ pub struct SplitRec {
     pub note: String,
 }
 
-/// One split of a hole, with the current status of every part. All fields
+/// One split of a sorry, with the current status of every part. All fields
 /// are recorded facts: `complete` means the glue and every child have
 /// admitted proofs - at that point the parent is provable by composition.
 #[derive(Serialize, Clone, Debug)]
@@ -521,8 +541,8 @@ pub struct SplitView {
     pub id: String,
     pub author: String,
     pub note: String,
-    pub children: Vec<(String, String)>, // (hole id, status)
-    pub glue: (String, String),          // (hole id, status)
+    pub children: Vec<(String, String)>, // (sorry id, status)
+    pub glue: (String, String),          // (sorry id, status)
     pub solved_children: usize,
     pub complete: bool,
 }
@@ -534,7 +554,7 @@ pub struct AnvilEntry {
     pub impl_name: String,
     pub solver: String,
     pub proof_decl: String,
-    pub refinement_hole: Option<String>,
+    pub refinement_sorry: Option<String>,
     pub admitted: bool,
     pub is_reference: bool,
     pub scores: Vec<Score>,
@@ -579,7 +599,7 @@ pub struct Person {
     pub handle: String,
     pub account: Option<Account>,
     pub first_seen: Option<u64>, // event seq
-    /// (seq, submission id, hole/challenge, kind, outcome) - kind is
+    /// (seq, submission id, sorry/challenge, kind, outcome) - kind is
     /// "proof" | "zk" | "anvil" | "commit"; outcome "admitted" | "rejected" | "pending" | "sealed".
     pub submissions: Vec<(u64, String, String, String, String)>,
     pub solved: u64,
@@ -591,8 +611,8 @@ pub struct Person {
     pub funded_total: u64,
     pub proposals: Vec<String>,
     pub statements: Vec<String>,
-    /// Open holes under this person's proposals - work they are waiting on.
-    pub open_holes_authored: Vec<String>,
+    /// Open sorries under this person's proposals - work they are waiting on.
+    pub open_sorries_authored: Vec<String>,
     pub rigs: Vec<String>,
     /// Targets this person has curated.
     pub curated: Vec<String>,
@@ -608,7 +628,7 @@ pub struct ZkSubmission {
     pub verdict: Option<(bool, String)>,
 }
 
-/// A zk route attached to a hole, as recorded on the log.
+/// A zk route attached to a sorry, as recorded on the log.
 #[derive(Serialize, Clone, Debug)]
 pub struct ZkRouteRec {
     pub id: String,
@@ -651,7 +671,7 @@ pub struct State {
     pub rounds: BTreeMap<String, Round>,
     /// Statement seals, by id - revealed and pending alike.
     pub seals: BTreeMap<String, Seal>,
-    pub holes: BTreeMap<String, Hole>,
+    pub sorries: BTreeMap<String, Sorry>,
     pub challenges: BTreeMap<String, Challenge>,
     pub rigs: BTreeMap<String, Rig>,
     pub corpora: BTreeMap<String, Corpus>,
@@ -660,13 +680,13 @@ pub struct State {
     pub people: BTreeMap<String, Person>,
     /// (curator, target, note) in log order.
     pub curations: Vec<(String, String, String)>,
-    /// Supersession marks: (by, hole, replacement, note). Attributed,
+    /// Supersession marks: (by, sorry, replacement, note). Attributed,
     /// weighted opinions that one wording replaces another; nothing closes.
     pub supersessions: Vec<(String, String, String, String)>,
     /// Tags: (by, target, tag, note) in log order. Attributed labels; the
     /// site de-emphasizes `test-data`-tagged items but nothing closes.
     pub tags: Vec<(String, String, String, String)>,
-    /// Splits in log order; per-hole views are derived by `aggregate_splits`.
+    /// Splits in log order; per-sorry views are derived by `aggregate_splits`.
     pub splits: Vec<SplitRec>,
     pub payouts: Vec<(String, String, u64, String)>,
     pub events: Vec<Entry>,
@@ -762,8 +782,8 @@ impl State {
                     st.implied_by.push((a, decl));
                 }
             }
-            Event::RegisterHole { id, title, statement, lean_type, allowed_axioms, proposal, env, bridge, author } => {
-                self.holes.insert(id.clone(), Hole {
+            Event::RegisterSorry { id, title, statement, lean_type, allowed_axioms, proposal, env, bridge, author } => {
+                self.sorries.insert(id.clone(), Sorry {
                     id, title, statement, lean_type, allowed_axioms, proposal, env, bridge,
                     registered_by: author,
                     status: "open".into(), solved_by: None, repins: vec![],
@@ -777,32 +797,32 @@ impl State {
             Event::Split { id, parent, author, children, glue, note } => {
                 self.splits.push(SplitRec { id, parent, author, children, glue, note });
             }
-            Event::Submit { id, hole, solver, decl, module } => {
-                if let Some(h) = self.holes.get_mut(&hole) {
+            Event::Submit { id, sorry, solver, decl, module } => {
+                if let Some(h) = self.sorries.get_mut(&sorry) {
                     h.submissions.push(Submission {
-                        id, hole: h.id.clone(), solver, decl, verdict: None,
+                        id, sorry: h.id.clone(), solver, decl, verdict: None,
                         verdict_seq: None, log_hash: None,
                         commitment: None, module, revealed: true,
                     });
                 }
             }
-            Event::Repin { hole, lean_type, equiv_decl, .. } => {
-                if let Some(h) = self.holes.get_mut(&hole) {
+            Event::Repin { sorry, lean_type, equiv_decl, .. } => {
+                if let Some(h) = self.sorries.get_mut(&sorry) {
                     let old = std::mem::replace(&mut h.lean_type, lean_type.clone());
                     h.repins.push((old, lean_type, equiv_decl));
                 }
             }
-            Event::Commit { id, hole, solver, commitment } => {
-                if let Some(h) = self.holes.get_mut(&hole) {
+            Event::Commit { id, sorry, solver, commitment } => {
+                if let Some(h) = self.sorries.get_mut(&sorry) {
                     h.submissions.push(Submission {
-                        id, hole: h.id.clone(), solver, decl: String::new(), verdict: None,
+                        id, sorry: h.id.clone(), solver, decl: String::new(), verdict: None,
                         verdict_seq: None, log_hash: None,
                         commitment: Some(commitment), module: None, revealed: false,
                     });
                 }
             }
             Event::Reveal { submission, decl, module } => {
-                for h in self.holes.values_mut() {
+                for h in self.sorries.values_mut() {
                     if let Some(sub) = h.submissions.iter_mut().find(|s| s.id == submission) {
                         sub.decl = decl.clone();
                         sub.module = Some(module.clone());
@@ -811,7 +831,7 @@ impl State {
                 }
             }
             Event::Verdict { submission, admitted, axioms, detail, .. } => {
-                for h in self.holes.values_mut() {
+                for h in self.sorries.values_mut() {
                     if let Some(sub) = h.submissions.iter_mut().find(|s| s.id == submission) {
                         sub.verdict = Some((admitted, axioms.clone(), detail.clone()));
                         if admitted && h.status == "open" {
@@ -822,12 +842,12 @@ impl State {
                 }
                 for c in self.challenges.values_mut() {
                     if let Some(en) = c.entries.iter_mut().find(|e| {
-                        e.refinement_hole.as_deref() == Some(submission.as_str()) || e.id == submission
+                        e.refinement_sorry.as_deref() == Some(submission.as_str()) || e.id == submission
                     }) {
                         en.admitted = admitted;
                     }
                 }
-                for h in self.holes.values_mut() {
+                for h in self.sorries.values_mut() {
                     if let Some(sub) = h.zk_submissions.iter_mut().find(|s| s.id == submission) {
                         sub.verdict = Some((admitted, detail.clone()));
                         if admitted && h.status == "open" {
@@ -837,14 +857,14 @@ impl State {
                     }
                 }
             }
-            Event::Upstream { hole, pr_url, .. } => {
-                if let Some(h) = self.holes.get_mut(&hole) {
+            Event::Upstream { sorry, pr_url, .. } => {
+                if let Some(h) = self.sorries.get_mut(&sorry) {
                     h.upstreamed = Some(pr_url);
                 }
             }
-            Event::Supersede { hole, by, replacement, note } => {
-                self.supersessions.push((by.clone(), hole.clone(), replacement.clone(), note.clone()));
-                if let Some(h) = self.holes.get_mut(&hole) {
+            Event::Supersede { sorry, by, replacement, note } => {
+                self.supersessions.push((by.clone(), sorry.clone(), replacement.clone(), note.clone()));
+                if let Some(h) = self.sorries.get_mut(&sorry) {
                     h.superseded_by.push((by, replacement, note));
                 }
             }
@@ -854,15 +874,15 @@ impl State {
                     arch_pools: BTreeMap::new(),
                 });
             }
-            Event::ZkRoute { id, hole, vk_path, vk_hash, constraints, bridge_kind, bridge, note } => {
-                if let Some(h) = self.holes.get_mut(&hole) {
+            Event::ZkRoute { id, sorry, vk_path, vk_hash, constraints, bridge_kind, bridge, note } => {
+                if let Some(h) = self.sorries.get_mut(&sorry) {
                     h.zk_routes.push(ZkRouteRec {
                         id, vk_path, vk_hash, constraints, bridge_kind, bridge, note,
                     });
                 }
             }
-            Event::ZkSubmit { id, hole, route, solver, public, proof } => {
-                if let Some(h) = self.holes.get_mut(&hole) {
+            Event::ZkSubmit { id, sorry, route, solver, public, proof } => {
+                if let Some(h) = self.sorries.get_mut(&sorry) {
                     h.zk_submissions.push(ZkSubmission {
                         id, route, solver, public,
                         proof_prefix: proof.chars().take(24).collect(),
@@ -876,12 +896,12 @@ impl State {
             Event::RegisterAccount { handle, display, about, sigil, pubkey, github } => {
                 self.accounts.insert(handle.clone(), Account { handle, display, about, sigil, pubkey, github });
             }
-            Event::AnvilSubmit { id, challenge, impl_name, solver, proof_decl, refinement_hole } => {
+            Event::AnvilSubmit { id, challenge, impl_name, solver, proof_decl, refinement_sorry } => {
                 if let Some(c) = self.challenges.get_mut(&challenge) {
                     let is_reference = impl_name == c.spec_impl;
                     c.entries.push(AnvilEntry {
                         id, challenge: c.id.clone(), impl_name, solver, proof_decl,
-                        refinement_hole, admitted: is_reference, is_reference,
+                        refinement_sorry, admitted: is_reference, is_reference,
                         scores: vec![],
                     });
                 }
@@ -907,7 +927,7 @@ impl State {
                 self.tags.push((by, target, tag, note));
             }
             Event::Fund { target, amount, arch, .. } => {
-                if let Some(h) = self.holes.get_mut(&target) {
+                if let Some(h) = self.sorries.get_mut(&target) {
                     h.pool += amount;
                 } else if let Some(c) = self.challenges.get_mut(&target) {
                     match arch {
@@ -971,20 +991,20 @@ impl State {
                         }
                     }
                 }
-                Event::Submit { id, hole, solver, .. } => {
+                Event::Submit { id, sorry, solver, .. } => {
                     touch(&mut people, solver, seq);
                     people.get_mut(solver).unwrap().submissions.push(
-                        (seq, id.clone(), hole.clone(), "proof".into(), "pending".into()));
+                        (seq, id.clone(), sorry.clone(), "proof".into(), "pending".into()));
                 }
-                Event::Commit { id, hole, solver, .. } => {
+                Event::Commit { id, sorry, solver, .. } => {
                     touch(&mut people, solver, seq);
                     people.get_mut(solver).unwrap().submissions.push(
-                        (seq, id.clone(), hole.clone(), "commit".into(), "sealed".into()));
+                        (seq, id.clone(), sorry.clone(), "commit".into(), "sealed".into()));
                 }
-                Event::ZkSubmit { id, hole, solver, .. } => {
+                Event::ZkSubmit { id, sorry, solver, .. } => {
                     touch(&mut people, solver, seq);
                     people.get_mut(solver).unwrap().submissions.push(
-                        (seq, id.clone(), hole.clone(), "zk".into(), "pending".into()));
+                        (seq, id.clone(), sorry.clone(), "zk".into(), "pending".into()));
                 }
                 Event::AnvilSubmit { id, challenge, solver, impl_name, .. } => {
                     touch(&mut people, solver, seq);
@@ -1042,7 +1062,7 @@ impl State {
         }
 
         // Second pass: anvil lanes and current best-per-board standings.
-        // (An anvil submission is admitted through its refinement hole, so
+        // (An anvil submission is admitted through its refinement sorry, so
         // reflect that in the person's submission outcome too.)
         for c in self.challenges.values() {
             for en in &c.entries {
@@ -1084,13 +1104,13 @@ impl State {
             }
         }
 
-        // Third pass: open holes under proposals a person authored.
-        for h in self.holes.values() {
+        // Third pass: open sorries under proposals a person authored.
+        for h in self.sorries.values() {
             if h.status != "open" { continue; }
             if let Some(prop) = &h.proposal {
                 for p in people.values_mut() {
                     if p.proposals.contains(prop) {
-                        p.open_holes_authored.push(h.id.clone());
+                        p.open_sorries_authored.push(h.id.clone());
                     }
                 }
             }
@@ -1103,26 +1123,26 @@ impl State {
         self.people = people;
     }
 
-    /// Attach every split to its parent hole with the current status of
-    /// each part, and mark children and glue holes as serving in it. Call
+    /// Attach every split to its parent sorry with the current status of
+    /// each part, and mark children and glue sorries as serving in it. Call
     /// after fold, before export.
     pub fn aggregate_splits(&mut self) {
-        let status_of = |holes: &BTreeMap<String, Hole>, id: &str| {
-            holes.get(id).map(|h| h.status.clone()).unwrap_or_else(|| "unknown".into())
+        let status_of = |sorries: &BTreeMap<String, Sorry>, id: &str| {
+            sorries.get(id).map(|h| h.status.clone()).unwrap_or_else(|| "unknown".into())
         };
         for rec in self.splits.clone() {
             let children: Vec<(String, String)> = rec.children.iter()
-                .map(|c| (c.clone(), status_of(&self.holes, c)))
+                .map(|c| (c.clone(), status_of(&self.sorries, c)))
                 .collect();
-            let glue = (rec.glue.clone(), status_of(&self.holes, &rec.glue));
+            let glue = (rec.glue.clone(), status_of(&self.sorries, &rec.glue));
             let solved_children = children.iter().filter(|(_, s)| s == "solved").count();
             let complete = glue.1 == "solved" && solved_children == children.len();
             for part in rec.children.iter().chain(std::iter::once(&rec.glue)) {
-                if let Some(h) = self.holes.get_mut(part) {
+                if let Some(h) = self.sorries.get_mut(part) {
                     h.part_of.push(rec.id.clone());
                 }
             }
-            if let Some(h) = self.holes.get_mut(&rec.parent) {
+            if let Some(h) = self.sorries.get_mut(&rec.parent) {
                 h.splits.push(SplitView {
                     id: rec.id, author: rec.author, note: rec.note,
                     children, glue, solved_children, complete,
@@ -1134,11 +1154,11 @@ impl State {
     /// Group each proposal's candidate statements into clumps: connected
     /// components under machine-checked equivalence. Call after fold.
     pub fn aggregate_clumps(&mut self) {
-        // A solved bridge hole is a kernel-checked equivalence of its two
+        // A solved bridge sorry is a kernel-checked equivalence of its two
         // statements: inject it as a convergence edge on both (the decl is
         // the admitted proof), so clumps merge exactly as a converge event
         // would - except this edge went through the verifier.
-        let bridge_edges: Vec<(String, String, String)> = self.holes.values()
+        let bridge_edges: Vec<(String, String, String)> = self.sorries.values()
             .filter(|h| h.status == "solved")
             .filter_map(|h| {
                 let (a, b) = h.bridge.clone()?;
@@ -1193,7 +1213,7 @@ impl State {
                 let authors: std::collections::BTreeSet<&str> = members.iter()
                     .filter_map(|m| self.statements.get(m).map(|s| s.author.as_str()))
                     .collect();
-                let proven = self.holes.values().any(|h|
+                let proven = self.sorries.values().any(|h|
                     h.status == "solved" && members.contains(&h.statement));
                 let meta: Vec<(String, u64, u64)> = members.iter()
                     .filter_map(|m| self.statements.get(m))
@@ -1216,16 +1236,16 @@ impl State {
         }
     }
 
-    /// Fill each hole's fidelity facts from its statement's equivalence
+    /// Fill each sorry's fidelity facts from its statement's equivalence
     /// clump. Call after `aggregate_clumps`.
     pub fn aggregate_fidelity(&mut self) {
-        let mut per_hole: Vec<(String, Fidelity)> = vec![];
-        for h in self.holes.values() {
+        let mut per_sorry: Vec<(String, Fidelity)> = vec![];
+        for h in self.sorries.values() {
             if h.statement.is_empty() {
-                per_hole.push((h.id.clone(), Fidelity { repins: h.repins.len(), ..Default::default() }));
+                per_sorry.push((h.id.clone(), Fidelity { repins: h.repins.len(), ..Default::default() }));
                 continue;
             }
-            // The clump containing this hole's statement, if the proposal
+            // The clump containing this sorry's statement, if the proposal
             // has been clumped.
             let clump = h.proposal.as_ref()
                 .and_then(|p| self.proposals.get(p))
@@ -1255,27 +1275,27 @@ impl State {
                     canonical: false,
                 },
             };
-            per_hole.push((h.id.clone(), f));
+            per_sorry.push((h.id.clone(), f));
         }
-        for (id, f) in per_hole {
-            if let Some(h) = self.holes.get_mut(&id) {
+        for (id, f) in per_sorry {
+            if let Some(h) = self.sorries.get_mut(&id) {
                 h.fidelity = f;
             }
         }
     }
 
-    /// Anvil submissions whose refinement hole was solved get admitted.
-    /// (Refinement proofs are verified through the ordinary hole machinery.)
+    /// Anvil submissions whose refinement sorry was solved get admitted.
+    /// (Refinement proofs are verified through the ordinary sorry machinery.)
     pub fn settle_admissions(&mut self) {
         let solved: Vec<String> = self
-            .holes
+            .sorries
             .values()
             .filter(|h| h.status == "solved")
             .map(|h| h.id.clone())
             .collect();
         for c in self.challenges.values_mut() {
             for en in c.entries.iter_mut() {
-                if let Some(rh) = &en.refinement_hole {
+                if let Some(rh) = &en.refinement_sorry {
                     if solved.contains(rh) {
                         en.admitted = true;
                     }

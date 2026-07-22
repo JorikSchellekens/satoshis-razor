@@ -51,7 +51,7 @@ function loadData(render) {
 // ── entity links ─────────────────────────────────────────────────
 // Every id on the site is a link to that entity's own page.
 const qid = () => new URLSearchParams(location.search).get('id');
-const holeLink = (id) => `<a class="idlink" href="hole.html?id=${encodeURIComponent(id)}">${esc(id)}</a>`;
+const sorryLink = (id) => `<a class="idlink" href="sorry.html?id=${encodeURIComponent(id)}">${esc(id)}</a>`;
 const stmtLink = (id) => `<a class="idlink" href="statement.html?id=${encodeURIComponent(id)}">${esc(id)}</a>`;
 const propLink = (id) => `<a class="idlink" href="proposal.html?id=${encodeURIComponent(id)}">${esc(id)}</a>`;
 const personLink = (h) => `<a class="idlink" href="person.html?id=${encodeURIComponent(h)}">${esc(h)}</a>`;
@@ -110,7 +110,7 @@ function hiLeanLinked(src, mathlibNames) {
   return html;
 }
 
-// The informal reading of a hole: the statement author's gloss if there is
+// The informal reading of a sorry: the statement author's gloss if there is
 // one, else the proposal's plain-language body.
 function informalOf(S, h) {
   const st = h.statement && S.statements?.[h.statement];
@@ -126,17 +126,17 @@ const TIP = {
   sealedLate: 'This statement was filed as a hash commitment, but other readings of the proposal were already public when it was sealed - the seal timestamps it without proving blindness against those.',
   tag: 'An attributed label filed with razor tag. test-data marks pipeline-test material: it stays recorded and provable, but default views de-emphasize it and the homepage marquee leaves it out.',
   blind: 'The largest set of authors in this clump whose statements were each sealed before any of the others was revealed: none could have seen another’s Lean. Weight counts claimed independence; this counts proof.',
-  bridge: 'A hole whose pinned statement is the equivalence of two candidate statements. An admitted proof is a kernel-checked fact that they state the same problem, and their clumps merge.',
+  bridge: 'A sorry whose pinned statement is the equivalence of two candidate statements. An admitted proof is a kernel-checked fact that they state the same problem, and their clumps merge.',
   fidelity: 'Recorded facts about how much independent scrutiny the pinned statement has survived. The registry never judges a statement; these are what the log knows.',
   canonical: "The pinned type is Mathlib's own statement of the theorem - not a local translation of it.",
   clump: 'Statements proven equivalent by machine-checked proof form a clump; its weight counts distinct authors.',
   dominant: 'The unique heaviest clump with at least two independent authors - the reading the community has converged on.',
   proven: 'Some member of the clump has an admitted proof; proving one member proves them all.',
   curation: "Public, attributed picks of problems worth working on, weighted by the curator's admitted work.",
-  convergence: "Machine-checked equivalence proofs on this hole's statement.",
+  convergence: "Machine-checked equivalence proofs on this sorry's statement.",
   lineage: 'Earlier wordings whose supersession marks point here: how many times this problem has been re-stated.',
   superseded: "An attributed note that a better wording exists. It closes nothing; it is weighted by the filer's admitted work.",
-  splits: 'Registered plans reducing this hole to child holes, each with a machine-checked glue proof that the children suffice.',
+  splits: 'Registered plans reducing this sorry to child sorries, each with a machine-checked glue proof that the children suffice.',
   submissions: 'Claimed solutions, each checked by the Lean kernel.',
   attention: 'Bounty credits plus fixed weights for each community signal, minus supersession marks. A reading aid, not a judgment.',
   bounty: 'Credits attached to this exact statement. The first admitted proof is paid, with no adjudication.',
@@ -195,9 +195,9 @@ function tagsOf(S, id) {
   return (S.tags || []).filter(([, t]) => t === id).map(([by, , tag, note]) => ({ by, tag, note }));
 }
 const isTestData = (S, id) => tagsOf(S, id).some(t => t.tag === 'test-data');
-// A hole inherits test-data from its proposal: tagging the audit proposal
-// covers every hole filed under it.
-const holeIsTest = (S, h) => isTestData(S, h.id) || (h.proposal && isTestData(S, h.proposal));
+// A sorry inherits test-data from its proposal: tagging the audit proposal
+// covers every sorry filed under it.
+const sorryIsTest = (S, h) => isTestData(S, h.id) || (h.proposal && isTestData(S, h.proposal));
 function tagChips(S, id) {
   return tagsOf(S, id).map(t =>
     `<span class="badge"${tip('tag')}>⚑ ${esc(t.tag)} — tagged by ${esc(t.by)}${t.note ? `: “${esc(t.note)}”` : ''}</span>`).join('');
@@ -234,18 +234,18 @@ function curatorsOf(S, target) {
   return (S.curations || []).filter(([, t]) => t === target);
 }
 
-// Weight of the supersession marks on a hole, computed exactly like
+// Weight of the supersession marks on a sorry, computed exactly like
 // curation weight: each mark counts 1 plus the filer's admitted work.
-function supersedeWeight(S, hole) {
-  return (S.supersessions || []).filter(([, h]) => h === hole)
+function supersedeWeight(S, sorry) {
+  return (S.supersessions || []).filter(([, h]) => h === sorry)
     .reduce((a, [who]) => a + 1 + (S.people?.[who]?.solved || 0), 0);
 }
 
 // ── derived metrics for the frontier ─────────────────────────────
 // clump: weight (distinct independent authors) of the equivalence clump the
-// hole's statement belongs to; lineage: length of the supersession chain
-// through this hole; convergence: equivalence proofs on its statement.
-function holeMetrics(S, h) {
+// sorry's statement belongs to; lineage: length of the supersession chain
+// through this sorry; convergence: equivalence proofs on its statement.
+function sorryMetrics(S, h) {
   const stmt = h.statement ? S.statements[h.statement] : null;
   const prop = h.proposal ? S.proposals[h.proposal] : null;
   const clumpOf = prop && h.statement
@@ -255,9 +255,9 @@ function holeMetrics(S, h) {
   const curation = curationWeight(S, h.id);
   const convergence = stmt ? stmt.convergences.length : 0;
   let lineage = 0;
-  // walk backward: holes carrying a supersession mark that points at
-  // (a chain ending at) this hole
-  const preds = (id) => Object.values(S.holes)
+  // walk backward: sorries carrying a supersession mark that points at
+  // (a chain ending at) this sorry
+  const preds = (id) => Object.values(S.sorries)
     .filter(x => (x.superseded_by || []).some(([, r]) => r === id));
   let frontier = [h.id];
   while (frontier.length) {
@@ -269,12 +269,12 @@ function holeMetrics(S, h) {
   const subs = h.submissions.length + (h.zk_submissions || []).length;
   const rejected = h.submissions.filter(s => s.verdict && !s.verdict[0]).length;
   const superseded = supersedeWeight(S, h.id);
-  // attention: a single sortable number estimating how much this hole
+  // attention: a single sortable number estimating how much this sorry
   // matters to the community right now. Bounty credits count at face value;
   // each community signal counts at a fixed weight; supersession marks
   // subtract. It is a reading aid, not a judgment - every input is visible
-  // on the hole's own page.
-  const test = holeIsTest(S, h);
+  // on the sorry's own page.
+  const test = sorryIsTest(S, h);
   const attention = pool + 900 * clump + 700 * curation + 800 * convergence + 600 * lineage
     + 500 * splits + 250 * subs + (h.status === 'open' ? 400 : 0) - 700 * superseded
     - (test ? 5000 : 0);
@@ -283,18 +283,18 @@ function holeMetrics(S, h) {
     superseded, test, attention };
 }
 
-// every event touching a hole, in log order
-function holeHistory(S, h) {
+// every event touching a sorry, in log order
+function sorryHistory(S, h) {
   const subIds = new Set(h.submissions.map(s => s.id));
   return S.events.filter(e => {
     switch (e.type) {
-      case 'register_hole': return e.id === h.id;
+      case 'register_sorry': return e.id === h.id;
       case 'fund': case 'payout': case 'curate': case 'tag': return e.target === h.id;
-      case 'submit': case 'commit': return e.hole === h.id;
+      case 'submit': case 'commit': return e.sorry === h.id;
       case 'reveal': case 'verdict': return subIds.has(e.submission);
-      case 'supersede': return e.hole === h.id || e.replacement === h.id;
-      case 'repin': case 'upstream': return e.hole === h.id;
-      case 'zk_route': case 'zk_submit': return e.hole === h.id;
+      case 'supersede': return e.sorry === h.id || e.replacement === h.id;
+      case 'repin': case 'upstream': return e.sorry === h.id;
+      case 'zk_route': case 'zk_submit': return e.sorry === h.id;
       case 'split': return e.parent === h.id || (e.children || []).includes(h.id) || e.glue === h.id;
       case 'formalize': return h.statement && e.id === h.statement;
       case 'seal_statement': return h.statement && S.statements[h.statement]?.seal === e.id;
@@ -334,7 +334,7 @@ function timeline(events) {
 
 // ── test-data closure over the log ───────────────────────────────
 // Everything reachable from a test-data tag: the tagged entities, the
-// holes under tagged proposals, and the submissions/seals/statements those
+// sorries under tagged proposals, and the submissions/seals/statements those
 // entities and handles produced. Used to keep pipeline-test noise out of
 // default feeds without touching the log itself.
 function testIdSet(S) {
@@ -342,13 +342,13 @@ function testIdSet(S) {
   const set = new Set((S.tags || []).filter(([, , t]) => t === 'test-data').map(([, id]) => id));
   for (const p of Object.values(S.proposals || {}))
     if (set.has(p.id)) for (const sid of (p.statements || [])) set.add(sid);
-  for (const h of Object.values(S.holes || {}))
+  for (const h of Object.values(S.sorries || {}))
     if (set.has(h.id) || (h.proposal && set.has(h.proposal))) {
       set.add(h.id);
       for (const s of (h.submissions || [])) set.add(s.id);
       for (const sp of (h.splits || [])) set.add(sp.id);
     }
-  for (const h of Object.values(S.holes || {}))
+  for (const h of Object.values(S.sorries || {}))
     for (const s of (h.submissions || [])) if (set.has(s.solver)) set.add(s.id);
   for (const sl of Object.values(S.seals || {}))
     if (set.has(sl.author) || (sl.statement && set.has(sl.statement))) set.add(sl.id);
@@ -382,7 +382,7 @@ const daysLeft = (ts) => {
 // Each event as one plain-language sentence with its entities linked.
 // Returns null for types better left to the raw ledger.
 function humanEvent(S, e) {
-  const holeOfSub = (id) => Object.values(S.holes || {})
+  const sorryOfSub = (id) => Object.values(S.sorries || {})
     .find(h => (h.submissions || []).some(s => s.id === id)
       || (h.zk_submissions || []).some(s => s.id === id));
   const q = (s) => s ? ` — “${esc(String(s).length > 90 ? String(s).slice(0, 90) + '…' : s)}”` : '';
@@ -392,28 +392,28 @@ function humanEvent(S, e) {
     case 'seal_statement': return { t: 'gold', h: `${personLink(e.author)} sealed a blind reading of ${propLink(e.proposal)}` };
     case 'reveal_statement': return { t: '', h: `${personLink(e.author)} revealed sealed statement ${stmtLink(e.statement)}` };
     case 'open_round': return { t: 'gold', h: `${personLink(e.author)} opened a challenge window on ${propLink(e.proposal)}` };
-    case 'register_hole': return { t: '', h: `hole ${holeLink(e.id)} pinned${e.author ? ` by ${personLink(e.author)}` : ''}${q(e.title)}` };
-    case 'submit': return { t: '', h: `${personLink(e.solver)} submitted a proof against ${holeLink(e.hole)}` };
+    case 'register_sorry': return { t: '', h: `sorry ${sorryLink(e.id)} pinned${e.author ? ` by ${personLink(e.author)}` : ''}${q(e.title)}` };
+    case 'submit': return { t: '', h: `${personLink(e.solver)} submitted a proof against ${sorryLink(e.sorry)}` };
     case 'verdict': {
-      const h = holeOfSub(e.submission);
-      const where = h ? ` on ${holeLink(h.id)}` : '';
+      const h = sorryOfSub(e.submission);
+      const where = h ? ` on ${sorryLink(h.id)}` : '';
       return e.admitted
         ? { t: 'good', h: `the kernel admitted ${esc(e.submission)}${where}${e.cost_ms != null ? ` (checked in ${e.cost_ms} ms)` : ''}` }
         : { t: 'bad', h: `the kernel rejected ${esc(e.submission)}${where}` };
     }
-    case 'fund': return { t: 'gold', h: `${personLink(e.funder)} put ${(+e.amount).toLocaleString()} credits on ${holeLink(e.target)}` };
-    case 'payout': return { t: 'gold', h: `${personLink(e.recipient)} was paid ${(+e.amount).toLocaleString()} credits for ${holeLink(e.target)}` };
+    case 'fund': return { t: 'gold', h: `${personLink(e.funder)} put ${(+e.amount).toLocaleString()} credits on ${sorryLink(e.target)}` };
+    case 'payout': return { t: 'gold', h: `${personLink(e.recipient)} was paid ${(+e.amount).toLocaleString()} credits for ${sorryLink(e.target)}` };
     case 'curate': return { t: 'gold', h: `${personLink(e.curator)} curated ${esc(e.target)}${q(e.note)}` };
-    case 'supersede': return { t: 'bad', h: `${personLink(e.by)} marked ${holeLink(e.hole)} superseded by ${holeLink(e.replacement)}` };
-    case 'split': return { t: '', h: `${personLink(e.author)} split ${holeLink(e.parent)} into ${(e.children || []).length} subproblem${(e.children || []).length === 1 ? '' : 's'}` };
+    case 'supersede': return { t: 'bad', h: `${personLink(e.by)} marked ${sorryLink(e.sorry)} superseded by ${sorryLink(e.replacement)}` };
+    case 'split': return { t: '', h: `${personLink(e.author)} split ${sorryLink(e.parent)} into ${(e.children || []).length} subproblem${(e.children || []).length === 1 ? '' : 's'}` };
     case 'converge': return { t: 'good', h: `statements ${stmtLink(e.a)} and ${stmtLink(e.b)} proven equivalent — their clumps merge` };
     case 'implies': return { t: '', h: `${stmtLink(e.a)} proven to imply ${stmtLink(e.b)}` };
     case 'certify': return { t: '', h: `sanity certificate recorded on ${stmtLink(e.statement)}` };
     case 'register_account': return { t: '', h: `${esc(e.sigil || '')} ${personLink(e.handle)} registered a handle` };
     case 'recognize_corpus': return { t: '', h: `corpus <b>${esc(e.name)}</b> recognized — its contents count as already solved` };
-    case 'commit': return { t: '', h: `${personLink(e.solver)} committed a sealed solution to ${holeLink(e.hole)}` };
+    case 'commit': return { t: '', h: `${personLink(e.solver)} committed a sealed solution to ${sorryLink(e.sorry)}` };
     case 'reveal': return { t: '', h: `submission ${esc(e.submission)} revealed — the file matches its committed hash` };
-    case 'upstream': return { t: 'gold', h: `an admitted proof of ${holeLink(e.hole)} was carried to its home library` };
+    case 'upstream': return { t: 'gold', h: `an admitted proof of ${sorryLink(e.sorry)} was carried to its home library` };
     case 'tag': return { t: '', h: `${personLink(e.by)} tagged ${esc(e.target)} <code>${esc(e.tag)}</code>` };
     default: return null;
   }
@@ -443,34 +443,34 @@ function pbar(done, total, word = 'solved') {
 }
 
 // ── first solves ─────────────────────────────────────────────────
-// Who holds priority: for each solved hole, the solver of the first
+// Who holds priority: for each solved sorry, the solver of the first
 // admitted submission. The board the whole system is built around.
 function firstSolves(S) {
   const per = {};
-  for (const h of Object.values(S.holes || {})) {
-    if (h.status !== 'solved' || holeIsTest(S, h)) continue;
+  for (const h of Object.values(S.sorries || {})) {
+    if (h.status !== 'solved' || sorryIsTest(S, h)) continue;
     const sub = (h.submissions || []).find(s => s.id === h.solved_by)
       || (h.submissions || []).find(s => s.verdict && s.verdict[0]);
     if (!sub) continue;
     (per[sub.solver] ||= []).push(h.id);
   }
-  return Object.entries(per).map(([who, holes]) => ({ who, holes, n: holes.length }))
+  return Object.entries(per).map(([who, sorries]) => ({ who, sorries, n: sorries.length }))
     .sort((a, b) => b.n - a.n || a.who.localeCompare(b.who));
 }
 
-// ── the hole graph, shared by the frontier and the how-it-works page ──
+// ── the sorry graph, shared by the frontier and the how-it-works page ──
 // Layered by longest edge distance; supersession and split edges.
-function renderHoleGraph(svgId, S) {
-  const holes = Object.values(S.holes || {});
-  const byId = Object.fromEntries(holes.map(h => [h.id, h]));
+function renderSorryGraph(svgId, S) {
+  const sorries = Object.values(S.sorries || {});
+  const byId = Object.fromEntries(sorries.map(h => [h.id, h]));
   const edges = [];
   const seen = new Set();
   const addEdge = (from, to, kind) => {
     const key = `${from}|${to}|${kind}`;
     if (byId[to] && !seen.has(key)) { seen.add(key); edges.push({ from, to, kind }); }
   };
-  for (const h of holes) {
-    if (holeIsTest(S, h)) continue;
+  for (const h of sorries) {
+    if (sorryIsTest(S, h)) continue;
     for (const [, r] of (h.superseded_by || [])) addEdge(h.id, r, 'supersede');
     for (const sp of (h.splits || []))
       for (const c of sp.children) addEdge(h.id, c[0], 'decompose');
@@ -507,7 +507,7 @@ function renderHoleGraph(svgId, S) {
   for (const id of inGraph) {
     const h = byId[id], p = pos[id];
     const [glyph] = CHIP[h.status];
-    svg += `<a href="hole.html?id=${encodeURIComponent(id)}"><g class="gnode">
+    svg += `<a href="sorry.html?id=${encodeURIComponent(id)}"><g class="gnode">
       <title>${esc(prettyMath(h.title))}</title>
       <ellipse cx="${p.x}" cy="${p.y}" rx="64" ry="26" fill="var(--bg)" stroke="${color[h.status]}" stroke-width="1.8"/>
       <text x="${p.x}" y="${p.y - 1}" text-anchor="middle">${esc(id)}</text>

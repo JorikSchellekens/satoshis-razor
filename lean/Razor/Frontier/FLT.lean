@@ -1,7 +1,7 @@
 /-!
 Fermat's Last Theorem, stated in core Lean, with two registered splits.
 
-A split reduces a parent hole to child holes plus a glue theorem: a proof
+A split reduces a parent sorry to child sorries plus a glue theorem: a proof
 that the children jointly imply the parent. The glue takes the child
 *statements* as hypotheses, so it can be proven and kernel-checked while
 every child is still open - that is what makes a split trustworthy before
@@ -51,7 +51,7 @@ def FLTPrimesGE5 : Prop := ∀ p, PrimeGE5 p → FLTFor p
 
 /-- Split A, child: every exponent `n >= 3` factors as `k * m` where the
 cofactor `m` is 4 or an odd prime. This is the arithmetic content of the
-classical reduction, stated as its own hole rather than buried in the glue. -/
+classical reduction, stated as its own sorry rather than buried in the glue. -/
 def ExponentReduction : Prop :=
   ∀ n, 3 ≤ n → ∃ k m, n = k * m ∧ (m = 4 ∨ OddPrime m)
 

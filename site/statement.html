@@ -41,10 +41,10 @@
   </div>
 </section>
 
-<section id="sec-holes" style="display:none">
+<section id="sec-sorries" style="display:none">
   <div class="wrap">
-    <div class="sec-head"><h3>Holes pinning this statement</h3></div>
-    <div class="cards" id="holes"></div>
+    <div class="sec-head"><h3>Sorries pinning this statement</h3></div>
+    <div class="cards" id="sorries"></div>
   </div>
 </section>
 
@@ -57,7 +57,7 @@
 
 <footer>
   <div class="wrap">
-    <span>Strengthen a clump: pin the equivalence as a solvable hole with <code>razor bridge</code>, then prove it like any other.</span>
+    <span>Strengthen a clump: pin the equivalence as a solvable sorry with <code>razor bridge</code>, then prove it like any other.</span>
     <span class="right"><a href="frontier.html">← back to the frontier</a></span>
   </div>
 </footer>
@@ -108,11 +108,11 @@ loadData(S => {
     </article>`;
   }
 
-  const holes = Object.values(S.holes).filter(h => h.statement === st.id);
-  if (holes.length) {
-    $('sec-holes').style.display = '';
-    $('holes').innerHTML = holes.map(h => `<article class="card">
-      <div class="row1">${holeLink(h.id)}${chip(h.status)}${h.pool ? `<span class="pool">bounty ${h.pool.toLocaleString()}</span>` : ''}</div>
+  const sorries = Object.values(S.sorries).filter(h => h.statement === st.id);
+  if (sorries.length) {
+    $('sec-sorries').style.display = '';
+    $('sorries').innerHTML = sorries.map(h => `<article class="card">
+      <div class="row1">${sorryLink(h.id)}${chip(h.status)}${h.pool ? `<span class="pool">bounty ${h.pool.toLocaleString()}</span>` : ''}</div>
       <h4>${esc(h.title)}</h4>
     </article>`).join('');
   }

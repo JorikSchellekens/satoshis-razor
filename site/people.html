@@ -98,8 +98,8 @@ function personCard(p) {
     `<span>${leader ? '<span style="color:var(--gold)">♛</span> leads' : 'runs'} ${esc(ch)} with ${esc(imp)} on [${esc(board)}] — best ${score.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${esc(unit)}</span>`
   ).join('')}</div>` : '';
 
-  const waiting = p.open_holes_authored.length
-    ? `<div class="meta"><span>waiting on solutions to: ${p.open_holes_authored.map(esc).join(', ')} (open problems under their proposals)</span></div>` : '';
+  const waiting = p.open_sorries_authored.length
+    ? `<div class="meta"><span>waiting on solutions to: ${p.open_sorries_authored.map(esc).join(', ')} (open problems under their proposals)</span></div>` : '';
   const curates = (p.curated || []).length
     ? `<div class="meta"><span>☆ curates: ${p.curated.map(esc).join(', ')} (each pick counts with weight ${1 + p.solved} - 1 plus their admitted work)</span></div>` : '';
   const rigs = p.rigs.length ? `<div class="meta"><span>brings hardware: ${p.rigs.map(esc).join(', ')}</span></div>` : '';

@@ -1,7 +1,7 @@
 //! The verifier: the registry's only trusted component.
 //!
 //! A submission claims that declaration `decl` in the Lean package inhabits
-//! the hole's pinned statement. Verification is two real checks against the
+//! the sorry's pinned statement. Verification is two real checks against the
 //! pinned toolchain:
 //!
 //! 1. Fidelity: an `example : <pinned type> := <decl>` must elaborate - the

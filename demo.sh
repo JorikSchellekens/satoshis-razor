@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end demonstration of Satoshi's Razor + Anvil + the hole funnel.
+# End-to-end demonstration of Satoshi's Razor + Anvil + the sorry funnel.
 # Every step below is a real registry event; every verification is a real
 # Lean kernel check; every score is a real measurement.
 set -euo pipefail
@@ -49,27 +49,27 @@ $RAZOR account new --handle gus --display "Gus" --about "runs everything on the 
 $RAZOR account new --handle peggy --display "Peggy" --about "proves things without showing them"
 
 # ─────────────────────────────────────────────────────────────────────
-step "ACT I - Simple proofs: the basic loop (propose → hole → solve → verify → payout)"
+step "ACT I - Simple proofs: the basic loop (propose → sorry → solve → verify → payout)"
 # ─────────────────────────────────────────────────────────────────────
 
 $RAZOR propose --id PRP-001 --author alice \
   --title "Gauss sum formula" \
   --body "The sum of the first n naturals is n(n+1)/2. Stated multiplicatively to avoid division."
-$RAZOR hole --id RZR-001 --proposal PRP-001 \
+$RAZOR sorry --id RZR-001 --proposal PRP-001 \
   --title "2 * sumTo n = n * (n + 1)" \
   --lean-type "∀ n : Nat, 2 * Razor.sumTo n = n * (n + 1)"
 $RAZOR fund --target RZR-001 --amount 500 --funder math-dao
-$RAZOR submit --id SUB-001 --hole RZR-001 --solver bob --decl Razor.gauss
+$RAZOR submit --id SUB-001 --sorry RZR-001 --solver bob --decl Razor.gauss
 $RAZOR verify --submission SUB-001
 
 $RAZOR propose --id PRP-002 --author alice \
   --title "Reversal is an involution" \
   --body "Reversing a list twice gives back the list, for a from-scratch accumulator reversal."
-$RAZOR hole --id RZR-002 --proposal PRP-002 \
+$RAZOR sorry --id RZR-002 --proposal PRP-002 \
   --title "rev (rev l) = l" \
   --lean-type "∀ {α : Type} (l : List α), Razor.rev (Razor.rev l) = l"
 $RAZOR fund --target RZR-002 --amount 300 --funder math-dao
-$RAZOR submit --id SUB-002 --hole RZR-002 --solver carol --decl Razor.rev_rev
+$RAZOR submit --id SUB-002 --sorry RZR-002 --solver carol --decl Razor.rev_rev
 $RAZOR verify --submission SUB-002
 
 # ─────────────────────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ $RAZOR formalize --id STM-101 --proposal PRP-100 --author dave \
   --decl Razor.Sorting.V1Statement \
   --gloss "there is a function that sorts every list" \
   --notes "∃ f, ∀ l, SortedChain (f l) - output must be sorted. (What else could go wrong?)"
-$RAZOR hole --id RZR-103 --proposal PRP-100 --statement STM-101 \
+$RAZOR sorry --id RZR-103 --proposal PRP-100 --statement STM-101 \
   --title "A sorting function exists (v1)" \
   --lean-type "Razor.Sorting.V1Statement"
 
@@ -98,7 +98,7 @@ $RAZOR fund --target RZR-103 --amount 2000 --funder sortware-inc
 # STM-101 is a clump of one with no convergence evidence.
 
 step "mallory's ordinary proof search finds the two-line proof - it verifies, and it pays"
-$RAZOR submit --id SUB-103 --hole RZR-103 --solver mallory --decl Razor.Sorting.v1_exploited
+$RAZOR submit --id SUB-103 --sorry RZR-103 --solver mallory --decl Razor.Sorting.v1_exploited
 $RAZOR verify --submission SUB-103
 # mallory takes the 2,000. Correctly: sortware-inc funded the literal
 # statement, and the literal statement is trivially true. The kernel check
@@ -146,14 +146,14 @@ $RAZOR certify --statement STM-102A --kind falsifiability \
   --decl Razor.Certificates.sorted_falsifiable \
   --notes "unsorted lists exist: the predicate is not vacuous"
 
-step "The bridge: their equivalence, pinned as its own hole and kernel-checked"
-# razor converge records an equivalence edge directly; a bridge hole is the
+step "The bridge: their equivalence, pinned as its own sorry and kernel-checked"
+# razor converge records an equivalence edge directly; a bridge sorry is the
 # stronger path - the obligation (V2Statement ↔ V2StatementPairs) is composed
 # mechanically and the proof goes through the ordinary verifier. grace's
 # admitted proof merges the two sealed readings into one clump: independent
 # convergence whose independence is itself on the log.
 $RAZOR bridge --id BRG-102 --a STM-102A --b STM-102B
-$RAZOR submit --id SUB-BRG102 --hole BRG-102 --solver grace --decl Razor.Sorting.v2_convergence
+$RAZOR submit --id SUB-BRG102 --sorry BRG-102 --solver grace --decl Razor.Sorting.v2_convergence
 $RAZOR verify --submission SUB-BRG102
 
 step "The implication order: the clump's statement is strictly stronger than dave's"
@@ -161,81 +161,81 @@ $RAZOR implies --a STM-102A --b STM-101 --decl Razor.Sorting.v2_implies_v1
 # v2 → v1 is machine-checked; the converse would need a real sorting function
 # to fall out of the empty-list function, so STM-101 sits strictly below.
 
-step "v2: the hole for the dominant clump (weight 2 - alice and bob independently)"
-$RAZOR hole --id RZR-103v2 --proposal PRP-100 --statement STM-102A \
+step "v2: the sorry for the dominant clump (weight 2 - alice and bob independently)"
+$RAZOR sorry --id RZR-103v2 --proposal PRP-100 --statement STM-102A \
   --title "A correct sorting function exists (v2)" \
   --lean-type "Razor.Sorting.V2Statement"
 
-step "alice and bob mark dave's hole as superseded - weighted opinion, nothing closes"
+step "alice and bob mark dave's sorry as superseded - weighted opinion, nothing closes"
 # A supersession mark is a public, attributed pointer from one wording to a
 # better one. RZR-103 stays exactly as provable as before (its proof and
 # payout stand); readers weigh the marks by who filed them.
-$RAZOR supersede --hole RZR-103 --by alice --replacement RZR-103v2 \
+$RAZOR supersede --sorry RZR-103 --by alice --replacement RZR-103v2 \
   --note "forgets to require the output be a rearrangement of the input; RZR-103v2 states it"
-$RAZOR supersede --hole RZR-103 --by bob --replacement RZR-103v2 \
+$RAZOR supersede --sorry RZR-103 --by bob --replacement RZR-103v2 \
   --note "satisfied by the empty-list function (SUB-103); the clump's wording is the real problem"
 
 step "sortware-inc funds again - this time a statement two people independently converged on"
 $RAZOR fund --target RZR-103v2 --amount 2000 --funder sortware-inc
 
-step "A split: partial progress with the gaps as named child holes"
+step "A split: partial progress with the gaps as named child sorries"
 # In a Lean file this is a proof of the parent with two sorries. Registered,
-# the two sorries become child holes and the surrounding proof becomes the
-# glue hole, whose statement the CLI composes mechanically from the pinned
+# the two sorries become child sorries and the surrounding proof becomes the
+# glue sorry, whose statement the CLI composes mechanically from the pinned
 # types: (child a) → (child b) → parent.
-$RAZOR hole --id RZR-103a --proposal PRP-100 \
+$RAZOR sorry --id RZR-103a --proposal PRP-100 \
   --title "insert preserves sortedness (child a)" \
   --lean-type "∀ (x : Nat) {l : List Nat}, Razor.Sorting.SortedChain l → Razor.Sorting.SortedChain (Razor.Sorting.insert x l)"
-$RAZOR hole --id RZR-103b --proposal PRP-100 \
+$RAZOR sorry --id RZR-103b --proposal PRP-100 \
   --title "insert adds exactly one occurrence (child b)" \
   --lean-type "∀ (a x : Nat) (l : List Nat), Razor.Sorting.count a (Razor.Sorting.insert x l) = (if x = a then 1 else 0) + Razor.Sorting.count a l"
 $RAZOR split --id DEC-103 --parent RZR-103v2 --author grace \
   --child RZR-103a --child RZR-103b \
   --note "insertion sort; the two lemmas the induction needs are left open"
-$RAZOR submit --id SUB-103g --hole DEC-103-glue --solver grace --decl Razor.Sorting.glue_v2
+$RAZOR submit --id SUB-103g --sorry DEC-103-glue --solver grace --decl Razor.Sorting.glue_v2
 $RAZOR verify --submission SUB-103g
 
 step "Subgoals solved independently, then v2 closes - and the bounty pays"
-$RAZOR submit --id SUB-103a --hole RZR-103a --solver heidi --decl Razor.Sorting.insert_sorted
+$RAZOR submit --id SUB-103a --sorry RZR-103a --solver heidi --decl Razor.Sorting.insert_sorted
 $RAZOR verify --submission SUB-103a
-$RAZOR submit --id SUB-103b --hole RZR-103b --solver ivan --decl Razor.Sorting.insert_count
+$RAZOR submit --id SUB-103b --sorry RZR-103b --solver ivan --decl Razor.Sorting.insert_count
 $RAZOR verify --submission SUB-103b
-$RAZOR submit --id SUB-103v2 --hole RZR-103v2 --solver heidi --decl Razor.Sorting.v2_solution
+$RAZOR submit --id SUB-103v2 --sorry RZR-103v2 --solver heidi --decl Razor.Sorting.v2_solution
 $RAZOR verify --submission SUB-103v2
 # First admitted proof of the pinned statement takes the bounty - same rule
 # that paid mallory, now paying for the intended theorem, because this time
 # the funder waited for convergence before trusting the wording.
 
 step "The open frontier: registered, funded, unsolved (a sorried submission bounces)"
-$RAZOR hole --id RZR-104 --proposal PRP-100 \
+$RAZOR sorry --id RZR-104 --proposal PRP-100 \
   --title "merge preserves sortedness" \
   --lean-type "∀ {l₁ l₂ : List Nat}, Razor.Sorting.SortedChain l₁ → Razor.Sorting.SortedChain l₂ → Razor.Sorting.SortedChain (Razor.Sorting.merge l₁ l₂)"
-$RAZOR hole --id RZR-105 --proposal PRP-100 \
+$RAZOR sorry --id RZR-105 --proposal PRP-100 \
   --title "merge preserves counts" \
   --lean-type "∀ (a : Nat) (l₁ l₂ : List Nat), Razor.Sorting.count a (Razor.Sorting.merge l₁ l₂) = Razor.Sorting.count a l₁ + Razor.Sorting.count a l₂"
-$RAZOR hole --id RZR-106 --proposal PRP-100 \
+$RAZOR sorry --id RZR-106 --proposal PRP-100 \
   --title "insertion sort is idempotent" \
   --lean-type "∀ (l : List Nat), Razor.Sorting.isort (Razor.Sorting.isort l) = Razor.Sorting.isort l"
 $RAZOR fund --target RZR-104 --amount 800 --funder mergesort-fans
 $RAZOR curate --curator alice --target RZR-104 \
   --note "merge is the next structural lemma; everything list-shaped goes through it"
 $RAZOR curate --curator heidi --target RZR-106 \
-  --note "idempotence is a good first hole for newcomers"
-$RAZOR submit --id SUB-104x --hole RZR-104 --solver mallory --decl Razor.Sorting.merge_sorted
+  --note "idempotence is a good first sorry for newcomers"
+$RAZOR submit --id SUB-104x --sorry RZR-104 --solver mallory --decl Razor.Sorting.merge_sorted
 # The rejection is the point of this step; verify exits nonzero on REJECTED.
 $RAZOR verify --submission SUB-104x || true
 
 # ─────────────────────────────────────────────────────────────────────
-step "Statement rot: the wording refactors, the hole survives (repin)"
+step "Statement rot: the wording refactors, the sorry survives (repin)"
 # ─────────────────────────────────────────────────────────────────────
 # A pinned statement can rot: a style refactor respells the same Prop.
 # RZR-104's original wording binds its lists implicitly; the refactored
-# wording binds them explicitly. `razor repin` migrates the hole only
+# wording binds them explicitly. `razor repin` migrates the sorry only
 # because the equivalence of the two wordings kernel-checks
 # (Razor.Sorting.merge_sorted_binder_equiv). Mallory's rejection above and
 # every other verdict stay valid: the old wording, the new wording, and
 # the equivalence proof all remain on the log.
-$RAZOR repin --hole RZR-104 --author grace \
+$RAZOR repin --sorry RZR-104 --author grace \
   --lean-type "∀ (l₁ l₂ : List Nat), Razor.Sorting.SortedChain l₁ → Razor.Sorting.SortedChain l₂ → Razor.Sorting.SortedChain (Razor.Sorting.merge l₁ l₂)" \
   --equiv-decl Razor.Sorting.merge_sorted_binder_equiv \
   --note "binder-style refactor: implicit list arguments made explicit; same problem, kernel-checked equivalence"
@@ -244,7 +244,7 @@ $RAZOR repin --hole RZR-104 --author grace \
 step "A solve arrives as a single .lean file (no package surgery)"
 # ─────────────────────────────────────────────────────────────────────
 # judy proves RZR-105 in one file on her own machine. `razor submit
-# --file` installs it into the hole's package as a fresh module and
+# --file` installs it into the sorry's package as a fresh module and
 # builds it; she never touches the package layout.
 JUDY_DIR=$(mktemp -d)
 cat > "$JUDY_DIR/merge_count.lean" <<'LEAN'
@@ -271,7 +271,7 @@ theorem merge_count_solution (a : Nat) (l₁ l₂ : List Nat) :
 
 end Razor.Demo.MergeCount
 LEAN
-$RAZOR submit --id SUB-105 --hole RZR-105 --solver judy \
+$RAZOR submit --id SUB-105 --sorry RZR-105 --solver judy \
   --decl Razor.Demo.MergeCount.merge_count_solution \
   --file "$JUDY_DIR/merge_count.lean"
 $RAZOR verify --submission SUB-105
@@ -289,8 +289,8 @@ step "An admitted proof is carried to its home library, and the log records wher
 # Without --pr this drafts a contribution file with the proof source and a
 # provenance header; with --pr it records the landing. The registry counts
 # upstreamed proofs, not admitted ones, as its measure of usefulness.
-$RAZOR upstream --hole RZR-105 --out "$JUDY_DIR/upstream-draft.lean"
-$RAZOR upstream --hole RZR-105 --by judy \
+$RAZOR upstream --sorry RZR-105 --out "$JUDY_DIR/upstream-draft.lean"
+$RAZOR upstream --sorry RZR-105 --by judy \
   --pr "https://github.com/example/library/pull/104" \
   --note "demo: where the merge_count proof would land"
 
@@ -314,14 +314,14 @@ $RAZOR fund --target ANV-001 --amount 5000 --funder bitboard-labs
 $RAZOR fund --target ANV-001 --amount 3000 --funder bitboard-labs --arch aarch64-apple-m
 $RAZOR anvil-submit --id ANV-001-ref --challenge ANV-001 --impl popcount-naive \
   --solver spec-author --proof-decl ""
-$RAZOR hole --id ANV-001-SWAR-PROOF \
+$RAZOR sorry --id ANV-001-SWAR-PROOF \
   --title "popcount-swar refines the popcount spec" \
   --lean-type "∀ x : BitVec 64, Razor.Anvil.popSwar x = Razor.Anvil.popNaive x" \
   --allow-axiom "bv_decide" --allow-axiom "Lean.ofReduceBool"
-$RAZOR submit --id SUB-ANV1 --hole ANV-001-SWAR-PROOF --solver judy --decl Razor.Anvil.swar_refines
+$RAZOR submit --id SUB-ANV1 --sorry ANV-001-SWAR-PROOF --solver judy --decl Razor.Anvil.swar_refines
 $RAZOR verify --submission SUB-ANV1
 $RAZOR anvil-submit --id ANV-001-swar --challenge ANV-001 --impl popcount-swar \
-  --solver judy --proof-decl Razor.Anvil.swar_refines --refinement-hole ANV-001-SWAR-PROOF
+  --solver judy --proof-decl Razor.Anvil.swar_refines --refinement-sorry ANV-001-SWAR-PROOF
 $RAZOR bench --challenge ANV-001 --iters 20000 --rig wasm-referee
 $RAZOR bench --challenge ANV-001 --iters 20000 --rig m4-station
 
@@ -331,13 +331,13 @@ $RAZOR challenge --id ANV-002 --title "sum(1..n)" --spec-impl sum-loop \
 $RAZOR fund --target ANV-002 --amount 5000 --funder gauss-capital
 $RAZOR anvil-submit --id ANV-002-ref --challenge ANV-002 --impl sum-loop \
   --solver spec-author --proof-decl ""
-$RAZOR hole --id ANV-002-CLOSED-PROOF \
+$RAZOR sorry --id ANV-002-CLOSED-PROOF \
   --title "sum-closed refines the sum spec" \
   --lean-type "∀ n : Nat, Razor.Anvil.sumClosedModel n = Razor.Anvil.sumLoopModel n"
-$RAZOR submit --id SUB-ANV2 --hole ANV-002-CLOSED-PROOF --solver kevin --decl Razor.Anvil.closed_refines
+$RAZOR submit --id SUB-ANV2 --sorry ANV-002-CLOSED-PROOF --solver kevin --decl Razor.Anvil.closed_refines
 $RAZOR verify --submission SUB-ANV2
 $RAZOR anvil-submit --id ANV-002-closed --challenge ANV-002 --impl sum-closed \
-  --solver kevin --proof-decl Razor.Anvil.closed_refines --refinement-hole ANV-002-CLOSED-PROOF
+  --solver kevin --proof-decl Razor.Anvil.closed_refines --refinement-sorry ANV-002-CLOSED-PROOF
 $RAZOR bench --challenge ANV-002 --iters 20000 --rig wasm-referee
 $RAZOR bench --challenge ANV-002 --iters 20000 --rig m4-station
 
@@ -347,14 +347,14 @@ $RAZOR challenge --id ANV-003 --title "sort the 8 bytes of a u64" --spec-impl so
 $RAZOR fund --target ANV-003 --amount 4000 --funder bitboard-labs
 $RAZOR anvil-submit --id ANV-003-ref --challenge ANV-003 --impl sort8-bubble \
   --solver spec-author --proof-decl ""
-$RAZOR hole --id ANV-003-NET-PROOF \
+$RAZOR sorry --id ANV-003-NET-PROOF \
   --title "the 19-comparator sorting network refines the bubble-sort spec" \
   --lean-type "∀ x : BitVec 64, Razor.Anvil.sortNetwork x = Razor.Anvil.sortBubble x" \
   --allow-axiom "bv_decide" --allow-axiom "Lean.ofReduceBool"
-$RAZOR submit --id SUB-ANV3 --hole ANV-003-NET-PROOF --solver judy --decl Razor.Anvil.network_refines
+$RAZOR submit --id SUB-ANV3 --sorry ANV-003-NET-PROOF --solver judy --decl Razor.Anvil.network_refines
 $RAZOR verify --submission SUB-ANV3
 $RAZOR anvil-submit --id ANV-003-net --challenge ANV-003 --impl sort8-network \
-  --solver judy --proof-decl Razor.Anvil.network_refines --refinement-hole ANV-003-NET-PROOF
+  --solver judy --proof-decl Razor.Anvil.network_refines --refinement-sorry ANV-003-NET-PROOF
 
 step "a GPU lane joins ANV-003: same proven network, run as a compute shader over the whole batch"
 # The shader is a transliteration of the same Lean model the CPU lane uses
@@ -363,7 +363,7 @@ step "a GPU lane joins ANV-003: same proven network, run as a compute shader ove
 # the full input stream. On a machine with no GPU the lane is simply
 # reported as not measurable - nothing fails.
 $RAZOR anvil-submit --id ANV-003-gpu --challenge ANV-003 --impl sort8-gpu \
-  --solver gus --proof-decl Razor.Anvil.network_refines --refinement-hole ANV-003-NET-PROOF
+  --solver gus --proof-decl Razor.Anvil.network_refines --refinement-sorry ANV-003-NET-PROOF
 $RAZOR bench --challenge ANV-003 --iters 20000 --rig wasm-referee
 $RAZOR bench --challenge ANV-003 --iters 20000 --rig m4-station
 # The same lanes at a workload 50x larger: a GPU pays a fixed dispatch and
@@ -377,14 +377,14 @@ $RAZOR challenge --id ANV-004 --title "count leading zeros (u64)" --spec-impl cl
 $RAZOR fund --target ANV-004 --amount 2500 --funder bitboard-labs
 $RAZOR anvil-submit --id ANV-004-ref --challenge ANV-004 --impl clz-naive \
   --solver spec-author --proof-decl ""
-$RAZOR hole --id ANV-004-BIN-PROOF \
+$RAZOR sorry --id ANV-004-BIN-PROOF \
   --title "branchless binary search refines the clz spec" \
   --lean-type "∀ x : BitVec 64, Razor.Anvil.clzBinary x = Razor.Anvil.clzNaive x" \
   --allow-axiom "bv_decide" --allow-axiom "Lean.ofReduceBool"
-$RAZOR submit --id SUB-ANV4 --hole ANV-004-BIN-PROOF --solver heidi --decl Razor.Anvil.clz_binary_refines
+$RAZOR submit --id SUB-ANV4 --sorry ANV-004-BIN-PROOF --solver heidi --decl Razor.Anvil.clz_binary_refines
 $RAZOR verify --submission SUB-ANV4
 $RAZOR anvil-submit --id ANV-004-bin --challenge ANV-004 --impl clz-branchless \
-  --solver heidi --proof-decl Razor.Anvil.clz_binary_refines --refinement-hole ANV-004-BIN-PROOF
+  --solver heidi --proof-decl Razor.Anvil.clz_binary_refines --refinement-sorry ANV-004-BIN-PROOF
 $RAZOR bench --challenge ANV-004 --iters 20000 --rig wasm-referee
 $RAZOR bench --challenge ANV-004 --iters 20000 --rig m4-station
 
@@ -394,14 +394,14 @@ $RAZOR challenge --id ANV-005 --title "reverse the bits of a u64" --spec-impl bi
 $RAZOR fund --target ANV-005 --amount 2500 --funder bitboard-labs
 $RAZOR anvil-submit --id ANV-005-ref --challenge ANV-005 --impl bitrev-naive \
   --solver spec-author --proof-decl ""
-$RAZOR hole --id ANV-005-SWAR-PROOF \
+$RAZOR sorry --id ANV-005-SWAR-PROOF \
   --title "the six swap layers refine the bit-reversal spec" \
   --lean-type "∀ x : BitVec 64, Razor.Anvil.revSwar x = Razor.Anvil.revNaive x" \
   --allow-axiom "bv_decide" --allow-axiom "Lean.ofReduceBool"
-$RAZOR submit --id SUB-ANV5 --hole ANV-005-SWAR-PROOF --solver judy --decl Razor.Anvil.rev_swar_refines
+$RAZOR submit --id SUB-ANV5 --sorry ANV-005-SWAR-PROOF --solver judy --decl Razor.Anvil.rev_swar_refines
 $RAZOR verify --submission SUB-ANV5
 $RAZOR anvil-submit --id ANV-005-swar --challenge ANV-005 --impl bitrev-swar \
-  --solver judy --proof-decl Razor.Anvil.rev_swar_refines --refinement-hole ANV-005-SWAR-PROOF
+  --solver judy --proof-decl Razor.Anvil.rev_swar_refines --refinement-sorry ANV-005-SWAR-PROOF
 $RAZOR bench --challenge ANV-005 --iters 20000 --rig wasm-referee
 $RAZOR bench --challenge ANV-005 --iters 20000 --rig m4-station
 
@@ -411,13 +411,13 @@ $RAZOR challenge --id ANV-100 --title "EVM interpreter (64-bit demo words)" --sp
 $RAZOR fund --target ANV-100 --amount 6000 --funder rollup-collective
 $RAZOR anvil-submit --id ANV-100-ref --challenge ANV-100 --impl evm-ref \
   --solver spec-author --proof-decl ""
-$RAZOR hole --id ANV-100-TOS-PROOF \
+$RAZOR sorry --id ANV-100-TOS-PROOF \
   --title "register-cached EVM interpreter refines the spec" \
   --lean-type "∀ (p : List Razor.Evm.Op) (gas : UInt64) (tos : Option UInt64) (rest : List UInt64), (tos = none → rest = []) → Razor.Evm.execTos p gas tos rest = Razor.Evm.execSpec p gas (Razor.Evm.stackOf tos rest)"
-$RAZOR submit --id SUB-ANV100 --hole ANV-100-TOS-PROOF --solver leo --decl Razor.Evm.tos_refines
+$RAZOR submit --id SUB-ANV100 --sorry ANV-100-TOS-PROOF --solver leo --decl Razor.Evm.tos_refines
 $RAZOR verify --submission SUB-ANV100
 $RAZOR anvil-submit --id ANV-100-tos --challenge ANV-100 --impl evm-tos \
-  --solver leo --proof-decl Razor.Evm.tos_refines --refinement-hole ANV-100-TOS-PROOF
+  --solver leo --proof-decl Razor.Evm.tos_refines --refinement-sorry ANV-100-TOS-PROOF
 $RAZOR bench --challenge ANV-100 --iters 5000 --rig wasm-referee
 $RAZOR bench --challenge ANV-100 --iters 5000 --rig m4-station
 
@@ -439,7 +439,7 @@ step "nina seals her private RZR-106 proof and commits only the hash"
 NINA_SALT="nina-keeps-this-secret-4217"
 NINA_COMMIT=$($RAZOR seal --file examples/private/nina-rzr106.lean --salt "$NINA_SALT")
 echo "commitment: $NINA_COMMIT"
-$RAZOR commit --id SUB-106 --hole RZR-106 --solver nina --commitment "$NINA_COMMIT"
+$RAZOR commit --id SUB-106 --sorry RZR-106 --solver nina --commitment "$NINA_COMMIT"
 
 step "later, nina reveals; the registry checks the hash, installs, builds, verifies"
 $RAZOR reveal --submission SUB-106 --file examples/private/nina-rzr106.lean \
@@ -447,25 +447,25 @@ $RAZOR reveal --submission SUB-106 --file examples/private/nina-rzr106.lean \
 $RAZOR verify --submission SUB-106
 
 step "oscar commits to RZR-104 and stays sealed - priority without exposure"
-$RAZOR commit --id SUB-104s --hole RZR-104 --solver oscar \
+$RAZOR commit --id SUB-104s --sorry RZR-104 --solver oscar \
   --commitment "$($RAZOR seal --file examples/private/nina-rzr106.lean --salt oscar-wip)"
 
 # ─────────────────────────────────────────────────────────────────────
 step "ACT V - Real zero-knowledge: Groth16 submissions (zkGolf-style)"
 # ─────────────────────────────────────────────────────────────────────
 
-step "The circuit's meaning is itself a solved hole: constraints ⇒ sorted permutation"
-$RAZOR hole --id ZKS-001 \
+step "The circuit's meaning is itself a solved sorry: constraints ⇒ sorted permutation"
+$RAZOR sorry --id ZKS-001 \
   --title "sorting-network R1CS constraints imply sorted + permutation" \
   --lean-type "∀ {x0 x1 x2 x3 a0 a1 a2 a3 b0 b1 b2 b3 c1 c2 : Int}, Razor.Zk.Cmp x0 x1 a0 a1 → Razor.Zk.Cmp x2 x3 a2 a3 → Razor.Zk.Cmp a0 a2 b0 b2 → Razor.Zk.Cmp a1 a3 b1 b3 → Razor.Zk.Cmp b1 b2 c1 c2 → (b0 ≤ c1 ∧ c1 ≤ c2 ∧ c2 ≤ b3) ∧ ∀ v, Razor.Zk.countZ v [b0, c1, c2, b3] = Razor.Zk.countZ v [x0, x1, x2, x3]"
-$RAZOR submit --id SUB-ZKS --hole ZKS-001 --solver alice --decl Razor.Zk.network_sound
+$RAZOR submit --id SUB-ZKS --sorry ZKS-001 --solver alice --decl Razor.Zk.network_sound
 $RAZOR verify --submission SUB-ZKS
 $RAZOR propose --id PRP-200 --author alice \
   --title "Field-to-integer transfer for the zk circuit" \
   --body "The Lean model works over Int; the circuit over F_p with values range-checked < 2^8. Formalize that the field constraints imply the integer ones. Open."
 
-step "ZKH-001: an ordinary hole whose statement names one specific commitment"
-# peggy publishes a commitment to her secret list. The hole pins a real
+step "ZKH-001: an ordinary sorry whose statement names one specific commitment"
+# peggy publishes a commitment to her secret list. The sorry pins a real
 # Lean statement about that exact commitment - Razor.Zk.SortedWitnessFor,
 # the Lean model of the circuit's commitment (public input decoded
 # little-endian to a natural number). Anyone could in principle solve it
@@ -478,27 +478,27 @@ PEGGY=$(./target/release/zk-prover prove --list 42,7,255,7)
 PEGGY_PUB=$(echo "$PEGGY" | python3 -c "import json,sys; print(json.load(sys.stdin)['public'])")
 PEGGY_PRF=$(echo "$PEGGY" | python3 -c "import json,sys; print(json.load(sys.stdin)['proof'])")
 PEGGY_NAT=$(python3 -c "print(int.from_bytes(bytes.fromhex('$PEGGY_PUB'), 'little'))")
-$RAZOR hole --id ZKH-001 \
+$RAZOR sorry --id ZKH-001 \
   --title "sorted witness for a committed list (4 values, 8-bit)" \
   --lean-type "Razor.Zk.SortedWitnessFor $PEGGY_NAT"
 $RAZOR fund --target ZKH-001 --amount 4000 --funder privacy-dao
 
-step "a zk route: an attachment that makes the hole solvable by a Groth16 proof"
+step "a zk route: an attachment that makes the sorry solvable by a Groth16 proof"
 # The route pins the verifying key and the bridge: a kernel-checked Lean
 # theorem that the circuit's constraints imply the pinned statement. The
 # same mechanism could carry a universal route (a proof checker run inside
 # a zkVM), whose bridge is a binary hash instead of a theorem.
-$RAZOR zk-route --id ZKR-001 --hole ZKH-001 \
+$RAZOR zk-route --id ZKR-001 --sorry ZKH-001 \
   --bridge-kind theorem --bridge Razor.Zk.network_sound \
   --note "bridge covers the sorting network; the commitment binding and the field-to-integer transfer are the open gaps PRP-200 records"
 
 step "peggy proves knowledge of her secret list (the registry never sees it)"
-$RAZOR zk-submit --id SUB-ZK1 --hole ZKH-001 --route ZKR-001 --solver peggy \
+$RAZOR zk-submit --id SUB-ZK1 --sorry ZKH-001 --route ZKR-001 --solver peggy \
   --public "$PEGGY_PUB" --proof "$PEGGY_PRF"
 $RAZOR zk-verify --submission SUB-ZK1
 
 step "a forged proof bounces off the verifier"
-$RAZOR zk-submit --id SUB-ZK2 --hole ZKH-001 --route ZKR-001 --solver mallory \
+$RAZOR zk-submit --id SUB-ZK2 --sorry ZKH-001 --route ZKR-001 --solver mallory \
   --public "$PEGGY_PUB" --proof "${PEGGY_PRF%????}0000"
 $RAZOR zk-verify --submission SUB-ZK2 || true
 

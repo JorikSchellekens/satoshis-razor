@@ -31,7 +31,7 @@ rm -rf site/data.json
 step "Recognize prior corpora - work that is already done"
 # ─────────────────────────────────────────────────────────────────────
 # Mathlib is not re-verified or restated here. Recognizing it as a corpus
-# means: the registry treats its contents as solved, and a hole whose
+# means: the registry treats its contents as solved, and a sorry whose
 # statement already exists in Mathlib is closed by citing it.
 
 $RAZOR corpus --id mathlib \
@@ -42,7 +42,7 @@ $RAZOR corpus --id mathlib \
   --stat "definitions=133,477" \
   --stat "theorems=281,364" \
   --stat "contributors=772" \
-  --note "The Lean community's mathematical library. Every declaration in it is already machine-checked by the same kernel this registry uses, so the registry treats all of it as done. New holes should state what Mathlib does not yet contain; a hole later found to duplicate a Mathlib result is closed by citation, not re-proved."
+  --note "The Lean community's mathematical library. Every declaration in it is already machine-checked by the same kernel this registry uses, so the registry treats all of it as done. New sorries should state what Mathlib does not yet contain; a sorry later found to duplicate a Mathlib result is closed by citation, not re-proved."
 
 $RAZOR corpus --id formal-conjectures \
   --name "formal-conjectures (Google DeepMind)" \
@@ -54,7 +54,7 @@ $RAZOR corpus --id formal-conjectures \
   --stat "open problems in the formalization milestone=693" \
   --stat "statements already formalized in Lean=~240" \
   --stat "solutions formalized in Lean=17" \
-  --note "A collection of conjecture statements formalized in Lean, centered on the problems of Paul Erdos as catalogued at erdosproblems.com. This is the closest existing thing to a frontier registry: precise Lean statements of problems nobody has solved. Holes here should link to the corresponding formal-conjectures entry rather than restate it."
+  --note "A collection of conjecture statements formalized in Lean, centered on the problems of Paul Erdos as catalogued at erdosproblems.com. This is the closest existing thing to a frontier registry: precise Lean statements of problems nobody has solved. Sorries here should link to the corresponding formal-conjectures entry rather than restate it."
 
 $RAZOR corpus --id physlib \
   --name "Physlib (formerly PhysLean / HepLean)" \
@@ -74,11 +74,11 @@ step "Real open problems, entered as proposals"
 
 $RAZOR propose --id PRP-001 --author "registry" \
   --title "Fermat's Last Theorem, formalized" \
-  --body "The FLT project led by Kevin Buzzard at Imperial College London is formalizing Fermat's Last Theorem in Lean, with the interim goal of reducing it to results that were known to experts by 1989. It is the largest single formalization effort in mathematics and is not in Mathlib. Reference: https://github.com/ImperialCollegeLondon/FLT. Holes under this proposal should track the project's stated open sub-goals rather than the full theorem."
+  --body "The FLT project led by Kevin Buzzard at Imperial College London is formalizing Fermat's Last Theorem in Lean, with the interim goal of reducing it to results that were known to experts by 1989. It is the largest single formalization effort in mathematics and is not in Mathlib. Reference: https://github.com/ImperialCollegeLondon/FLT. Sorries under this proposal should track the project's stated open sub-goals rather than the full theorem."
 
 $RAZOR propose --id PRP-002 --author "registry" \
   --title "Erdos-Straus conjecture" \
-  --body "For every integer n >= 2, the fraction 4/n can be written as 1/x + 1/y + 1/z with x, y, z positive integers. Open since 1948. A Lean statement is straightforward to pin, which makes this a good first hole to formalize from this list. See erdosproblems.com and the formal-conjectures corpus for the statement conventions to follow."
+  --body "For every integer n >= 2, the fraction 4/n can be written as 1/x + 1/y + 1/z with x, y, z positive integers. Open since 1948. A Lean statement is straightforward to pin, which makes this a good first sorry to formalize from this list. See erdosproblems.com and the formal-conjectures corpus for the statement conventions to follow."
 
 $RAZOR propose --id PRP-003 --author "registry" \
   --title "Erdos-Turan conjecture on additive bases" \
@@ -90,7 +90,7 @@ $RAZOR propose --id PRP-004 --author "registry" \
 
 $RAZOR propose --id PRP-005 --author "registry" \
   --title "The Ito integral for Mathlib" \
-  --body "Missing Mathlib library. Mathlib's probability theory does not yet reach stochastic calculus: the Ito integral, Ito's formula, and stochastic differential equations have no usable formal development. This blocks formal work on mathematical finance, filtering, and stochastic PDEs. The hole structure should follow the decomposition the informal theory already has: predictable processes, the isometry, the integral, then the formula."
+  --body "Missing Mathlib library. Mathlib's probability theory does not yet reach stochastic calculus: the Ito integral, Ito's formula, and stochastic differential equations have no usable formal development. This blocks formal work on mathematical finance, filtering, and stochastic PDEs. The sorry structure should follow the decomposition the informal theory already has: predictable processes, the isometry, the integral, then the formula."
 
 $RAZOR propose --id PRP-006 --author "registry" \
   --title "The heat equation and its smoothing estimates" \
@@ -114,12 +114,12 @@ $RAZOR corpus --id thousand-plus \
   --stat "theorems catalogued=1,199" \
   --stat "with Lean proofs=224" \
   --stat "without Lean formalization=975" \
-  --note "A community catalogue of notable theorems and their formalization status across proof assistants, maintained as the successor of Freek Wiedijk's 'Formalizing 100 Theorems'. The 975 entries without a Lean formalization are ingested below as proposals: each needs a pinned statement, written with Mathlib's definitions, before it is a solvable hole, and that formalization work is itself attributed on this log."
+  --note "A community catalogue of notable theorems and their formalization status across proof assistants, maintained as the successor of Freek Wiedijk's 'Formalizing 100 Theorems'. The 975 entries without a Lean formalization are ingested below as proposals: each needs a pinned statement, written with Mathlib's definitions, before it is a solvable sorry, and that formalization work is itself attributed on this log."
 
 $RAZOR propose-batch --file ingest/data/thousand-plus.jsonl --author "registry"
 
 # ─────────────────────────────────────────────────────────────────────
-step "First real formalization: Erdos-Straus, pinned as a hole"
+step "First real formalization: Erdos-Straus, pinned as a sorry"
 # ─────────────────────────────────────────────────────────────────────
 # PRP-002 is elementary enough to state formally today. Two candidate
 # statements are registered: a core-Lean form with denominators cleared
@@ -149,11 +149,11 @@ $RAZOR certify --statement STM-ES-CORE --kind non-vacuity \
   --decl Razor.Frontier.erdosStraus_nonvacuous \
   --notes "the hypothesis 2 <= n is satisfiable"
 
-$RAZOR hole --id ES-001 --proposal PRP-002 --statement STM-ES-CORE \
+$RAZOR sorry --id ES-001 --proposal PRP-002 --statement STM-ES-CORE \
   --title "Erdos-Straus (naturals, denominators cleared)" \
   --lean-type "Razor.Frontier.ErdosStraus"
 
-$RAZOR hole --id ES-002 --proposal PRP-002 --statement STM-ES-RAT --env mathlib \
+$RAZOR sorry --id ES-002 --proposal PRP-002 --statement STM-ES-RAT --env mathlib \
   --title "Erdos-Straus (rationals, in the Mathlib environment)" \
   --lean-type "RazorMathlib.ErdosStrausRat"
 
@@ -169,14 +169,14 @@ $RAZOR round --id RND-ES-1 --proposal PRP-002 --author "registry" \
   --note "seal your own Lean reading of Erdos-Straus by 2026-08-14, reveal by 2026-08-21. Both existing statements are the registry's own; a sealed reading that bridges to either is the first independent convergence evidence this proposal can get."
 
 # ─────────────────────────────────────────────────────────────────────
-step "The Mathlib environment is the default for new holes"
+step "The Mathlib environment is the default for new sorries"
 # ─────────────────────────────────────────────────────────────────────
 # A proof is worth most where it can be built on, and for mathematics that
-# place is Mathlib. New holes should be stated using Mathlib's definitions
-# (razor hole --env mathlib); the core-Lean environment stays for
+# place is Mathlib. New sorries should be stated using Mathlib's definitions
+# (razor sorry --env mathlib); the core-Lean environment stays for
 # statements that deliberately avoid all dependencies. Where Mathlib
-# already names the Prop - as it does for Fermat's Last Theorem - the hole
-# pins Mathlib's own name, so a proof accepted by Mathlib closes the hole
+# already names the Prop - as it does for Fermat's Last Theorem - the sorry
+# pins Mathlib's own name, so a proof accepted by Mathlib closes the sorry
 # verbatim: no restatement, no translation risk.
 
 $RAZOR formalize --id STM-ET-MATHLIB --proposal PRP-003 --author "registry" \
@@ -184,7 +184,7 @@ $RAZOR formalize --id STM-ET-MATHLIB --proposal PRP-003 --author "registry" \
   --gloss "if every sufficiently large natural number is a sum of two elements of A, the number of representations n = a + b with a, b in A is unbounded; ordered pairs are counted, which changes nothing about boundedness" \
   --notes "Mathlib environment (lean-mathlib/RazorMathlib/Statements.lean), stated with Set.ncard and Filter.atTop"
 
-$RAZOR hole --id ET-001 --proposal PRP-003 --statement STM-ET-MATHLIB --env mathlib \
+$RAZOR sorry --id ET-001 --proposal PRP-003 --statement STM-ET-MATHLIB --env mathlib \
   --title "Erdos-Turan on additive bases (in the Mathlib environment)" \
   --lean-type "RazorMathlib.ErdosTuranAdditiveBasis"
 
@@ -194,7 +194,7 @@ step "Fermat's Last Theorem: one statement, two competing splits"
 # PRP-001 tracks the FLT project. The full theorem is statable in core Lean
 # today (lean/Razor/Frontier/FLT.lean), and its classical reduction makes it
 # the clearest real example of the split mechanism: a split reduces a parent
-# hole to child holes plus a glue hole, and the glue - "the children jointly
+# sorry to child sorries plus a glue sorry, and the glue - "the children jointly
 # imply the parent" - is proven and kernel-checked below while every child
 # is still open. Both glue proofs are real proofs, checked by the kernel
 # during this seed; the children are genuinely open and stay that way.
@@ -208,39 +208,39 @@ $RAZOR certify --statement STM-FLT-CORE --kind instance-check \
   --decl Razor.Frontier.flt_instance_check \
   --notes "the near-miss 3^3 + 4^3 = 91 is rejected at exponent 3 (not 125)"
 
-$RAZOR hole --id FLT-000 --proposal PRP-001 --statement STM-FLT-CORE \
+$RAZOR sorry --id FLT-000 --proposal PRP-001 --statement STM-FLT-CORE \
   --title "Fermat's Last Theorem (naturals, core Lean)" \
   --lean-type "Razor.Frontier.FLT"
 
-# Mathlib states FLT itself, so the flagship hole pins Mathlib's own Prop:
+# Mathlib states FLT itself, so the flagship sorry pins Mathlib's own Prop:
 # whatever proof the FLT project lands in Mathlib closes FLT-M verbatim.
 $RAZOR formalize --id STM-FLT-MATHLIB --proposal PRP-001 --author "registry" \
   --decl FermatLastTheorem \
   --gloss "Mathlib's own statement: for every n >= 3 there are no positive naturals x, y, z with x^n + y^n = z^n" \
   --notes "the Prop is defined by Mathlib itself (FermatLastTheorem, in Mathlib.NumberTheory.FLT.Basic) - the exact statement the Imperial FLT project is proving. Proving it equivalent to STM-FLT-CORE is an open convergence task."
 
-$RAZOR hole --id FLT-M --proposal PRP-001 --statement STM-FLT-MATHLIB --env mathlib \
+$RAZOR sorry --id FLT-M --proposal PRP-001 --statement STM-FLT-MATHLIB --env mathlib \
   --title "Fermat's Last Theorem (Mathlib's own statement)" \
   --lean-type "FermatLastTheorem"
 
-# The children of both splits. FLT-4 is shared between them - a hole can
+# The children of both splits. FLT-4 is shared between them - a sorry can
 # serve in any number of splits.
-$RAZOR hole --id FLT-3 --proposal PRP-001 \
+$RAZOR sorry --id FLT-3 --proposal PRP-001 \
   --title "FLT for exponent 3 (Euler's case)" \
   --lean-type "Razor.Frontier.FLTFor 3"
-$RAZOR hole --id FLT-4 --proposal PRP-001 \
+$RAZOR sorry --id FLT-4 --proposal PRP-001 \
   --title "FLT for exponent 4 (Fermat's own case)" \
   --lean-type "Razor.Frontier.FLTFor 4"
-$RAZOR hole --id FLT-ODD --proposal PRP-001 \
+$RAZOR sorry --id FLT-ODD --proposal PRP-001 \
   --title "FLT for every odd prime exponent" \
   --lean-type "Razor.Frontier.FLTOddPrimes"
-$RAZOR hole --id FLT-P5 --proposal PRP-001 \
+$RAZOR sorry --id FLT-P5 --proposal PRP-001 \
   --title "FLT for every prime exponent >= 5" \
   --lean-type "Razor.Frontier.FLTPrimesGE5"
-$RAZOR hole --id FLT-RED --proposal PRP-001 \
+$RAZOR sorry --id FLT-RED --proposal PRP-001 \
   --title "every exponent >= 3 factors through 4 or an odd prime" \
   --lean-type "Razor.Frontier.ExponentReduction"
-$RAZOR hole --id FLT-REDF --proposal PRP-001 \
+$RAZOR sorry --id FLT-REDF --proposal PRP-001 \
   --title "every exponent >= 3 factors through 3, 4, or a prime >= 5" \
   --lean-type "Razor.Frontier.ExponentReductionFine"
 
@@ -248,7 +248,7 @@ $RAZOR hole --id FLT-REDF --proposal PRP-001 \
 $RAZOR split --id SPL-FLT-A --parent FLT-000 --author "registry" \
   --child FLT-4 --child FLT-ODD --child FLT-RED \
   --note "the classical reduction: a counterexample at exponent n is one at a divisor of n that is 4 or an odd prime"
-$RAZOR submit --id SUB-FLT-GA --hole SPL-FLT-A-glue --solver "registry" \
+$RAZOR submit --id SUB-FLT-GA --sorry SPL-FLT-A-glue --solver "registry" \
   --decl Razor.Frontier.fltSplitA_glue
 $RAZOR verify --submission SUB-FLT-GA
 
@@ -261,12 +261,12 @@ $RAZOR verify --submission SUB-FLT-GA
 $RAZOR split --id SPL-FLT-B --parent FLT-000 --author "registry" \
   --child FLT-3 --child FLT-4 --child FLT-P5 --child FLT-REDF \
   --note "the FLT project's own top-level plan (blueprint: reduction to n >= 5 and prime); n = 3 and n = 4 are already proven in Mathlib, so those children could close by convergence with Mathlib statements"
-$RAZOR submit --id SUB-FLT-GB --hole SPL-FLT-B-glue --solver "registry" \
+$RAZOR submit --id SUB-FLT-GB --sorry SPL-FLT-B-glue --solver "registry" \
   --decl Razor.Frontier.fltSplitB_glue
 $RAZOR verify --submission SUB-FLT-GB
 
 $RAZOR curate --curator "registry" --target FLT-RED \
-  --note "self-contained number theory, no imports needed - a genuinely provable first hole on this board"
+  --note "self-contained number theory, no imports needed - a genuinely provable first sorry on this board"
 
 # ─────────────────────────────────────────────────────────────────────
 step "Export for the site"

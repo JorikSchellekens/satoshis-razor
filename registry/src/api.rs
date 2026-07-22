@@ -140,7 +140,7 @@ pub fn get_submission(root: &PathBuf, log_path: &PathBuf, query: Option<&str>) -
         return err("400 Bad Request", "usage: /api/submission?id=SUB-...");
     };
     let state = State::fold(load(log_path));
-    let Some((hole, sub)) = state.holes.values()
+    let Some((sorry, sub)) = state.sorries.values()
         .find_map(|h| h.submissions.iter().find(|s| s.id == id).map(|s| (h, s)))
     else {
         return err("404 Not Found", "unknown submission");
@@ -148,7 +148,7 @@ pub fn get_submission(root: &PathBuf, log_path: &PathBuf, query: Option<&str>) -
     let Some(module) = &sub.module else {
         return err("404 Not Found", "this submission has no installed file (it names a package declaration)");
     };
-    let (lean_dir, _) = crate::env_of(root, hole);
+    let (lean_dir, _) = crate::env_of(root, sorry);
     let path = lean_dir.join(module.replace('.', "/") + ".lean");
     match std::fs::read(&path) {
         Ok(bytes) => ok(serde_json::json!({
@@ -169,7 +169,7 @@ pub fn get_submission(root: &PathBuf, log_path: &PathBuf, query: Option<&str>) -
 fn remote_allowed(event: &Event) -> Result<(), &'static str> {
     match event {
         Event::Propose { .. } | Event::Formalize { .. } | Event::SealStatement { .. }
-        | Event::RevealStatement { .. } | Event::RegisterHole { .. } | Event::OpenRound { .. }
+        | Event::RevealStatement { .. } | Event::RegisterSorry { .. } | Event::OpenRound { .. }
         | Event::Curate { .. } | Event::Supersede { .. } | Event::Fund { .. }
         | Event::RegisterAccount { .. } | Event::Commit { .. } | Event::Split { .. }
         | Event::Tag { .. } => Ok(()),
@@ -181,7 +181,7 @@ fn remote_allowed(event: &Event) -> Result<(), &'static str> {
         | Event::RegisterRig { .. } | Event::Bench { .. } => Ok(()),
         Event::Converge { .. } | Event::Implies { .. } =>
             Err("converge/implies assert an equivalence without a kernel check and are not accepted \
-                 remotely - use `razor bridge` (the equivalence becomes a hole, proven like any other)"),
+                 remotely - use `razor bridge` (the equivalence becomes a sorry, proven like any other)"),
         Event::Certify { .. } =>
             Err("certify is not accepted remotely yet"),
         Event::Submit { .. } =>
@@ -248,10 +248,10 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
                 return no("sha256(file ‖ salt) does not match the sealed commitment");
             }
         }
-        Event::RegisterHole { id, lean_type, proposal, env, bridge, .. } => {
-            if !sane_id(id) { return no("hole id: letters, digits, dashes, up to 64 chars"); }
-            if state.holes.contains_key(id) { return no("hole id already exists"); }
-            if lean_type.trim().is_empty() { return no("a hole needs --lean-type"); }
+        Event::RegisterSorry { id, lean_type, proposal, env, bridge, .. } => {
+            if !sane_id(id) { return no("sorry id: letters, digits, dashes, up to 64 chars"); }
+            if state.sorries.contains_key(id) { return no("sorry id already exists"); }
+            if lean_type.trim().is_empty() { return no("a sorry needs --lean-type"); }
             // A pin with shell-escape residue or control characters can
             // never elaborate; refuse it before it is permanent.
             if lean_type.contains("\\x") || lean_type.contains("\\u")
@@ -283,14 +283,14 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
         }
         Event::Curate { curator, target, .. } => {
             if curator.trim().is_empty() { return no("curate needs --curator"); }
-            if !state.holes.contains_key(target) && !state.proposals.contains_key(target) {
+            if !state.sorries.contains_key(target) && !state.proposals.contains_key(target) {
                 return no("unknown curation target");
             }
         }
-        Event::Supersede { hole, replacement, by, .. } => {
+        Event::Supersede { sorry, replacement, by, .. } => {
             if by.trim().is_empty() { return no("supersede needs --by"); }
-            if !state.holes.contains_key(hole) || !state.holes.contains_key(replacement) {
-                return no("unknown hole");
+            if !state.sorries.contains_key(sorry) || !state.sorries.contains_key(replacement) {
+                return no("unknown sorry");
             }
         }
         Event::Tag { target, tag, by, .. } => {
@@ -299,7 +299,7 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
                 || !tag.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
                 return no("tags are lowercase letters, digits, and dashes (up to 32 chars)");
             }
-            if !state.holes.contains_key(target) && !state.proposals.contains_key(target)
+            if !state.sorries.contains_key(target) && !state.proposals.contains_key(target)
                 && !state.statements.contains_key(target) && !state.accounts.contains_key(target)
                 && !state.challenges.contains_key(target) {
                 return no("unknown tag target");
@@ -308,7 +308,7 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
         Event::Fund { target, amount, funder, .. } => {
             if funder.trim().is_empty() { return no("fund needs --funder"); }
             if *amount == 0 { return no("fund needs a positive --amount"); }
-            if !state.holes.contains_key(target) && !state.challenges.contains_key(target) {
+            if !state.sorries.contains_key(target) && !state.challenges.contains_key(target) {
                 return no("unknown funding target");
             }
         }
@@ -320,20 +320,20 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
             if state.accounts.contains_key(handle) { return no("handle is taken"); }
             if !is_hex(pubkey, 64) { return no("pubkey must be 64 hex chars (razor account new generates it)"); }
         }
-        Event::Commit { id, hole, commitment, solver } => {
+        Event::Commit { id, sorry, commitment, solver } => {
             if !sane_id(id) { return no("submission id: letters, digits, dashes, up to 64 chars"); }
             if submission_exists(state, id) { return no("submission id already exists"); }
-            if !state.holes.contains_key(hole) { return no("unknown hole"); }
+            if !state.sorries.contains_key(sorry) { return no("unknown sorry"); }
             if !is_hex(commitment, 64) { return no("commitment must be 64 hex chars (razor seal prints it)"); }
             if solver.trim().is_empty() { return no("commit needs --solver"); }
         }
         Event::Split { parent, children, glue, author, .. } => {
             if author.trim().is_empty() { return no("split needs --author"); }
-            if !state.holes.contains_key(parent) { return no("unknown parent hole"); }
-            if !state.holes.contains_key(glue) { return no("unknown glue hole - register it first"); }
+            if !state.sorries.contains_key(parent) { return no("unknown parent sorry"); }
+            if !state.sorries.contains_key(glue) { return no("unknown glue sorry - register it first"); }
             if children.is_empty() { return no("a split needs at least one child"); }
             for c in children {
-                if !state.holes.contains_key(c) { return Err(format!("unknown child hole: {c}")); }
+                if !state.sorries.contains_key(c) { return Err(format!("unknown child sorry: {c}")); }
             }
         }
         Event::RegisterChallenge { id, title, spec_impl, obligation } => {
@@ -343,7 +343,7 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
                 return no("a challenge needs --title, --spec-impl, and --obligation");
             }
         }
-        Event::AnvilSubmit { id, challenge, impl_name, solver, refinement_hole, .. } => {
+        Event::AnvilSubmit { id, challenge, impl_name, solver, refinement_sorry, .. } => {
             if !sane_id(id) { return no("submission id: letters, digits, dashes, up to 64 chars"); }
             let Some(c) = state.challenges.get(challenge) else { return no("unknown challenge") };
             if c.entries.iter().any(|e| e.id == *id) { return no("submission id already exists"); }
@@ -352,8 +352,8 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
             }
             if !sane_id(impl_name) { return no("impl name: letters, digits, dashes, up to 64 chars"); }
             if solver.trim().is_empty() { return no("anvil-submit needs --solver"); }
-            if let Some(h) = refinement_hole {
-                if !state.holes.contains_key(h) { return no("unknown refinement hole - register it first"); }
+            if let Some(h) = refinement_sorry {
+                if !state.sorries.contains_key(h) { return no("unknown refinement sorry - register it first"); }
             }
         }
         Event::RegisterRig { id, owner, arch, tier, .. } => {
@@ -388,7 +388,7 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
 }
 
 pub fn submission_exists(state: &State, id: &str) -> bool {
-    state.holes.values().any(|h| h.submissions.iter().any(|s| s.id == id)
+    state.sorries.values().any(|h| h.submissions.iter().any(|s| s.id == id)
         || h.zk_submissions.iter().any(|z| z.id == id))
 }
 
@@ -408,9 +408,10 @@ fn check_signature(state: &State, event: &Event, sig: Option<&str>) -> Result<()
             .and_then(|b| <[u8; 64]>::try_from(b).ok())
             .map(|b| Signature::from_bytes(&b))
             .ok_or("malformed signature")?;
-        let msg = serde_json::to_string(event).unwrap();
-        vk.verify(msg.as_bytes(), &sig)
-            .map_err(|_| "signature does not verify against the registered key".to_string())
+        crate::model::canonical_forms(event).iter()
+            .any(|msg| vk.verify(msg.as_bytes(), &sig).is_ok())
+            .then_some(())
+            .ok_or("signature does not verify against the registered key".to_string())
     };
     if let Event::RegisterAccount { pubkey, .. } = event {
         return verify_with(pubkey, "account registration");
@@ -456,7 +457,7 @@ pub fn post_event(
     // consistent state.
     let _guard = log_lock.lock().unwrap();
     let mut state = State::fold(load(log_path));
-    // A lane whose refinement hole has an admitted proof is admitted; the
+    // A lane whose refinement sorry has an admitted proof is admitted; the
     // bench validation below needs that settled.
     state.settle_admissions();
     if let Err(m) = check_signature(&state, &event, sig.as_deref()) {
@@ -497,7 +498,7 @@ pub fn post_submit(
     let Ok(event) = serde_json::from_value::<Event>(v["event"].clone()) else {
         return err("400 Bad Request", "unrecognized event shape");
     };
-    let Event::Submit { id, hole: hole_id, solver, decl, module } = event.clone() else {
+    let Event::Submit { id, sorry: sorry_id, solver, decl, module } = event.clone() else {
         return err("400 Bad Request", "event must be a submit");
     };
     let sig = v["sig"].as_str().map(String::from);
@@ -511,12 +512,12 @@ pub fn post_submit(
         if submission_exists(&state, &id) {
             return err("400 Bad Request", "submission id already exists");
         }
-        let Some(hole) = state.holes.get(&hole_id) else {
-            return err("400 Bad Request", "unknown hole");
+        let Some(sorry) = state.sorries.get(&sorry_id) else {
+            return err("400 Bad Request", "unknown sorry");
         };
-        if hole.env.as_deref() == Some("mathlib") {
+        if sorry.env.as_deref() == Some("mathlib") {
             return err("501 Not Implemented",
-                "this hole verifies in the Mathlib environment, which this remote does not offer yet - \
+                "this sorry verifies in the Mathlib environment, which this remote does not offer yet - \
                  verify locally (razor verify --local) and contact the maintainer");
         }
         if solver.trim().is_empty() || decl.trim().is_empty() {
@@ -535,7 +536,7 @@ pub fn post_submit(
             if bytes.len() > 512 * 1024 {
                 return err("400 Bad Request", "proof file too large (512 KB cap)");
             }
-            let (lean_dir, root_import) = crate::env_of(root, hole);
+            let (lean_dir, root_import) = crate::env_of(root, sorry);
             let expected = crate::submission_module(root_import, &id);
             if module.as_deref() != Some(expected.as_str()) {
                 return err("400 Bad Request", &format!("module must be {expected} (the CLI sets it)"));
@@ -589,11 +590,11 @@ fn run_verification(
             // everyone's `lake build`. The rejection itself stays recorded.
             if !outcome.admitted {
                 let state = State::fold(load(log_path));
-                if let Some((hole, sub)) = state.holes.values()
+                if let Some((sorry, sub)) = state.sorries.values()
                     .find_map(|h| h.submissions.iter().find(|s| s.id == id).map(|s| (h, s)))
                 {
                     if let Some(module) = &sub.module {
-                        let (lean_dir, _) = crate::env_of(root, hole);
+                        let (lean_dir, _) = crate::env_of(root, sorry);
                         let _ = std::fs::remove_file(lean_dir.join(module.replace('.', "/") + ".lean"));
                     }
                 }

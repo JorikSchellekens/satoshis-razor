@@ -28,9 +28,9 @@
   you go further: you send a short cryptographic proof (a Groth16 proof, about 200 bytes) that you possess a
   valid solution. The registry can check this proof in milliseconds and learns nothing about the solution
   itself — it is never sent.</p>
-  <p class="lede">A hole becomes zk-solvable when someone attaches a <strong>zk route</strong> to it: a
+  <p class="lede">A sorry becomes zk-solvable when someone attaches a <strong>zk route</strong> to it: a
   verifying key for a circuit, plus a <strong>bridge</strong> establishing that satisfying the circuit means
-  the hole's pinned statement is true. There is one kind of hole; routes are attachments, several can
+  the sorry's pinned statement is true. There is one kind of sorry; routes are attachments, several can
   coexist, and a route is never edited.</p>
 </div>
 
@@ -48,7 +48,7 @@
       <div class="card">
         <h4>2 · The bridge: what the equations mean</h4>
         <p>Satisfying a set of equations only matters if the equations say the right thing. Each route
-        carries a bridge tying its circuit to the hole's pinned statement. The strongest kind is a
+        carries a bridge tying its circuit to the sorry's pinned statement. The strongest kind is a
         <strong>theorem bridge</strong>, itself a kernel-checked proof. The demo dataset
         (<code>./demo.sh</code>) shows one: <code>Razor.Zk.network_sound</code>, proving that any
         values satisfying its sorting circuit really do describe a correctly sorted copy of the hidden
@@ -70,8 +70,8 @@
 
 <section>
   <div class="wrap">
-    <div class="sec-head"><h3>Holes with zk routes</h3><span class="note">the equation count is also the competition score: a smaller circuit that proves the same thing wins</span></div>
-    <div class="cards" id="zkholes"></div>
+    <div class="sec-head"><h3>Sorries with zk routes</h3><span class="note">the equation count is also the competition score: a smaller circuit that proves the same thing wins</span></div>
+    <div class="cards" id="zksorries"></div>
   </div>
 </section>
 
@@ -79,10 +79,10 @@
   <div class="wrap">
     <div class="sec-head"><h3>The universal route</h3><span class="note">specified, not yet built - the cost is the open question</span></div>
     <p class="prose">A Lean proof is data and checking it is computation, so one circuit could cover every
-    hole at once: a program that runs the Lean proof checker, executed inside a proving system that attests
+    sorry at once: a program that runs the Lean proof checker, executed inside a proving system that attests
     to correct execution (a zkVM). Public inputs: a hash of the pinned proof-checking environment and the
-    hole's statement. Private witness: the proof. An accepted proof means "someone possesses a proof the
-    checker accepts for this exact statement" - for any hole, with no per-hole circuit work.</p>
+    sorry's statement. Private witness: the proof. An accepted proof means "someone possesses a proof the
+    checker accepts for this exact statement" - for any sorry, with no per-sorry circuit work.</p>
     <p class="prose">Two facts about such a route, recorded plainly. First, its bridge can never be a
     theorem: "the checker accepts a proof of a statement, therefore the statement is true" is Lean's own
     soundness, which Lean cannot prove about itself. The bridge is instead an auditable claim - the hash of
@@ -90,7 +90,7 @@
     already places in the checker, made explicit, plus trust in the proving system itself. Second, its cost
     is unmeasured: proving a checker run inside a zkVM multiplies the work by a large factor, and whether a
     real check proves in minutes or days is a benchmark nobody here has run.</p>
-    <p class="prose">The registry records the route kind on every zk-solved hole, so a reader always sees
+    <p class="prose">The registry records the route kind on every zk-solved sorry, so a reader always sees
     which trust chain admitted it: <strong>theorem</strong> (a kernel-checked bridge, like the route below)
     or <strong>binary-hash</strong> (the universal route, when someone builds and measures it).</p>
   </div>
@@ -113,8 +113,8 @@
 <script src="razor.js"></script>
 <script>
 loadData(S => {
-  const zk = Object.values(S.holes).filter(h => (h.zk_routes || []).length);
-  $('zkholes').innerHTML = zk.map(h => {
+  const zk = Object.values(S.sorries).filter(h => (h.zk_routes || []).length);
+  $('zksorries').innerHTML = zk.map(h => {
     const subs = (h.zk_submissions || []).map(s => {
       if (!s.verdict) return `<span>· ${esc(s.id)} by ${esc(s.solver)} — unverified</span>`;
       const [ok, why] = s.verdict;
@@ -125,37 +125,37 @@ loadData(S => {
     const routes = h.zk_routes.map(r => `<span>route ${esc(r.id)} — <span class="badge blue">${r.constraints} constraints</span> <span class="badge">vk ${esc(r.vk_hash.slice(0, 12))}…</span> bridge (${esc(r.bridge_kind)}): <span class="ok">${esc(r.bridge)}</span>${r.note ? ` — “${esc(r.note)}”` : ''}</span>`).join('');
     return `<article class="card wide">
       <div class="row1">
-        ${holeLink(h.id)}
+        ${sorryLink(h.id)}
         ${chip(h.status)}
         ${h.pool ? `<span class="pool">pool ${h.pool.toLocaleString()}</span>` : ''}
       </div>
-      <h4><a class="cardlink" href="hole.html?id=${encodeURIComponent(h.id)}">${esc(prettyMath(h.title))}</a></h4>
+      <h4><a class="cardlink" href="sorry.html?id=${encodeURIComponent(h.id)}">${esc(prettyMath(h.title))}</a></h4>
       <pre>${hiLeanLinked(h.lean_type, h.mathlib_names)}</pre>
       <div class="meta">
         ${routes}
         ${subs}
       </div>
-      <a class="go" href="hole.html?id=${encodeURIComponent(h.id)}">full record: the Lean unfolded, every attempt, every event →</a>
+      <a class="go" href="sorry.html?id=${encodeURIComponent(h.id)}">full record: the Lean unfolded, every attempt, every event →</a>
     </article>`;
-  }).join('') || `<p class="lede">No hole here carries a zk route yet, so <code>razor zk-submit</code> has
+  }).join('') || `<p class="lede">No sorry here carries a zk route yet, so <code>razor zk-submit</code> has
     nothing to target on this registry — the demo dataset (<code>./demo.sh</code> in your clone) shows the
-    whole flow end to end, and <code>razor zk-route</code> attaches the first real route to any hole whose
+    whole flow end to end, and <code>razor zk-route</code> attaches the first real route to any sorry whose
     statement a circuit can express.</p>`;
 
-  const sealed = Object.values(S.holes)
+  const sealed = Object.values(S.sorries)
     .flatMap(h => h.submissions.filter(s => !s.revealed).map(s => ({ h, s })));
-  const revealed = Object.values(S.holes)
+  const revealed = Object.values(S.sorries)
     .flatMap(h => h.submissions.filter(s => s.revealed && s.commitment).map(s => ({ h, s })));
   $('sealed').innerHTML = [
     ...sealed.map(({ h, s }) => `<article class="card">
       <div class="row1"><span class="hid">${esc(s.id)}</span><span class="chip open">🔒 sealed</span></div>
-      <h4>${personLink(s.solver)} holds a commitment on ${holeLink(h.id)}</h4>
+      <h4>${personLink(s.solver)} holds a commitment on ${sorryLink(h.id)}</h4>
       <div class="meta"><span>sha256(file ‖ salt) = ${esc((s.commitment || '').slice(0, 24))}…</span>
       <span>priority is timestamped; nobody can front-run a hash; nothing is revealed until the solver chooses.</span></div>
     </article>`),
     ...revealed.map(({ h, s }) => `<article class="card">
       <div class="row1"><span class="hid">${esc(s.id)}</span><span class="chip solved">✓ revealed</span></div>
-      <h4>${personLink(s.solver)} revealed on ${holeLink(h.id)}${s.verdict?.[0] ? ' — admitted' : ''}</h4>
+      <h4>${personLink(s.solver)} revealed on ${sorryLink(h.id)}${s.verdict?.[0] ? ' — admitted' : ''}</h4>
       <div class="meta"><span>commitment ${esc((s.commitment || '').slice(0, 24))}… checked against the revealed file, then verified by the kernel like any submission (${esc(s.decl)}).</span></div>
     </article>`),
   ].join('') || '<p class="lede">No commitments in flight.</p>';

@@ -23,25 +23,25 @@
 <div class="pagehead wrap">
   <h2>The frontier</h2>
   <p class="lede">Every precisely stated open problem in the registry, together with the ones already
-  solved: what each hole asks, the exact Lean statement a solution must prove, and what it would take to
+  solved: what each sorry asks, the exact Lean statement a solution must prove, and what it would take to
   close it.</p>
   <details class="lede">
     <summary>What the numbers on each card mean</summary>
     <p style="margin-top:8px">Each card shows any bounty attached to the exact statement, who has curated it
     and why, every attempt with the checker's verdict, and the full event history. The
-    <strong>attention</strong> sort is one estimate of how much a hole currently matters: bounty credits,
+    <strong>attention</strong> sort is one estimate of how much a sorry currently matters: bounty credits,
     plus fixed weights for each community signal - people independently writing equivalent statements,
     curations (counting more from people with accepted proofs), earlier wordings replaced, registered
     splits, and attempts - with a small bump while it is open, minus the weight of any supersession marks
     (attributed notes that a better wording exists). It is a reading aid: every input is listed on the
-    hole's own page, and hovering any badge explains it.</p>
+    sorry's own page, and hovering any badge explains it.</p>
   </details>
 </div>
 
 <section>
   <div class="wrap">
     <div class="controls">
-      <input id="search" type="search" placeholder="search title / id / statement" aria-label="search holes">
+      <input id="search" type="search" placeholder="search title / id / statement" aria-label="search sorries">
       <details class="ctl">
         <summary id="ctl-sum">sort &amp; filter</summary>
         <div class="ctl-body">
@@ -67,7 +67,7 @@
         </div>
       </details>
     </div>
-    <div id="holes"></div>
+    <div id="sorries"></div>
   </div>
 </section>
 
@@ -96,7 +96,7 @@
     <div class="sec-head"><h3>The backlog</h3><span class="note">catalogued theorems awaiting a formal statement</span></div>
     <p class="prose">Proposals ingested from sourced catalogues (the 1000+ theorems list) that no one
     has formalized yet: a to-do list for formalized mathematics. Each needs a pinned statement in the
-    Mathlib environment before it is a solvable hole - filing that statement is itself attributed,
+    Mathlib environment before it is a solvable sorry - filing that statement is itself attributed,
     timestamped work on the log. To claim one: open it, read the background, then
     <code>razor formalize --gloss "your plain-language reading"</code>.</p>
     <div class="controls">
@@ -109,9 +109,9 @@
 
 <section>
   <div class="wrap">
-    <div class="sec-head"><h3>How holes relate</h3><span class="note">replacements and decompositions, drawn from the log</span></div>
+    <div class="sec-head"><h3>How sorries relate</h3><span class="note">replacements and decompositions, drawn from the log</span></div>
     <div class="board">
-      <svg id="graph" role="img" aria-label="Graph of connected holes: supersession marks point from a statement to the better wording, and larger problems point to the subproblems they were split into."></svg>
+      <svg id="graph" role="img" aria-label="Graph of connected sorries: supersession marks point from a statement to the better wording, and larger problems point to the subproblems they were split into."></svg>
       <div class="cap">dashed red = a supersession mark pointing to the better wording · solid = a problem split into subproblems (the proof that the parts imply the whole is itself machine-checked)</div>
     </div>
   </div>
@@ -119,7 +119,7 @@
 
 <footer>
   <div class="wrap">
-    <span>To attempt one: pick an open hole, write the proof, then run <code>razor submit</code> and <code>razor verify</code>.</span>
+    <span>To attempt one: pick an open sorry, write the proof, then run <code>razor submit</code> and <code>razor verify</code>.</span>
     <span class="right"><a href="download.html">get started</a></span>
   </div>
 </footer>
@@ -129,10 +129,10 @@
 let STATE = null;
 
 function card(S, h, sort) {
-  const m = holeMetrics(S, h);
+  const m = sorryMetrics(S, h);
   const [glyph, label] = CHIP[h.status];
   const marks = (h.superseded_by || []).map(([by, r, note]) =>
-    `<span class="bad">→ marked superseded by ${holeLink(r)} (${esc(by)}${note ? `: “${esc(note)}”` : ''})</span>`).join('');
+    `<span class="bad">→ marked superseded by ${sorryLink(r)} (${esc(by)}${note ? `: “${esc(note)}”` : ''})</span>`).join('');
   const splits = (h.splits || []).map(sp =>
     `<span>split ${esc(sp.id)} by ${esc(sp.author)} — ${sp.complete ? '<span class="ok">complete</span>' : `${sp.solved_children}/${sp.children.length} children solved`}</span>`).join('');
   const routes = (h.zk_routes || []).map(r =>
@@ -167,19 +167,19 @@ function card(S, h, sort) {
     : hiLeanLinked(h.lean_type, h.mathlib_names);
   return `<article class="card">
     <div class="row1">
-      ${holeLink(h.id)}
+      ${sorryLink(h.id)}
       <span class="chip ${h.status}">${glyph} ${label}</span>
       ${h.env === 'mathlib' ? `<span class="badge blue"${tip('env')}>Mathlib environment</span>` : ''}
       ${h.upstreamed ? `<span class="badge gold"${tip('upstreamed')}>↥ upstreamed</span>` : ''}
       ${m.pool ? `<span class="pool"${tip('bounty')}>bounty ${m.pool.toLocaleString()}</span>` : ''}
       ${tagChips(S, h.id)}${h.proposal && isTestData(S, h.proposal) && !isTestData(S, h.id) ? `<span class="badge"${tip('tag')}>⚑ test-data (proposal)</span>` : ''}
     </div>
-    <h4><a class="cardlink" href="hole.html?id=${encodeURIComponent(h.id)}">${esc(prettyMath(h.title))}</a></h4>
+    <h4><a class="cardlink" href="sorry.html?id=${encodeURIComponent(h.id)}">${esc(prettyMath(h.title))}</a></h4>
     ${informal ? `<p class="informal">${esc(prettyMath(informal.length > 220 ? informal.slice(0, 220) + '…' : informal))}</p>` : ''}
     <pre>${lean}</pre>
     <div>${badges}</div>
     ${marks || splits || routes || partOf || curs.length ? `<div class="meta">${marks}${partOf}${splits}${routes}${curs.map(([who, , note]) => `<span class="ok">☆ curated by ${esc(who)}${note ? `: “${esc(note)}”` : ''}</span>`).join('')}</div>` : ''}
-    <a class="go" href="hole.html?id=${encodeURIComponent(h.id)}">full record: the Lean unfolded, every attempt, every event →</a>
+    <a class="go" href="sorry.html?id=${encodeURIComponent(h.id)}">full record: the Lean unfolded, every attempt, every event →</a>
   </article>`;
 }
 
@@ -188,18 +188,18 @@ function draw() {
   const sort = $('sort').value, filter = $('filter').value, q = $('search').value.toLowerCase();
   $('ctl-sum').textContent = `sorted by ${$('sort').selectedOptions[0].textContent.split(' (')[0]}` +
     ` · showing ${$('filter').selectedOptions[0].textContent}`;
-  let holes = Object.values(S.holes).map(h => ({ h, m: holeMetrics(S, h) }));
-  if (filter === 'superseded') holes = holes.filter(({ h }) => (h.superseded_by || []).length);
-  else if (filter !== 'all') holes = holes.filter(({ h }) => h.status === filter);
-  if (q) holes = holes.filter(({ h }) =>
+  let sorries = Object.values(S.sorries).map(h => ({ h, m: sorryMetrics(S, h) }));
+  if (filter === 'superseded') sorries = sorries.filter(({ h }) => (h.superseded_by || []).length);
+  else if (filter !== 'all') sorries = sorries.filter(({ h }) => h.status === filter);
+  if (q) sorries = sorries.filter(({ h }) =>
     (h.id + ' ' + h.title + ' ' + h.lean_type).toLowerCase().includes(q));
 
-  // Holes grouped by the proposal they serve: the FLT tree reads as one
+  // Sorries grouped by the proposal they serve: the FLT tree reads as one
   // problem with parts, not ten interleaved cards. Groups order by their
   // best member on the chosen metric; test-data groups sink.
   const metric = (x) => x.m[sort] ?? x.m.attention;
   const fams = new Map();
-  for (const x of holes) {
+  for (const x of sorries) {
     const k = x.h.proposal || '';
     if (!fams.has(k)) fams.set(k, []);
     fams.get(k).push(x);
@@ -213,23 +213,23 @@ function draw() {
       ? (a[0] || '~').localeCompare(b[0] || '~')
       : Math.max(...b[1].map(metric)) - Math.max(...a[1].map(metric))));
 
-  $('holes').innerHTML = order.map(([k, list]) => {
+  $('sorries').innerHTML = order.map(([k, list]) => {
     const p = k && S.proposals[k];
-    const all = Object.values(S.holes).filter(h => (h.proposal || '') === k);
+    const all = Object.values(S.sorries).filter(h => (h.proposal || '') === k);
     const solved = all.filter(h => h.status === 'solved').length;
     const head = p ? `<div class="family-head">
         <h4><a href="proposal.html?id=${encodeURIComponent(k)}">${esc(prettyMath(p.title))}</a></h4>
-        <span class="fmeta">${all.length} hole${all.length > 1 ? 's' : ''} pinned under ${propLink(k)}</span>
+        <span class="fmeta">${all.length} sorry${all.length > 1 ? 's' : ''} pinned under ${propLink(k)}</span>
         ${all.length > 1 ? pbar(solved, all.length) : ''}
       </div>` : `<div class="family-head">
         <h4>Pinned directly</h4>
-        <span class="fmeta">holes without a proposal on the log</span>
+        <span class="fmeta">sorries without a proposal on the log</span>
       </div>`;
     return `<div class="family">${head}<div class="cards">${list.map(({ h }) => card(S, h, sort)).join('')}</div></div>`;
   }).join('')
-    || (Object.keys(S.holes).length
+    || (Object.keys(S.sorries).length
       ? '<p class="lede">Nothing matches.</p>'
-      : '<p class="lede">No holes yet: nothing has been formalized into a pinned Lean statement. The open work is in the proposals below — formalizing one creates the registry\'s first hole.</p>');
+      : '<p class="lede">No sorries yet: nothing has been formalized into a pinned Lean statement. The open work is in the proposals below — formalizing one creates the registry\'s first sorry.</p>');
 }
 
 function renderProposals(S) {
@@ -238,7 +238,7 @@ function renderProposals(S) {
   // ingested catalogue entries with none yet form the searchable backlog.
   const active = (p) => (p.statements || []).length || curationWeight(S, p.id)
     || (p.rounds || []).length || (p.seals || []).length;
-  // Test-data proposals stay listed (their pages and holes work) but sink
+  // Test-data proposals stay listed (their pages and sorries work) but sink
   // below the real ones.
   const props = all.filter(active)
     .sort((a, b) => (isTestData(S, a.id) ? 1 : 0) - (isTestData(S, b.id) ? 1 : 0));
@@ -307,15 +307,15 @@ function renderBacklog(backlog) {
 loadData(S => {
   STATE = S;
   // Offer only the sorts this dataset can distinguish by: a metric that is
-  // zero for every hole sorts nothing and just adds noise to the menu.
-  const ms = Object.values(S.holes).map(h => holeMetrics(S, h));
+  // zero for every sorry sorts nothing and just adds noise to the menu.
+  const ms = Object.values(S.sorries).map(h => sorryMetrics(S, h));
   for (const opt of [...$('sort').options]) {
     if (opt.value === 'attention' || opt.value === 'id') continue;
     if (!ms.some(m => (m[opt.value] || 0) > 0)) opt.remove();
   }
   draw();
   renderProposals(S);
-  renderHoleGraph('graph', S);
+  renderSorryGraph('graph', S);
   for (const id of ['sort', 'filter', 'search']) $(id).addEventListener('input', draw);
 });
 </script>

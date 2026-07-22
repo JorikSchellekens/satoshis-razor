@@ -76,7 +76,7 @@ loadData(S => {
   $('title').textContent = a ? `${a.display} — @${p.handle}` : `@${p.handle}`;
   $('lede').textContent = a && a.about ? a.about : 'This profile is derived from the log alone.';
 
-  const linkTarget = (t) => S.holes[t] ? holeLink(t) : S.proposals[t] ? propLink(t) : S.statements[t] ? stmtLink(t) : esc(t);
+  const linkTarget = (t) => S.sorries[t] ? sorryLink(t) : S.proposals[t] ? propLink(t) : S.statements[t] ? stmtLink(t) : esc(t);
   const rows = [
     ['accepted proofs', String(p.solved)],
     p.rejected ? ['rejected attempts', String(p.rejected)] : null,
@@ -85,7 +85,7 @@ loadData(S => {
     p.top_spots ? ['leaderboard rows led', String(p.top_spots)] : null,
     p.proposals.length ? ['proposals', p.proposals.map(propLink).join(', ')] : null,
     p.statements.length ? ['candidate statements', p.statements.map(stmtLink).join(', ')] : null,
-    p.open_holes_authored.length ? ['waiting on', p.open_holes_authored.map(holeLink).join(', ') + ' <span style="color:var(--muted)">(open holes under their proposals)</span>'] : null,
+    p.open_sorries_authored.length ? ['waiting on', p.open_sorries_authored.map(sorryLink).join(', ') + ' <span style="color:var(--muted)">(open sorries under their proposals)</span>'] : null,
     (p.curated || []).length ? ['curates', p.curated.map(linkTarget).join(', ') + ` <span style="color:var(--muted)">(each pick counts with weight ${1 + p.solved})</span>`] : null,
     p.rigs.length ? ['brings hardware', p.rigs.map(esc).join(', ')] : null,
     p.lanes.length ? ['anvil lanes', p.lanes.map(([ch, imp, board, score, unit, leader]) =>

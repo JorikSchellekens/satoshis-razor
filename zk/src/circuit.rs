@@ -7,7 +7,7 @@
 //! length 4 it is exactly the 5-comparator network whose soundness is the
 //! Lean theorem `Razor.Zk.network_sound`. For other lengths the
 //! per-comparator theorem (`Razor.Zk.comparator_sound`) covers every gate,
-//! and the whole-network theorem is an honest open hole anyone can
+//! and the whole-network theorem is an honest open sorry anyone can
 //! register and prove.
 //!
 //! Constraints:

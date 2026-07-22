@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Proposal — Satoshi's Razor</title>
-<meta name="description" content="One proposal: a problem in plain language, its candidate Lean statements grouped by proven equivalence, and its holes.">
+<meta name="description" content="One proposal: a problem in plain language, its candidate Lean statements grouped by proven equivalence, and its sorries.">
 <meta property="og:title" content="Proposal — Satoshi's Razor">
-<meta property="og:description" content="One proposal: a problem in plain language, its candidate Lean statements grouped by proven equivalence, and its holes.">
+<meta property="og:description" content="One proposal: a problem in plain language, its candidate Lean statements grouped by proven equivalence, and its sorries.">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="razor.css">
@@ -61,10 +61,10 @@
   </div>
 </section>
 
-<section id="sec-holes" style="display:none">
+<section id="sec-sorries" style="display:none">
   <div class="wrap">
-    <div class="sec-head"><h3>Holes under this proposal</h3></div>
-    <div class="cards" id="holes"></div>
+    <div class="sec-head"><h3>Sorries under this proposal</h3></div>
+    <div class="cards" id="sorries"></div>
   </div>
 </section>
 
@@ -167,13 +167,13 @@ razor seal-statement --id SEAL-you --proposal ${esc(p.id)} --author you --commit
     </article>`).join('');
   }
 
-  const holes = Object.values(S.holes).filter(h => h.proposal === p.id);
-  if (holes.length) {
-    $('sec-holes').style.display = '';
-    $('holes').innerHTML = holes.map(h => `<article class="card">
-      <div class="row1">${holeLink(h.id)}${chip(h.status)}${h.bridge ? `<span class="badge blue"${tip('bridge')}>bridge</span>` : ''}${h.pool ? `<span class="pool">bounty ${h.pool.toLocaleString()}</span>` : ''}</div>
+  const sorries = Object.values(S.sorries).filter(h => h.proposal === p.id);
+  if (sorries.length) {
+    $('sec-sorries').style.display = '';
+    $('sorries').innerHTML = sorries.map(h => `<article class="card">
+      <div class="row1">${sorryLink(h.id)}${chip(h.status)}${h.bridge ? `<span class="badge blue"${tip('bridge')}>bridge</span>` : ''}${h.pool ? `<span class="pool">bounty ${h.pool.toLocaleString()}</span>` : ''}</div>
       <h4>${esc(h.title)}</h4>
-      <div class="meta"><span>${h.bridge ? `proving it merges ${esc(h.bridge[0])} ≡ ${esc(h.bridge[1])} · ` : ''}attention ${holeMetrics(S, h).attention.toLocaleString()}</span></div>
+      <div class="meta"><span>${h.bridge ? `proving it merges ${esc(h.bridge[0])} ≡ ${esc(h.bridge[1])} · ` : ''}attention ${sorryMetrics(S, h).attention.toLocaleString()}</span></div>
     </article>`).join('');
   }
 });

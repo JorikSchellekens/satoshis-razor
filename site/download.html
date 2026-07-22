@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Get started — Satoshi's Razor</title>
-<meta name="description" content="Install the registry toolchain, host the registry locally, and solve your first hole.">
+<meta name="description" content="Install the registry toolchain, host the registry locally, and solve your first sorry.">
 <meta property="og:title" content="Get started — Satoshi's Razor">
-<meta property="og:description" content="Install the registry toolchain, host the registry locally, and solve your first hole.">
+<meta property="og:description" content="Install the registry toolchain, host the registry locally, and solve your first sorry.">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="razor.css">
@@ -80,7 +80,7 @@ site/data.json              <span class="c"># everything above, folded into one 
       <div class="codeblock">razor account new                <span class="c"># once - your handle, your Ed25519 key, your signature on everything after</span>
 razor status                     <span class="c"># the live registry, in your terminal</span>
 <span class="c"># then exactly the commands each page shows, e.g.:</span>
-razor submit --id SUB-you --hole FLT-RED --solver you \
+razor submit --id SUB-you --sorry FLT-RED --solver you \
   --decl Your.proof --file your-proof.lean   <span class="c"># kernel-checked on the spot; the verdict comes back</span></div>
       <p>What the registry does with an event: it re-validates it, requires a valid signature for any
       registered handle, assigns it the next position on the log, and - for proof submissions - runs
@@ -98,22 +98,22 @@ razor submit --id SUB-you --hole FLT-RED --solver you \
 
 <section>
   <div class="wrap">
-    <div class="sec-head"><h3>Solve your first hole</h3><span class="note">the whole loop, five commands</span></div>
+    <div class="sec-head"><h3>Solve your first sorry</h3><span class="note">the whole loop, five commands</span></div>
     <div class="prose">
-      <p>The demo dataset keeps two holes open for exactly this purpose: RZR-104 (merge preserves
+      <p>The demo dataset keeps two sorries open for exactly this purpose: RZR-104 (merge preserves
       sortedness) and RZR-105 (merge preserves counts). They exist only in your clone's local log,
       so these commands take <code>--local</code> - practice stays on your machine, and the public
       registry never sees it. Run <code>./demo.sh</code>, prove one in
-      <code>lean/Razor/Holes/Open.lean</code> (replace the <code>sorry</code>), then:</p>
+      <code>lean/Razor/Sorries/Open.lean</code> (replace the <code>sorry</code>), then:</p>
       <p>Proofs can also live in a new file: put any <code>.lean</code> file under
       <code>lean/Razor/</code> (or <code>lean-mathlib/RazorMathlib/</code> for Mathlib-environment
-      holes) - the build picks it up automatically, and the verifier finds the declaration wherever
+      sorries) - the build picks it up automatically, and the verifier finds the declaration wherever
       it is defined.</p>
       <div class="codeblock"><span class="c"># check your proof builds</span>
 cd lean &amp;&amp; lake build &amp;&amp; cd ..
 
 <span class="c"># submit and verify (the kernel is the referee)</span>
-razor submit --local --id SUB-me --hole RZR-104 \
+razor submit --local --id SUB-me --sorry RZR-104 \
   --solver you --decl Razor.Sorting.merge_sorted
 razor verify --local --submission SUB-me</div>
       <p>Every open page of your local <code>razor serve</code> updates within a few seconds of a
@@ -122,14 +122,14 @@ razor verify --local --submission SUB-me</div>
       <h4>Prefer to work in private?</h4>
       <div class="codeblock"><span class="c"># commit a hash first (priority without exposure) …</span>
 razor seal --file my-proof.lean --salt my-secret
-razor commit --local --id SUB-me --hole RZR-104 --solver you --commitment &lt;hash&gt;
+razor commit --local --id SUB-me --sorry RZR-104 --solver you --commitment &lt;hash&gt;
 <span class="c"># … reveal when ready</span>
 razor reveal --local --submission SUB-me --file my-proof.lean \
   --salt my-secret --decl Razor.Private.You.merge_sorted
 
-<span class="c"># or go full zero-knowledge: solve through a hole's zk route (see the zk page)</span>
+<span class="c"># or go full zero-knowledge: solve through a sorry's zk route (see the zk page)</span>
 zk-prover prove --list 42,7,255,7
-razor zk-submit --local --id SUB-me-zk --hole ZKH-001 --route ZKR-001 \
+razor zk-submit --local --id SUB-me-zk --sorry ZKH-001 --route ZKR-001 \
   --solver you --public &lt;hex&gt; --proof &lt;hex&gt;</div>
       <p class="note">On the public registry, commit-reveal works without <code>--local</code> too:
       <code>razor commit</code> posts the hash there, and <code>razor submit --file</code> reveals
@@ -138,29 +138,29 @@ razor zk-submit --local --id SUB-me-zk --hole ZKH-001 --route ZKR-001 \
       <h4>Work on the live registry</h4>
       <p>The live registry - this one - carries real open problems from the Lean community's
       current frontier. Most are still proposals waiting for a formal statement; the Erdos-Straus
-      conjecture already has one pinned hole per environment (ES-001 in core Lean, ES-002 in Mathlib's
+      conjecture already has one pinned sorry per environment (ES-001 in core Lean, ES-002 in Mathlib's
       definitions), and Fermat's Last Theorem is pinned in core Lean (FLT-000) with two registered splits
       whose glue proofs are already admitted. FLT-RED - every exponent at least 3 factors through 4 or an
-      odd prime - is self-contained number theory and a genuinely provable first hole on the live board.</p>
+      odd prime - is self-contained number theory and a genuinely provable first sorry on the live board.</p>
       <p>Add your own candidate statement with <code>razor formalize --gloss "..."</code> - the gloss is
       your plain-language reading, which is what reviewers compare against the proposal - and strengthen a
       clump by proving your statement equivalent to an existing one: <code>razor bridge</code> pins the
-      equivalence as its own hole, and your admitted proof of it merges the clumps. (<code>razor
+      equivalence as its own sorry, and your admitted proof of it merges the clumps. (<code>razor
       converge</code> records an equivalence without a kernel check, so it works only against a local
       registry.)</p>
 
       <h4>Share partial progress as a split</h4>
-      <p>If you can prove a hole from lemmas you cannot yet prove - in a Lean file, a proof with
-      <code>sorry</code> in the gaps - register the gaps as holes and the reduction as a split. The CLI
+      <p>If you can prove a sorry from lemmas you cannot yet prove - in a Lean file, a proof with
+      <code>sorry</code> in the gaps - register the gaps as sorries and the reduction as a split. The CLI
       composes the glue statement mechanically from the pinned types, so there is nothing to get subtly
       wrong:</p>
-      <div class="codeblock"><span class="c"># state each gap as its own hole … (the CLI elaborates the statement before pinning)</span>
-razor hole --id MY-LEMMA-1 --title "..." --lean-type "..."
+      <div class="codeblock"><span class="c"># state each gap as its own sorry … (the CLI elaborates the statement before pinning)</span>
+razor sorry --id MY-LEMMA-1 --title "..." --lean-type "..."
 <span class="c"># … tie them to the parent; this pins MY-SPLIT-glue to (lemma 1) → … → parent</span>
 razor split --id MY-SPLIT --parent FLT-000 --author you \
   --child MY-LEMMA-1 --note "why this reduction"
-<span class="c"># prove the glue like any hole - checkable while every child is still open</span>
-razor submit --id SUB-glue --hole MY-SPLIT-glue --solver you \
+<span class="c"># prove the glue like any sorry - checkable while every child is still open</span>
+razor submit --id SUB-glue --sorry MY-SPLIT-glue --solver you \
   --decl You.my_glue --file glue.lean</div>
       <p>When all children and the glue are admitted, the split reads <em>complete</em>: the parent is
       provable by composition, which in your original file is just replacing each <code>sorry</code> with
@@ -182,7 +182,7 @@ razor submit --id SUB-glue --hole MY-SPLIT-glue --solver you \
       unsandboxed.</p>
 
       <h4>Proofs that use Mathlib</h4>
-      <p>Holes registered with <code>--env mathlib</code> pin statements written with Mathlib's definitions
+      <p>Sorries registered with <code>--env mathlib</code> pin statements written with Mathlib's definitions
       and are verified in the <code>lean-mathlib/</code> package, which requires Mathlib v4.31.0 (matching
       the pinned toolchain, so the prebuilt cache applies). Fetch it once with
       <code>./mathlib-env.sh</code> - it is several gigabytes. Until then the registry refuses to verify

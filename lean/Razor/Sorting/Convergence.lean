@@ -1,7 +1,7 @@
 import Razor.Sorting.Defs
 
 /-!
-Statement hole STM-102: what does "sorted" mean?
+Statement sorry STM-102: what does "sorted" mean?
 
 Two authors independently formalized sortedness: `SortedChain` (adjacent
 elements ordered) and `SortedPairs` (all index pairs ordered). The convergence

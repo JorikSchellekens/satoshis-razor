@@ -113,8 +113,8 @@ def main():
             )
         body_bits.append(
             f"Source: https://1000-plus.github.io/ (entry {stem}). "
-            f"A hole under this proposal should pin a Lean statement in the "
-            f"Mathlib environment (razor hole --env mathlib), using "
+            f"A sorry under this proposal should pin a Lean statement in the "
+            f"Mathlib environment (razor sorry --env mathlib), using "
             f"Mathlib's definitions so an admitted proof is ready to build on."
         )
         rows.append({

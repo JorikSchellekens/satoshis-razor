@@ -1,7 +1,7 @@
 import Razor.Zk.Soundness
 
 /-!
-The pinned meaning of a zk-routed hole.
+The pinned meaning of a zk-routed sorry.
 
 A Groth16 proof against the sorted-witness circuit establishes knowledge of
 a witness for one specific public commitment. This file states, in Lean,

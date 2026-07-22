@@ -3,16 +3,16 @@ import Razor.Sorting.Subgoals
 import Razor.Sorting.Glue
 
 /-!
-Hole RZR-103v2 - SOLVED.
+Sorry RZR-103v2 - SOLVED.
 
-The dominant clump's statement of the sorting hole: the function must produce a
+The dominant clump's statement of the sorting sorry: the function must produce a
 sorted *permutation* of its input. Closed by composing the decomposition's
 glue proof with the two solved subgoals.
 -/
 
 namespace Razor.Sorting
 
-/-- The v2 statement, exactly as pinned by its hole. -/
+/-- The v2 statement, exactly as pinned by its sorry. -/
 def V2Statement : Prop :=
   ∃ f : List Nat → List Nat, ∀ l, SortedChain (f l) ∧ Perm l (f l)
 

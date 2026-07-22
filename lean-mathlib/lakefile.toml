@@ -1,7 +1,7 @@
 name = "razor-mathlib"
 defaultTargets = ["RazorMathlib"]
 
-# Pinned Mathlib environment for holes registered with --env mathlib.
+# Pinned Mathlib environment for sorries registered with --env mathlib.
 # The tag matches lean-toolchain exactly so `lake exe cache get` serves
 # prebuilt binaries instead of compiling Mathlib from source.
 [[require]]

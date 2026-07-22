@@ -1,13 +1,13 @@
-# The Hole Funnel
+# The Sorry Funnel
 
-How Satoshi's Razor organizes the proposal, formalization, and refinement of holes -
+How Satoshi's Razor organizes the proposal, formalization, and refinement of sorries -
 including conjectures and statements that are not yet machine-checkable.
 
 The registry's guarantee - a submission checks or it doesn't - only applies once a
 problem is a pinned Lean statement. Everything upstream of that point (is this
 conjecture worth stating? does this Lean statement faithfully capture the informal
 conjecture?) is not machine-checkable and never fully will be. The funnel is the
-protocol's answer: a pipeline that moves problems from informal idea to pinned hole,
+protocol's answer: a pipeline that moves problems from informal idea to pinned sorry,
 using machine-checkable evidence wherever it exists and shrinking the social judgment
 to its smallest possible form where it doesn't.
 
@@ -47,14 +47,14 @@ the end. What the funnel does instead:
 proposed -> candidate statements (each with a gloss)
                  |  equivalence proofs (convergence)
                  v
-              clumps  ->  dominant clump  ->  pinned holes  ->  solved / disproven
+              clumps  ->  dominant clump  ->  pinned sorries  ->  solved / disproven
                  |
                  v
    wrong wording (facts on the log) -> supersession marks -> attention moves on
 ```
 
 Statements are never mutated and never closed by anyone's word. When a wording is
-wrong, attributed supersession marks point from it to the better hole, with
+wrong, attributed supersession marks point from it to the better sorry, with
 explicit lineage, so priority and attribution records survive every correction.
 
 ## Stage 1: Proposal (informal, off the trust-critical path)
@@ -146,15 +146,15 @@ itself on the record. Sealing cannot prevent authors from colluding off the
 log, which is why reputation-weighted counting remains; it removes the default
 contamination channel - reading each other's filings - entirely.
 
-### Bridge holes
+### Bridge sorries
 
 An equivalence between two candidate statements can be recorded two ways. The
 direct way (`razor converge`) attaches a named equivalence declaration as an
 edge. The stronger way pins the obligation itself: `razor bridge` registers a
-**bridge hole** whose statement is composed mechanically from the two
+**bridge sorry** whose statement is composed mechanically from the two
 declarations - `(a's decl) ↔ (b's decl)` - exactly as split glue is composed
 from pinned types, so there is nothing for the filer to get subtly wrong. The
-bridge is then an ordinary hole: solved through submit/verify (the equivalence
+bridge is then an ordinary sorry: solved through submit/verify (the equivalence
 is kernel-checked, which `converge` alone does not do), attributed to whoever
 proves it, curatable, and fundable - a proposer who wants convergence evidence
 can put a bounty on the bridge. An admitted bridge proof merges the two
@@ -174,7 +174,7 @@ statement. A singleton clump is never dominant: one author's word, however good,
 is exactly the thing this design refuses to bless.
 
 ### Curation (how value is assigned without money)
-Anyone may **curate** a proposal, statement, or hole: a signed, timestamped,
+Anyone may **curate** a proposal, statement, or sorry: a signed, timestamped,
 costless mark that this is worth working on, with a note saying why. A curation's
 weight grows with the curator's verified work on the record, so the taste of
 people who have actually solved things counts for more - and because picks are
@@ -199,7 +199,7 @@ When a too-weak statement is trivially proven, what goes on the log is what
 happened, nothing more: the
 proof, its kernel-check cost, and (via equivalence transfer) that the whole clump
 is proven. No collapse verdict exists in the schema, and nothing closes: anyone
-may file an attributed **supersession mark** pointing at the better hole
+may file an attributed **supersession mark** pointing at the better sorry
 (see "Superseding, precisely"), and readers weigh the marks. What the author of
 the weak statement loses is reputational and visible - their gloss stands on the
 log next to a statement whose trivial proof is also on the log.
@@ -209,7 +209,7 @@ log next to a statement whose trivial proof is also on the log.
 In everyday Lean work, partial progress on a theorem is a file that proves it
 with `sorry` in place of the missing pieces. A **split** is that artifact made
 public and load-bearing. Registering one names the missing pieces as child
-holes and creates one more hole - the **glue** - whose pinned statement the
+sorries and creates one more sorry - the **glue** - whose pinned statement the
 registry composes mechanically from types already on the record:
 
     (child 1) → (child 2) → ... → (child n) → parent
@@ -219,11 +219,11 @@ the glue takes the child *statements* as hypotheses, it is provable - and
 kernel-checked - while every child is still open. That is the entire trust
 story: an admitted glue is a machine-checked fact that solving the children
 finishes the parent, so splits are permissionless. Anyone can split anyone's
-hole, blueprint-style (the structure of large formalization projects like the
+sorry, blueprint-style (the structure of large formalization projects like the
 PFR blueprint and the FLT project).
 
 - Several splits of one parent coexist, each a first-class object with its own
-  author, note, glue, and children. A hole can serve as a child in any number
+  author, note, glue, and children. A sorry can serve as a child in any number
   of splits. The registry derives per-split facts: how many children are
   solved, whether the glue is admitted, and whether the split is *complete*
   (glue and all children admitted - the parent is then provable by
@@ -237,9 +237,9 @@ PFR blueprint and the FLT project).
   or quietly attract no further work. The live registry carries a real
   example: FLT's classical reduction (exponent 4 + odd primes) and the FLT
   project's actual plan (3, 4, and primes >= 5) are two splits of the same
-  parent hole, both with kernel-checked glue.
+  parent sorry, both with kernel-checked glue.
 - Solving a child is a first-class, attributed contribution, and curation and
-  bounties attach to children like any other hole.
+  bounties attach to children like any other sorry.
 
 ## Stage 4: Prioritization (signals, not a canonical ranking)
 
@@ -251,11 +251,11 @@ The protocol stays neutral: it exposes signals and lets curation compete on top.
   someone concretely values.
 - **Convergence weight**: how many independent formalizations agree - the trust
   signal, directly visible per clump.
-- **Structural centrality**: computed from the dependency graph - how many open holes
-  does this hole unblock (the "most-wanted lemma" metric).
-- **Revealed difficulty**: attempt telemetry. Agents log failed attempts; holes
-  accumulate an Elo-like rating - a hole that survives many strong attempts rates
-  harder, and agents that crack highly-rated holes gain rating. This produces an
+- **Structural centrality**: computed from the dependency graph - how many open sorries
+  does this sorry unblock (the "most-wanted lemma" metric).
+- **Revealed difficulty**: attempt telemetry. Agents log failed attempts; sorries
+  accumulate an Elo-like rating - a sorry that survives many strong attempts rates
+  harder, and agents that crack highly-rated sorries gain rating. This produces an
   emergent difficulty map of open mathematics, which is itself a valuable artifact
   and a far better AI benchmark than any static problem set.
 - **Editorial curation**: anyone can publish a signed, reputation-bearing "frontier
@@ -266,11 +266,11 @@ The protocol stays neutral: it exposes signals and lets curation compete on top.
 ## Closure semantics
 
 - **Disproof is a first-class solution.** Proving the negation closes a conjecture
-  hole with full credit and payout. A conjecture is a question, not a side to bet on.
-- **Solved** holes become versioned packages others build on (see README).
+  sorry with full credit and payout. A conjecture is a question, not a side to bet on.
+- **Solved** sorries become versioned packages others build on (see README).
 - **Superseded** wordings point to their successors via weighted marks; the
-  hole itself never closes and nothing is deleted.
-- **Closed by citation.** A hole whose statement is found to already exist in a
+  sorry itself never closes and nothing is deleted.
+- **Closed by citation.** A sorry whose statement is found to already exist in a
   recognized prior corpus (see below) closes with a citation instead of a proof.
 
 ## Superseding, precisely
@@ -282,14 +282,14 @@ curation - never by anyone closing anything:
    and (usually) form the new dominant clump. The facts against the old wording
    (proven trivially, weight 1, milliseconds to check) are already on the log.
 2. Anyone may file an attributed `supersede` event: a **supersession mark** saying
-   hole X is better stated by hole Y, with the reason. Marks are weighted by the
+   sorry X is better stated by sorry Y, with the reason. Marks are weighted by the
    filer's verified work, exactly like curations, and several marks - even
-   disagreeing ones - can coexist. A mark changes no status: the old hole stays
+   disagreeing ones - can coexist. A mark changes no status: the old sorry stays
    provable, its admitted proofs and payouts stand, and the log is append-only.
 3. What a mark changes is what readers see: the frontier shows who considers a
-   wording superseded and by what, sorts the hole down in proportion to the
+   wording superseded and by what, sorts the sorry down in proportion to the
    weight against it, and links forward to the replacement.
-4. The new hole's **lineage** is the count of earlier wordings whose marks point
+4. The new sorry's **lineage** is the count of earlier wordings whose marks point
    at it. Lineage 2 means "the third attempt at stating this problem" - which is
    evidence the statement has been tested, not a mark against it.
 
@@ -302,11 +302,11 @@ Superseding covers the case where a wording was *wrong*. A pinned statement can
 also become *stale* while staying right: the library it is written against
 renames a definition, restructures a namespace, or respells the same Prop. This
 is not hypothetical - Mathlib refactors continuously, and a registry that pins
-exact statements without a migration story would slowly fill with holes nobody
+exact statements without a migration story would slowly fill with sorries nobody
 can read or target.
 
 The answer is `razor repin`, and it is held to the same standard as everything
-else: **a hole migrates to a new wording only if a proof that the two wordings
+else: **a sorry migrates to a new wording only if a proof that the two wordings
 are equivalent kernel-checks.** The CLI composes the obligation mechanically -
 `new ↔ old` - so there is nothing for the migrator to get subtly wrong, and it
 refuses the event if the equivalence does not check.
@@ -320,7 +320,7 @@ What this preserves:
   the equivalence declaration are all recorded; a reader auditing a five-year-old
   admission can replay the exact statement it was checked against and walk the
   equivalence chain forward.
-- **Priority survives churn.** The hole keeps its identity, its bounty pool, its
+- **Priority survives churn.** The sorry keeps its identity, its bounty pool, its
   splits, and its submissions across any number of repins.
 
 Repinning handles respellings; it cannot handle a definition that genuinely
@@ -351,18 +351,18 @@ The registry does not restate work that is already machine-checked elsewhere. A
 canonical example - together with sourced, dated statistics. Its contents count as
 solved:
 
-- New holes should state what the corpora do not contain; that boundary is the
+- New sorries should state what the corpora do not contain; that boundary is the
   frontier.
-- A hole later found to duplicate a corpus result is closed by citation.
-- Statements may be written directly with a corpus's definitions: a hole registered
+- A sorry later found to duplicate a corpus result is closed by citation.
+- Statements may be written directly with a corpus's definitions: a sorry registered
   with the Mathlib environment pins a statement whose definitions are Mathlib's
   own, which is itself a fidelity defense - definitions used in thousands of
   existing theorems are much harder to get silently wrong than fresh ones.
 
-## The deepest case: definition holes
+## The deepest case: definition sorries
 
 Sometimes a conjecture cannot even be *stated* because the library lacks the objects
-(the perfectoid-spaces situation). Definition holes are the hardest fidelity problem:
+(the perfectoid-spaces situation). Definition sorries are the hardest fidelity problem:
 a wrong definition can silently poison every theorem built on it. The available
 machinery is the same two tools, applied harder:
 
@@ -373,7 +373,7 @@ machinery is the same two tools, applied harder:
   excludes the known non-examples. A definition that provably behaves correctly in
   every way the literature can articulate is very hard to get wrong silently.
 
-Definition holes carry longer challenge windows and the strongest expectation of
+Definition sorries carry longer challenge windows and the strongest expectation of
 convergence evidence, proportional to their blast radius.
 
 ## Application to Satoshi's Anvil
@@ -382,7 +382,7 @@ The funnel applies unchanged to [Anvil](ANVIL.md) challenges, where the fidelity
 question is "does this Lean spec capture the intended behavior?" (e.g. does this
 formalization actually match RFC 8439). Anvil's equivalents:
 
-- Statement holes become **spec-authoring bounties**; candidate specs run
+- Statement sorries become **spec-authoring bounties**; candidate specs run
   differential tests against reference implementations during the challenge window -
   an executable-spec certificate unavailable to pure mathematics.
 - The bounty rule is Anvil's spec-bug policy: a challenge pool pays for the pinned

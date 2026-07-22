@@ -2,12 +2,12 @@ import Mathlib
 
 /-!
 Statements pinned against the Mathlib environment. Nothing here is proven;
-these are the Props that hole solutions must inhabit. Certificates (instance
+these are the Props that sorry solutions must inhabit. Certificates (instance
 checks and the like) live alongside and ARE proven.
 
 Conventions:
 - Where Mathlib already defines the Prop (as it does for Fermat's Last
-  Theorem), the hole pins Mathlib's own name and this file adds nothing:
+  Theorem), the sorry pins Mathlib's own name and this file adds nothing:
   a proof written for Mathlib is, verbatim, a proof for the registry.
 - Where Mathlib has no name for the problem, the Prop is defined here
   using Mathlib's definitions, following the statement conventions of
@@ -43,14 +43,14 @@ def ErdosTuranAdditiveBasis : Prop :=
 
 /-!
 Fermat's Last Theorem needs no definition here: Mathlib already states it.
-The registry's mathlib-environment FLT holes pin Mathlib's own Props:
+The registry's mathlib-environment FLT sorries pin Mathlib's own Props:
 
 - `FermatLastTheorem` - the full theorem, the Prop the Imperial FLT
   project is filling.
 - `FermatLastTheoremWith ℕ n` / `FermatLastTheoremFor n` - fixed-exponent
   cases, for splits.
 
-A proof accepted by Mathlib closes the hole with no restatement and no
+A proof accepted by Mathlib closes the sorry with no restatement and no
 translation risk.
 -/
 
