@@ -213,7 +213,11 @@ fn checker_command(lean_dir: &std::path::Path) -> Command {
     if let Ok(image) = std::env::var("RAZOR_VERIFY_DOCKER") {
         if !image.trim().is_empty() {
             let mut c = Command::new("docker");
-            c.args(["run", "--rm", "--network", "none", "--memory", "3g", "--cpus", "2",
+            // 6g: serious bv_decide proofs (whole-domain bit-vector checks
+            // are the anvil's bread and butter) peak past 3g; the box has
+            // 7.6g, so this still bounds a hostile submission well below
+            // taking the machine down.
+            c.args(["run", "--rm", "--network", "none", "--memory", "6g", "--cpus", "2",
                     "--pids-limit", "512"])
                 .arg("-v").arg(format!("{}:/src:ro", lean_dir.display()))
                 .arg(image.trim())
