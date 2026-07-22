@@ -184,7 +184,7 @@ loadData(S => {
     [lanes.length, 'lanes'],
     [Object.keys(S.rigs || {}).length, 'rigs'],
     [benches.length, 'measurements'],
-    [totalPool.toLocaleString(), 'credits pooled'],
+    ...(totalPool ? [[totalPool.toLocaleString(), 'credits pooled']] : []),
   ].map(([n, l]) => `<div class="stat"><b>${n}</b>${l}</div>`).join('');
 
   // ── rigs ───────────────────────────────────────────────────────

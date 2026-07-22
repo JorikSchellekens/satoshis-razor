@@ -1,5 +1,16 @@
 # Satoshi's Anvil
 
+**Running today** at [razor.mempoolsurfer.com/anvil.html](https://razor.mempoolsurfer.com/anvil.html):
+six challenges (popcount, sum, sort8, count-leading-zeros, bit-reversal, a small EVM
+interpreter), every contender admitted by a kernel-checked refinement proof, scored on
+the deterministic wasm-fuel referee and on real registered rigs (an Apple M3 Pro, a
+Docker Linux container, and the x86-64 server that hosts the site, benched over ssh).
+One lane runs its whole input stream on the GPU - the same proven 19-comparator
+sorting network as a compute shader - and takes the native crown once the batch is
+large enough to amortize the dispatch. Scores are log events signed by the rig owner;
+`razor challenge`, `razor anvil-submit`, `razor rig`, and `razor bench --rig` all
+publish to the live registry.
+
 Infrastructure for massively parallel search over programs: given a formal
 specification in Lean, anyone willing to dedicate AI compute - or human skill -
 submits Rust implementations proven to refine that spec, and admitted
