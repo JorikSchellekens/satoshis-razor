@@ -12,6 +12,11 @@ sum-loop = { path = "../impls/sum-loop" }
 sum-closed = { path = "../impls/sum-closed" }
 sort8-bubble = { path = "../impls/sort8-bubble" }
 sort8-network = { path = "../impls/sort8-network" }
+sort8-gpu = { path = "../impls/sort8-gpu" }
+clz-naive = { path = "../impls/clz-naive" }
+clz-branchless = { path = "../impls/clz-branchless" }
+bitrev-naive = { path = "../impls/bitrev-naive" }
+bitrev-swar = { path = "../impls/bitrev-swar" }
 evm-ref = { path = "../impls/evm-ref" }
 evm-tos = { path = "../impls/evm-tos" }
 wasmtime = { version = "27", default-features = false, features = ["cranelift", "runtime"] }

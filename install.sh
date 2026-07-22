@@ -66,7 +66,8 @@ say "building (Lean package + registry + harness + zk prover + wasm submissions)
 (cd lean && lake build)
 cargo build --release
 cargo build --release --target wasm32-unknown-unknown \
-  -p popcount-naive -p popcount-swar -p sum-loop -p sum-closed -p evm-ref -p evm-tos
+  -p popcount-naive -p popcount-swar -p sum-loop -p sum-closed -p evm-ref -p evm-tos \
+  -p sort8-bubble -p sort8-network -p clz-naive -p clz-branchless -p bitrev-naive -p bitrev-swar
 
 say "putting razor, anvil-harness, and zk-prover on your PATH"
 BIN="${CARGO_HOME:-$HOME/.cargo}/bin"

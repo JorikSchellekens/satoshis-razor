@@ -123,8 +123,28 @@ table.data tr:hover td { background: var(--surface-2); }
 .lb .bar { position: absolute; inset: 0 auto 0 0; border-radius: 0 4px 4px 0; background: var(--solved); min-width: 3px; }
 .lb .rowbar.ref .bar { background: var(--muted); opacity: 0.55; }
 .lb .val { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: right; }
+.lb .val .speed { display: block; font-size: 10px; color: var(--gold); }
 .anvil .foot { margin-top: 12px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .anvil .foot .ok { color: var(--solved); }
+
+/* anvil lanes: one fixed color per lane, used in boards, charts, matrix */
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: baseline; }
+.lanes-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 2px; }
+.lanechip { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+.lanechip a { color: var(--chalk); }
+
+/* score-over-time chart: one per board, lower is better */
+.chart { margin: 6px 0 2px; }
+.chart svg { display: block; width: 100%; height: auto; }
+.cgrid { stroke: var(--faint); stroke-width: 1; }
+.ctick { font-family: var(--mono); font-size: 9.5px; fill: var(--muted); }
+.clabel { font-family: var(--mono); font-size: 10.5px; }
+.cpt { stroke: var(--surface); stroke-width: 1.5; }
+.cpt:has(+ .chit:hover), .cpt:hover { r: 4.5px; }
+
+/* the lane-by-rig matrix */
+#matrix td.win { color: var(--gold); }
+#matrix td, #matrix th { white-space: nowrap; }
 
 /* worked-example walkthrough (overview) */
 .walkthrough { border-left: 2px solid var(--faint); margin-left: 8px; padding-left: 26px; display: flex; flex-direction: column; gap: 26px; margin-top: 18px; }

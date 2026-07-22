@@ -18,6 +18,20 @@ LOG=registry/data/events.jsonl
 command -v docker >/dev/null 2>&1 || { echo "docker is not installed" >&2; exit 1; }
 docker info >/dev/null 2>&1 || { echo "docker is installed but the daemon is not running" >&2; exit 1; }
 [ -x "$RAZOR" ] || { echo "$RAZOR not built - run ./install.sh or cargo build --release" >&2; exit 1; }
+
+# With a remote registry configured (install.sh sets the public one), the
+# CLI publishes there and keeps a cached copy of its log; read that copy.
+# RAZOR_REMOTE="" opts out, like it does for every razor command.
+REMOTE_ACTIVE=
+if [ -n "${RAZOR_REMOTE:-}" ]; then
+  REMOTE_ACTIVE=1
+elif [ -z "${RAZOR_REMOTE+x}" ] && [ -s "$HOME/.config/razor/remote" ]; then
+  REMOTE_ACTIVE=1
+fi
+if [ -n "$REMOTE_ACTIVE" ]; then
+  $RAZOR status > /dev/null   # refreshes the cached remote log
+  LOG=registry/data/remote.jsonl
+fi
 [ -f "$LOG" ] || { echo "no registry log at $LOG - run ./demo.sh or ./seed.sh first" >&2; exit 1; }
 
 echo "==> building the rig image (the first build compiles the harness inside the container - a few minutes; cached afterwards)"
@@ -28,7 +42,7 @@ RIG="docker-linux-$ARCH"
 
 if ! grep -q "\"register_rig\".*\"id\":\"$RIG\"" "$LOG"; then
   echo "==> registering rig $RIG"
-  $RAZOR rig --id "$RIG" --owner "${USER:-local}" --arch "$ARCH-linux" --tier native \
+  $RAZOR rig --id "$RIG" --owner "${RIG_OWNER:-${USER:-local}}" --arch "$ARCH-linux" --tier native \
     --runner "docker run --rm $IMAGE" \
     --note "Linux container: scores measured inside Docker's Linux VM, not on the host"
 else
@@ -47,8 +61,13 @@ for c in $CHALLENGES; do
   $RAZOR bench --challenge "$c" --iters 20000 --rig "$RIG"
 done
 
-# Re-export with whatever dataset label the current site data carries.
-DATASET=$(python3 -c "import json;print(json.load(open('site/data.json')).get('dataset','demo'))" 2>/dev/null || echo demo)
-$RAZOR export --out site/data.json --dataset "$DATASET"
-echo
-echo "Done. The $ARCH-linux boards are live - razor serve, then open the anvil page."
+if [ -n "$REMOTE_ACTIVE" ]; then
+  echo
+  echo "Done. The scores are published - the public site picks them up on its next poll."
+else
+  # Re-export with whatever dataset label the current site data carries.
+  DATASET=$(python3 -c "import json;print(json.load(open('site/data.json')).get('dataset','demo'))" 2>/dev/null || echo demo)
+  $RAZOR export --out site/data.json --dataset "$DATASET"
+  echo
+  echo "Done. The $ARCH-linux boards are live - razor serve, then open the anvil page."
+fi

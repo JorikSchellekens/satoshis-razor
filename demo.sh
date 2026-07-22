@@ -21,7 +21,8 @@ step "Build everything (Lean package, registry, harness, wasm submissions)"
 (cd lean && lake build 2>&1 | tail -1)
 cargo build --release 2>&1 | tail -1
 cargo build --release --target wasm32-unknown-unknown \
-  -p popcount-naive -p popcount-swar -p sum-loop -p sum-closed -p sort8-bubble -p sort8-network -p evm-ref -p evm-tos 2>&1 | tail -1
+  -p popcount-naive -p popcount-swar -p sum-loop -p sum-closed -p sort8-bubble -p sort8-network \
+  -p clz-naive -p clz-branchless -p bitrev-naive -p bitrev-swar -p evm-ref -p evm-tos 2>&1 | tail -1
 
 step "Fresh registry"
 # Everything under registry/data is regenerated except keys/ (signing keys
@@ -44,6 +45,7 @@ $RAZOR account new --handle mallory --display "Mallory" --about "reads specifica
 $RAZOR account new --handle heidi --display "Heidi" --about "solves subgoals"
 $RAZOR account new --handle judy --display "Judy" --about "makes bits go fast" --github judy-razor-demo
 $RAZOR account new --handle leo --display "Leo" --about "interpreter internals"
+$RAZOR account new --handle gus --display "Gus" --about "runs everything on the graphics card"
 $RAZOR account new --handle peggy --display "Peggy" --about "proves things without showing them"
 
 # ─────────────────────────────────────────────────────────────────────
@@ -353,8 +355,55 @@ $RAZOR submit --id SUB-ANV3 --hole ANV-003-NET-PROOF --solver judy --decl Razor.
 $RAZOR verify --submission SUB-ANV3
 $RAZOR anvil-submit --id ANV-003-net --challenge ANV-003 --impl sort8-network \
   --solver judy --proof-decl Razor.Anvil.network_refines --refinement-hole ANV-003-NET-PROOF
+
+step "a GPU lane joins ANV-003: same proven network, run as a compute shader over the whole batch"
+# The shader is a transliteration of the same Lean model the CPU lane uses
+# (Razor.Anvil.sortNetwork), so the admitted refinement proof covers this
+# lane too; the differential check runs it against the executable spec on
+# the full input stream. On a machine with no GPU the lane is simply
+# reported as not measurable - nothing fails.
+$RAZOR anvil-submit --id ANV-003-gpu --challenge ANV-003 --impl sort8-gpu \
+  --solver gus --proof-decl Razor.Anvil.network_refines --refinement-hole ANV-003-NET-PROOF
 $RAZOR bench --challenge ANV-003 --iters 20000 --rig wasm-referee
 $RAZOR bench --challenge ANV-003 --iters 20000 --rig m4-station
+# The same lanes at a workload 50x larger: a GPU pays a fixed dispatch and
+# transfer bill per batch, so its per-word cost falls as the batch grows -
+# the score history shows both points.
+$RAZOR bench --challenge ANV-003 --iters 1000000 --rig m4-station
+
+step "ANV-004 count leading zeros: the naive scan is the spec, binary search is the contender"
+$RAZOR challenge --id ANV-004 --title "count leading zeros (u64)" --spec-impl clz-naive \
+  --obligation "∀ x : BitVec 64, model x = Razor.Anvil.clzNaive x"
+$RAZOR fund --target ANV-004 --amount 2500 --funder bitboard-labs
+$RAZOR anvil-submit --id ANV-004-ref --challenge ANV-004 --impl clz-naive \
+  --solver spec-author --proof-decl ""
+$RAZOR hole --id ANV-004-BIN-PROOF \
+  --title "branchless binary search refines the clz spec" \
+  --lean-type "∀ x : BitVec 64, Razor.Anvil.clzBinary x = Razor.Anvil.clzNaive x" \
+  --allow-axiom "bv_decide" --allow-axiom "Lean.ofReduceBool"
+$RAZOR submit --id SUB-ANV4 --hole ANV-004-BIN-PROOF --solver heidi --decl Razor.Anvil.clz_binary_refines
+$RAZOR verify --submission SUB-ANV4
+$RAZOR anvil-submit --id ANV-004-bin --challenge ANV-004 --impl clz-branchless \
+  --solver heidi --proof-decl Razor.Anvil.clz_binary_refines --refinement-hole ANV-004-BIN-PROOF
+$RAZOR bench --challenge ANV-004 --iters 20000 --rig wasm-referee
+$RAZOR bench --challenge ANV-004 --iters 20000 --rig m4-station
+
+step "ANV-005 reverse the bits of a u64: 64 single-bit steps vs six swap layers"
+$RAZOR challenge --id ANV-005 --title "reverse the bits of a u64" --spec-impl bitrev-naive \
+  --obligation "∀ x : BitVec 64, model x = Razor.Anvil.revNaive x"
+$RAZOR fund --target ANV-005 --amount 2500 --funder bitboard-labs
+$RAZOR anvil-submit --id ANV-005-ref --challenge ANV-005 --impl bitrev-naive \
+  --solver spec-author --proof-decl ""
+$RAZOR hole --id ANV-005-SWAR-PROOF \
+  --title "the six swap layers refine the bit-reversal spec" \
+  --lean-type "∀ x : BitVec 64, Razor.Anvil.revSwar x = Razor.Anvil.revNaive x" \
+  --allow-axiom "bv_decide" --allow-axiom "Lean.ofReduceBool"
+$RAZOR submit --id SUB-ANV5 --hole ANV-005-SWAR-PROOF --solver judy --decl Razor.Anvil.rev_swar_refines
+$RAZOR verify --submission SUB-ANV5
+$RAZOR anvil-submit --id ANV-005-swar --challenge ANV-005 --impl bitrev-swar \
+  --solver judy --proof-decl Razor.Anvil.rev_swar_refines --refinement-hole ANV-005-SWAR-PROOF
+$RAZOR bench --challenge ANV-005 --iters 20000 --rig wasm-referee
+$RAZOR bench --challenge ANV-005 --iters 20000 --rig m4-station
 
 step "ANV-100 EVM interpreter: the submission is admitted - and loses anyway"
 $RAZOR challenge --id ANV-100 --title "EVM interpreter (64-bit demo words)" --spec-impl evm-ref \

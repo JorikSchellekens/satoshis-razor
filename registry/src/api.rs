@@ -173,6 +173,12 @@ fn remote_allowed(event: &Event) -> Result<(), &'static str> {
         | Event::Curate { .. } | Event::Supersede { .. } | Event::Fund { .. }
         | Event::RegisterAccount { .. } | Event::Commit { .. } | Event::Split { .. }
         | Event::Tag { .. } => Ok(()),
+        // The anvil. A challenge, a lane, and a rig are statements of
+        // intent; a score is a physical measurement no server can re-run,
+        // so it must name a registered rig and carry the rig owner's
+        // signature - the score's trust model is exactly its rig's.
+        Event::RegisterChallenge { .. } | Event::AnvilSubmit { .. }
+        | Event::RegisterRig { .. } | Event::Bench { .. } => Ok(()),
         Event::Converge { .. } | Event::Implies { .. } =>
             Err("converge/implies assert an equivalence without a kernel check and are not accepted \
                  remotely - use `razor bridge` (the equivalence becomes a hole, proven like any other)"),
@@ -330,6 +336,52 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
                 if !state.holes.contains_key(c) { return Err(format!("unknown child hole: {c}")); }
             }
         }
+        Event::RegisterChallenge { id, title, spec_impl, obligation } => {
+            if !sane_id(id) { return no("challenge id: letters, digits, dashes, up to 64 chars"); }
+            if state.challenges.contains_key(id) { return no("challenge id already exists"); }
+            if title.trim().is_empty() || spec_impl.trim().is_empty() || obligation.trim().is_empty() {
+                return no("a challenge needs --title, --spec-impl, and --obligation");
+            }
+        }
+        Event::AnvilSubmit { id, challenge, impl_name, solver, refinement_hole, .. } => {
+            if !sane_id(id) { return no("submission id: letters, digits, dashes, up to 64 chars"); }
+            let Some(c) = state.challenges.get(challenge) else { return no("unknown challenge") };
+            if c.entries.iter().any(|e| e.id == *id) { return no("submission id already exists"); }
+            if c.entries.iter().any(|e| e.impl_name == *impl_name) {
+                return no("an entry with this implementation name already exists on the challenge");
+            }
+            if !sane_id(impl_name) { return no("impl name: letters, digits, dashes, up to 64 chars"); }
+            if solver.trim().is_empty() { return no("anvil-submit needs --solver"); }
+            if let Some(h) = refinement_hole {
+                if !state.holes.contains_key(h) { return no("unknown refinement hole - register it first"); }
+            }
+        }
+        Event::RegisterRig { id, owner, arch, tier, .. } => {
+            if !sane_id(id) { return no("rig id: letters, digits, dashes, up to 64 chars"); }
+            if state.rigs.contains_key(id) { return no("rig id already exists"); }
+            if owner.trim().is_empty() || arch.trim().is_empty() { return no("a rig needs --owner and --arch"); }
+            if !matches!(tier.as_str(), "wasm-fuel" | "native") {
+                return no("rig tier must be wasm-fuel or native");
+            }
+        }
+        Event::Bench { submission, tier, arch, score, unit, rig, .. } => {
+            let Some(rig_id) = rig else {
+                return no("a remote score must name the rig it was measured on (razor bench --rig)");
+            };
+            let Some(r) = state.rigs.get(rig_id) else { return no("unknown rig - register it first") };
+            if r.tier != *tier {
+                return Err(format!("rig {rig_id} is a {} rig; it cannot report {tier} scores", r.tier));
+            }
+            let entry = state.challenges.values()
+                .flat_map(|c| c.entries.iter())
+                .find(|e| e.id == *submission);
+            let Some(entry) = entry else { return no("unknown anvil submission") };
+            if !entry.admitted && !entry.is_reference {
+                return no("this lane is not admitted yet - its refinement proof must verify first");
+            }
+            if !score.is_finite() || *score <= 0.0 { return no("a score must be a positive number"); }
+            if arch.trim().is_empty() || unit.trim().is_empty() { return no("a score needs an arch and a unit"); }
+        }
         _ => return no("unreachable: event type already filtered"),
     }
     Ok(())
@@ -363,6 +415,17 @@ fn check_signature(state: &State, event: &Event, sig: Option<&str>) -> Result<()
     if let Event::RegisterAccount { pubkey, .. } = event {
         return verify_with(pubkey, "account registration");
     }
+    // A bench score is signed by the owner of the rig it names: scores are
+    // physical measurements, and the rig's owner is who vouches for them.
+    if let Event::Bench { rig: Some(rig_id), .. } = event {
+        if let Some(owner) = state.rigs.get(rig_id).map(|r| r.owner.clone()) {
+            if let Some(acct) = state.accounts.get(&owner) {
+                return verify_with(&acct.pubkey,
+                    &format!("rig {rig_id} belongs to registered handle '@{owner}'; its scores"));
+            }
+        }
+        return Ok(());
+    }
     if let Some(actor) = event.actor() {
         if let Some(acct) = state.accounts.get(actor) {
             return verify_with(&acct.pubkey, &format!("'@{actor}' is a registered handle; this event"));
@@ -392,7 +455,10 @@ pub fn post_event(
     // Append under the log lock so seq assignment and validation see a
     // consistent state.
     let _guard = log_lock.lock().unwrap();
-    let state = State::fold(load(log_path));
+    let mut state = State::fold(load(log_path));
+    // A lane whose refinement hole has an admitted proof is admitted; the
+    // bench validation below needs that settled.
+    state.settle_admissions();
     if let Err(m) = check_signature(&state, &event, sig.as_deref()) {
         return err("403 Forbidden", &m);
     }

@@ -1553,6 +1553,11 @@ fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed: u64, 
     let ch = state.challenges.get(challenge_id).unwrap_or_else(|| {
         ui::die(&format!("unknown challenge: {challenge_id}"));
     });
+    if remote().is_some() && rig.is_none() {
+        ui::die("publishing scores to a remote registry requires --rig: register the machine \
+            with `razor rig`, then bench through it, so every public score names the hardware \
+            it was measured on and carries the rig owner's signature");
+    }
     let harness = root.join("target/release/anvil-harness");
     for entry in ch.entries.iter().filter(|e| e.admitted) {
         let wasm = root.join(format!(
@@ -1562,12 +1567,23 @@ fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed: u64, 
         // Differential certificate first: an impl that disagrees with the
         // executable spec never gets a score (belt and braces on top of the proof).
         let check = run_json(&harness, &["check", "--impl", &entry.impl_name, "--seed", &seed.to_string(), "--iters", &iters.to_string()]);
+        if let Some(why) = check.get("skip").and_then(|v| v.as_str()) {
+            // The lane cannot run in this environment at all (a GPU lane on
+            // a machine with no GPU): not a failure, just not measurable here.
+            eprintln!("  {} {} not measurable on this machine: {why}", ui::gold("⚠"), entry.impl_name);
+            continue;
+        }
         if check.get("pass") != Some(&serde_json::Value::Bool(true)) {
             eprintln!("{} differential check FAILED for {}, skipping", ui::red("✕"), entry.impl_name);
             continue;
         }
-        let run_tier1 = rig.as_ref().is_none_or(|r| r.tier == "wasm-fuel");
+        // A lane with no wasm build (GPU lanes are native-only) simply has
+        // no wasm-fuel score; its native scores stand on their own.
+        let run_tier1 = rig.as_ref().is_none_or(|r| r.tier == "wasm-fuel") && wasm.exists();
         let run_native = rig.as_ref().is_none_or(|r| r.tier == "native");
+        if rig.as_ref().is_none_or(|r| r.tier == "wasm-fuel") && !wasm.exists() {
+            eprintln!("  {} {} has no wasm build - skipping the wasm-fuel board", ui::dim("·"), entry.impl_name);
+        }
         if run_tier1 {
             let t1 = run_json(&harness, &["tier1", "--wasm", wasm.to_str().unwrap(), "--seed", &seed.to_string(), "--iters", &iters.to_string()]);
             append(log_path, Event::Bench {
@@ -2363,7 +2379,15 @@ fn find_key(log_path: &PathBuf, handle: &str) -> Option<PathBuf> {
 /// a registered handle's name without its key. Handles that never
 /// registered an account stay open and unsigned.
 fn sign_event(path: &PathBuf, event: &Event) -> Option<String> {
-    let actor = event.actor()?.to_string();
+    // A bench score has no actor field of its own: it is signed by the
+    // owner of the rig it was measured on, looked up from the log.
+    let actor = match event {
+        Event::Bench { rig: Some(r), .. } => {
+            let state = State::fold(load(path));
+            state.rigs.get(r).map(|rig| rig.owner.clone())?
+        }
+        _ => event.actor()?.to_string(),
+    };
     let entries = load(path);
     let registered = entries.iter().any(|e| matches!(&e.event,
         Event::RegisterAccount { handle, .. } if *handle == actor));
@@ -2448,6 +2472,10 @@ const REMOTE_CMDS: &[&str] = &[
     "propose", "formalize", "seal-statement", "reveal-statement", "round", "bridge",
     "hole", "split", "curate", "tag", "supersede", "fund", "commit", "submit", "verify",
     "account", "status", "profile", "cite", "verify-log", "log", "recheck",
+    // The anvil: challenges, lanes, rigs, and scores are ordinary log events.
+    // Measurements happen on the rig owner's machine; what the remote gets is
+    // the signed score event - exactly the trust model rigs declare.
+    "challenge", "anvil-submit", "rig", "bench",
 ];
 
 /// Commands the remote refuses (they assert kernel facts without a check,

@@ -13,6 +13,8 @@ import Razor.Evm.Spec
 import Razor.Anvil.Popcount
 import Razor.Anvil.Sum
 import Razor.Anvil.Sort8
+import Razor.Anvil.Clz
+import Razor.Anvil.Bitrev
 import Razor.Sorting.Implications
 import Razor.Sorting.Repin
 import Razor.Frontier.ErdosStraus

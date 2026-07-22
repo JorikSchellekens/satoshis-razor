@@ -14,6 +14,14 @@
 //! Lean refinement theorem.
 //!
 //! Output is one JSON object on stdout.
+//!
+//! Whole-stream lanes: an implementation may process the entire benchmark
+//! input stream at once instead of one word per call - that is how a GPU
+//! lane amortizes its dispatch cost. Such a lane provides `batch` (the
+//! whole-stream timed entry, same checksum contract) and `many` (the
+//! whole-stream differential entry); `avail` reports whether the lane can
+//! run on this machine at all, so a GPU lane on a GPU-less box reports
+//! "not measurable" instead of failing.
 
 use std::time::Instant;
 
@@ -27,24 +35,49 @@ struct Impl {
     name: &'static str,
     challenge: &'static str,
     solve: fn(u64) -> u64,
+    /// Whole-stream timed entry: (seed, iters) -> checksum. None = the
+    /// harness drives `solve` one word at a time.
+    batch: Option<fn(u64, u64) -> u64>,
+    /// Whole-stream differential entry. None = map `solve` over the inputs.
+    many: Option<fn(&[u64]) -> Vec<u64>>,
+    /// Whether the lane can run on this machine (a GPU lane needs a GPU).
+    avail: fn() -> bool,
+}
+
+const fn cpu(name: &'static str, challenge: &'static str, solve: fn(u64) -> u64) -> Impl {
+    Impl { name, challenge, solve, batch: None, many: None, avail: || true }
 }
 
 const CHALLENGES: &[Challenge] = &[
     Challenge { name: "popcount", map: |x| x, reference: popcount_naive::solve },
     Challenge { name: "sum", map: |x| x & 0xffff, reference: sum_loop::solve },
     Challenge { name: "sort8", map: |x| x, reference: sort8_bubble::solve },
+    Challenge { name: "clz", map: |x| x >> (x & 63), reference: clz_naive::solve },
+    Challenge { name: "bitrev", map: |x| x, reference: bitrev_naive::solve },
     Challenge { name: "evm", map: |x| x, reference: evm_ref::solve },
 ];
 
 const IMPLS: &[Impl] = &[
-    Impl { name: "popcount-naive", challenge: "popcount", solve: popcount_naive::solve },
-    Impl { name: "popcount-swar", challenge: "popcount", solve: popcount_swar::solve },
-    Impl { name: "sum-loop", challenge: "sum", solve: sum_loop::solve },
-    Impl { name: "sum-closed", challenge: "sum", solve: sum_closed::solve },
-    Impl { name: "sort8-bubble", challenge: "sort8", solve: sort8_bubble::solve },
-    Impl { name: "sort8-network", challenge: "sort8", solve: sort8_network::solve },
-    Impl { name: "evm-ref", challenge: "evm", solve: evm_ref::solve },
-    Impl { name: "evm-tos", challenge: "evm", solve: evm_tos::solve },
+    cpu("popcount-naive", "popcount", popcount_naive::solve),
+    cpu("popcount-swar", "popcount", popcount_swar::solve),
+    cpu("sum-loop", "sum", sum_loop::solve),
+    cpu("sum-closed", "sum", sum_closed::solve),
+    cpu("sort8-bubble", "sort8", sort8_bubble::solve),
+    cpu("sort8-network", "sort8", sort8_network::solve),
+    Impl {
+        name: "sort8-gpu",
+        challenge: "sort8",
+        solve: sort8_gpu::solve,
+        batch: Some(sort8_gpu::bench_batch),
+        many: Some(sort8_gpu::solve_many),
+        avail: sort8_gpu::available,
+    },
+    cpu("clz-naive", "clz", clz_naive::solve),
+    cpu("clz-branchless", "clz", clz_branchless::solve),
+    cpu("bitrev-naive", "bitrev", bitrev_naive::solve),
+    cpu("bitrev-swar", "bitrev", bitrev_swar::solve),
+    cpu("evm-ref", "evm", evm_ref::solve),
+    cpu("evm-tos", "evm", evm_tos::solve),
 ];
 
 fn challenge(name: &str) -> &'static Challenge {
@@ -88,13 +121,23 @@ fn main() {
             let name = arg(&args, "--impl").expect("--impl <name>");
             let imp = implementation(&name);
             let ch = challenge(imp.challenge);
+            if !(imp.avail)() {
+                println!("{{\"skip\":\"this lane needs hardware this machine does not have (no GPU adapter)\"}}");
+                return;
+            }
             let repeats = arg_u64(&args, "--repeats", 9) as usize;
+            let run = |_: usize| -> u64 {
+                match imp.batch {
+                    Some(b) => b(seed, iters),
+                    None => anvil_abi::bench_host(imp.solve, ch.map, seed, iters),
+                }
+            };
             // Warm-up, then median of repeats.
-            let checksum = anvil_abi::bench_host(imp.solve, ch.map, seed, iters);
+            let checksum = run(0);
             let mut times: Vec<u128> = (0..repeats)
-                .map(|_| {
+                .map(|r| {
                     let t = Instant::now();
-                    let c = anvil_abi::bench_host(imp.solve, ch.map, seed, iters);
+                    let c = run(r);
                     assert_eq!(c, checksum);
                     t.elapsed().as_nanos()
                 })
@@ -111,10 +154,19 @@ fn main() {
             let name = arg(&args, "--impl").expect("--impl <name>");
             let imp = implementation(&name);
             let ch = challenge(imp.challenge);
+            if !(imp.avail)() {
+                println!("{{\"skip\":\"this lane needs hardware this machine does not have (no GPU adapter)\"}}");
+                return;
+            }
+            let inputs: Vec<u64> = anvil_abi::input_stream(seed, iters, ch.map).collect();
+            let outputs: Vec<u64> = match imp.many {
+                Some(m) => m(&inputs),
+                None => inputs.iter().map(|&x| (imp.solve)(x)).collect(),
+            };
             let mut mismatches = 0u64;
             let mut first: Option<u64> = None;
-            for x in anvil_abi::input_stream(seed, iters, ch.map) {
-                if (imp.solve)(x) != (ch.reference)(x) {
+            for (&x, &y) in inputs.iter().zip(outputs.iter()) {
+                if y != (ch.reference)(x) {
                     mismatches += 1;
                     first.get_or_insert(x);
                 }
