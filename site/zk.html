@@ -137,7 +137,10 @@ loadData(S => {
       </div>
       <a class="go" href="hole.html?id=${encodeURIComponent(h.id)}">full record: the Lean unfolded, every attempt, every event →</a>
     </article>`;
-  }).join('') || '<p class="lede">No hole carries a zk route yet.</p>';
+  }).join('') || `<p class="lede">No hole here carries a zk route yet, so <code>razor zk-submit</code> has
+    nothing to target on this registry — the demo dataset (<code>./demo.sh</code> in your clone) shows the
+    whole flow end to end, and <code>razor zk-route</code> attaches the first real route to any hole whose
+    statement a circuit can express.</p>`;
 
   const sealed = Object.values(S.holes)
     .flatMap(h => h.submissions.filter(s => !s.revealed).map(s => ({ h, s })));

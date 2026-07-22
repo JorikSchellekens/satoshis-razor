@@ -76,7 +76,7 @@ function personCard(p) {
   const sigil = a ? a.sigil : '·';
   const name = a ? a.display : p.handle;
   const about = a && a.about ? `<p style="color:var(--muted);font-size:14.5px">${esc(a.about)}</p>` : '';
-  const registered = a ? '' : '<span class="badge">no account registered</span>';
+  const registered = (a ? '' : '<span class="badge">no account registered</span>') + tagChips(STATE, p.handle);
 
   const stats = `<div class="statline">
     <span><b>${p.solved}</b> accepted</span>
@@ -129,7 +129,10 @@ function draw() {
   let people = Object.values(S.people || {});
   if (q) people = people.filter(p =>
     (p.handle + ' ' + (p.account?.display || '')).toLowerCase().includes(q));
-  people.sort((a, b) => (metric(b) - metric(a))
+  // Handles tagged test-data sink below every real participant regardless
+  // of the chosen metric.
+  people.sort((a, b) => (isTestData(S, a.handle) ? 1 : 0) - (isTestData(S, b.handle) ? 1 : 0)
+    || (metric(b) - metric(a))
     || (b.account ? 1 : 0) - (a.account ? 1 : 0)
     || a.handle.localeCompare(b.handle));
   // On a dataset with no registered accounts, say so honestly rather than

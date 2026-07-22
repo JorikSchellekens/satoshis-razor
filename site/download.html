@@ -144,7 +144,10 @@ razor zk-submit --local --id SUB-me-zk --hole ZKH-001 --route ZKR-001 \
       odd prime - is self-contained number theory and a genuinely provable first hole on the live board.</p>
       <p>Add your own candidate statement with <code>razor formalize --gloss "..."</code> - the gloss is
       your plain-language reading, which is what reviewers compare against the proposal - and strengthen a
-      clump by proving your statement equivalent to an existing one (<code>razor converge</code>).</p>
+      clump by proving your statement equivalent to an existing one: <code>razor bridge</code> pins the
+      equivalence as its own hole, and your admitted proof of it merges the clumps. (<code>razor
+      converge</code> records an equivalence without a kernel check, so it works only against a local
+      registry.)</p>
 
       <h4>Share partial progress as a split</h4>
       <p>If you can prove a hole from lemmas you cannot yet prove - in a Lean file, a proof with

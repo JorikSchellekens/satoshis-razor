@@ -120,7 +120,9 @@ function informalOf(S, h) {
 // vocabulary travels with the reader.
 const TIP = {
   window: 'A dated invitation to file sealed readings of this proposal. Nothing is enforced: a late seal simply carries its own timestamps.',
-  sealed: 'This statement was filed as a hash commitment before it was shown to anyone; the reveal matched the hash. It is provably blind to every statement revealed after its seal.',
+  sealed: 'This statement was filed as a hash commitment before any other reading of the proposal was public; the reveal matched the hash. It is provably blind to every statement revealed after its seal.',
+  sealedLate: 'This statement was filed as a hash commitment, but other readings of the proposal were already public when it was sealed - the seal timestamps it without proving blindness against those.',
+  tag: 'An attributed label filed with razor tag. test-data marks pipeline-test material: it stays recorded and provable, but default views de-emphasize it and the homepage marquee leaves it out.',
   blind: 'The largest set of authors in this clump whose statements were each sealed before any of the others was revealed: none could have seen another’s Lean. Weight counts claimed independence; this counts proof.',
   bridge: 'A hole whose pinned statement is the equivalence of two candidate statements. An admitted proof is a kernel-checked fact that they state the same problem, and their clumps merge.',
   fidelity: 'Recorded facts about how much independent scrutiny the pinned statement has survived. The registry never judges a statement; these are what the log knows.',
@@ -182,6 +184,44 @@ function blindPeersOf(S, st) {
     .filter(o => o && o.author !== st.author && mutuallyBlind(st, o));
 }
 
+// ── tags ─────────────────────────────────────────────────────────
+// Attributed labels on any entity (razor tag). The one tag the site itself
+// acts on is test-data: tagged items keep their pages, stay provable, and
+// remain on the log - but default views de-emphasize them, and the
+// homepage marquee leaves them out.
+function tagsOf(S, id) {
+  return (S.tags || []).filter(([, t]) => t === id).map(([by, , tag, note]) => ({ by, tag, note }));
+}
+const isTestData = (S, id) => tagsOf(S, id).some(t => t.tag === 'test-data');
+// A hole inherits test-data from its proposal: tagging the audit proposal
+// covers every hole filed under it.
+const holeIsTest = (S, h) => isTestData(S, h.id) || (h.proposal && isTestData(S, h.proposal));
+function tagChips(S, id) {
+  return tagsOf(S, id).map(t =>
+    `<span class="badge"${tip('tag')}>⚑ ${esc(t.tag)} — tagged by ${esc(t.by)}${t.note ? `: “${esc(t.note)}”` : ''}</span>`).join('');
+}
+
+// How blind a sealed statement provably was: the number of same-proposal
+// statements by other authors that were already public when this one was
+// sealed. 0 means the seal predates every other reading - the badge can
+// honestly say "blind"; more means the author could have read them first.
+function sealLateness(S, st) {
+  if (st.sealed_seq == null) return null;
+  const p = S.proposals?.[st.proposal];
+  return (p?.statements || [])
+    .map(id => S.statements[id])
+    .filter(o => o && o.id !== st.id && o.author !== st.author)
+    .filter(o => o.filed_seq < st.sealed_seq).length;
+}
+// The sealed badge, worded honestly: a seal that predates every other
+// public reading is provably blind; a later seal only timestamps itself.
+function sealedBadge(S, st) {
+  if (st.sealed_seq == null) return '';
+  const late = sealLateness(S, st);
+  if (late === 0) return `<span class="badge gold"${tip('sealed')}>⏣ sealed blind at #${st.sealed_seq}</span>`;
+  return `<span class="badge"${tip('sealedLate')}>⏣ sealed at #${st.sealed_seq} · ${late} reading${late > 1 ? 's' : ''} already public</span>`;
+}
+
 // Curation weight of a target: each curation counts 1 plus the curator's
 // admitted work, so taste from people with a verified record counts more.
 function curationWeight(S, target) {
@@ -232,11 +272,13 @@ function holeMetrics(S, h) {
   // each community signal counts at a fixed weight; supersession marks
   // subtract. It is a reading aid, not a judgment - every input is visible
   // on the hole's own page.
+  const test = holeIsTest(S, h);
   const attention = pool + 900 * clump + 700 * curation + 800 * convergence + 600 * lineage
-    + 500 * splits + 250 * subs + (h.status === 'open' ? 400 : 0) - 700 * superseded;
+    + 500 * splits + 250 * subs + (h.status === 'open' ? 400 : 0) - 700 * superseded
+    - (test ? 5000 : 0);
   return { clump, dominant: !!clumpOf?.dominant,
     proven: !!clumpOf?.proven, pool, curation, convergence, lineage, splits, subs, rejected,
-    superseded, attention };
+    superseded, test, attention };
 }
 
 // every event touching a hole, in log order
@@ -245,7 +287,7 @@ function holeHistory(S, h) {
   return S.events.filter(e => {
     switch (e.type) {
       case 'register_hole': return e.id === h.id;
-      case 'fund': case 'payout': case 'curate': return e.target === h.id;
+      case 'fund': case 'payout': case 'curate': case 'tag': return e.target === h.id;
       case 'submit': case 'commit': return e.hole === h.id;
       case 'reveal': case 'verdict': return subIds.has(e.submission);
       case 'supersede': return e.hole === h.id || e.replacement === h.id;

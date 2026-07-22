@@ -47,9 +47,15 @@ if have rustup && ! rustup target list --installed | grep -q wasm32-unknown-unkn
   rustup target add wasm32-unknown-unknown
 fi
 
-# locate or fetch the repo
+# locate or fetch the repo. Re-running after an interrupted install must
+# work: an existing ./satoshis-razor checkout is reused, not a fatal error.
 if [ -f lean/lakefile.toml ] && [ -f demo.sh ]; then
   say "using current checkout: $(pwd)"
+elif [ -f satoshis-razor/lean/lakefile.toml ] && [ -f satoshis-razor/demo.sh ]; then
+  say "using existing checkout: $(pwd)/satoshis-razor"
+  cd satoshis-razor
+elif [ -e satoshis-razor ]; then
+  die "./satoshis-razor exists but is not a satoshis-razor checkout - move it aside and re-run"
 else
   say "cloning $REPO_URL"
   git clone "$REPO_URL" satoshis-razor

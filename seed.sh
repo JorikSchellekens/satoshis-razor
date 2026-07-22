@@ -24,7 +24,7 @@ fi
 step "Fresh registry"
 # Regenerate everything under registry/data except keys/: signing keys are
 # identities, not dataset, and are never deleted by any script.
-find registry/data -mindepth 1 -maxdepth 1 ! -name keys -exec rm -rf {} + 2>/dev/null || true
+find registry/data -mindepth 1 -maxdepth 1 ! -name keys ! -name statements -exec rm -rf {} + 2>/dev/null || true
 rm -rf site/data.json
 
 # ─────────────────────────────────────────────────────────────────────

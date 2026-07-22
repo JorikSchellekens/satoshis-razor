@@ -24,10 +24,16 @@ cargo build --release --target wasm32-unknown-unknown \
   -p popcount-naive -p popcount-swar -p sum-loop -p sum-closed -p sort8-bubble -p sort8-network -p evm-ref -p evm-tos 2>&1 | tail -1
 
 step "Fresh registry"
-# Everything under registry/data is regenerated except keys/: signing keys
-# are identities, not dataset, and are never deleted by any script.
-find registry/data -mindepth 1 -maxdepth 1 ! -name keys -exec rm -rf {} + 2>/dev/null || true
-rm -rf site/data.json lean/Razor/Private lean/Razor/Submissions
+# Everything under registry/data is regenerated except keys/ (signing keys
+# are identities, not dataset) and statements/ (tracked mirror content -
+# deleting tracked files leaves the clone dirty and breaks the next pull).
+find registry/data -mindepth 1 -maxdepth 1 ! -name keys ! -name statements -exec rm -rf {} + 2>/dev/null || true
+rm -rf site/data.json lean/Razor/Private
+# The demo writes its own submission modules. The clone's tracked ones (the
+# live registry's mirrored proofs) are restored, not destroyed; stale
+# untracked ones from an earlier demo run are removed.
+git checkout -q -- lean/Razor/Submissions 2>/dev/null || true
+git clean -qfd lean/Razor/Submissions 2>/dev/null || true
 
 # ─────────────────────────────────────────────────────────────────────
 step "PROLOGUE - Participants claim their handles"

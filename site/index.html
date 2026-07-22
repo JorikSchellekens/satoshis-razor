@@ -222,27 +222,34 @@
 <script>
 loadData(S => {
   const holes = Object.values(S.holes);
-  const pool = holes.reduce((a, h) => a + h.pool, 0)
+  // The marquee reports the live registry: items tagged test-data (kept as
+  // pipeline smoke tests) stay on the log and keep their pages, but they
+  // are not headline numbers and not featured.
+  const liveHoles = holes.filter(h => !holeIsTest(S, h));
+  const liveProposals = Object.values(S.proposals || {}).filter(p => !isTestData(S, p.id));
+  const pool = liveHoles.reduce((a, h) => a + h.pool, 0)
     + Object.values(S.challenges).reduce((a, c) => a + c.pool + Object.values(c.arch_pools || {}).reduce((x, y) => x + y, 0), 0);
   // Lead with the numbers this dataset can actually back; a zero is not a
   // headline, so zero-valued stats are dropped rather than displayed.
-  const backlogN = Object.values(S.proposals || {})
+  const backlogN = liveProposals
     .filter(p => !(p.statements || []).length && !curationWeight(S, p.id)).length;
+  const testTargets = new Set([...holes.filter(h => holeIsTest(S, h)).map(h => h.id),
+    ...Object.keys(S.proposals || {}).filter(id => isTestData(S, id))]);
   $('stats').innerHTML = [
     [S.events.length, 'events on the log'],
-    [Object.keys(S.proposals || {}).length, 'proposals'],
+    [liveProposals.length, 'proposals'],
     [backlogN, 'theorems awaiting formalization'],
-    [holes.filter(h => h.status === 'open').length, 'holes open'],
-    [holes.filter(h => h.status === 'solved').length, 'holes solved'],
-    [Object.values(S.proposals || {}).filter(p => activeRound(S, p)).length, 'challenge windows open'],
-    [(S.curations || []).length, 'curations filed'],
-    [holes.filter(h => (h.superseded_by || []).length).length, 'statements marked superseded'],
+    [liveHoles.filter(h => h.status === 'open').length, 'holes open'],
+    [liveHoles.filter(h => h.status === 'solved').length, 'holes solved'],
+    [liveProposals.filter(p => activeRound(S, p)).length, 'challenge windows open'],
+    [(S.curations || []).filter(([, t]) => !testTargets.has(t)).length, 'curations filed'],
+    [liveHoles.filter(h => (h.superseded_by || []).length).length, 'statements marked superseded'],
     [pool, 'credits in bounties'],
   ].filter(([b]) => b > 0)
    .map(([b, l]) => `<div class="stat"><b>${b.toLocaleString()}</b>${l}</div>`).join('');
 
   // ── featured problem: the hole with the largest registered reduction ──
-  const featured = holes
+  const featured = liveHoles
     .filter(h => (h.splits || []).length)
     .map(h => ({ h, size: h.splits.reduce((a, sp) => a + sp.children.length, 0) }))
     .sort((a, b) => b.size - a.size)[0]?.h;
@@ -325,7 +332,7 @@ loadData(S => {
     const key = `${from}|${to}|${kind}`;
     if (byId[to] && !seen.has(key)) { seen.add(key); edges.push({ from, to, kind }); }
   };
-  for (const h of holes) {
+  for (const h of liveHoles) {
     for (const [, r] of (h.superseded_by || [])) addEdge(h.id, r, 'supersede');
     for (const sp of (h.splits || []))
       for (const c of sp.children) addEdge(h.id, c[0], 'decompose');

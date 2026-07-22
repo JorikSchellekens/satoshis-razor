@@ -167,6 +167,7 @@ function card(S, h, sort) {
       ${h.env === 'mathlib' ? `<span class="badge blue"${tip('env')}>Mathlib environment</span>` : ''}
       ${h.upstreamed ? `<span class="badge gold"${tip('upstreamed')}>↥ upstreamed</span>` : ''}
       ${m.pool ? `<span class="pool"${tip('bounty')}>bounty ${m.pool.toLocaleString()}</span>` : ''}
+      ${tagChips(S, h.id)}${h.proposal && isTestData(S, h.proposal) && !isTestData(S, h.id) ? `<span class="badge"${tip('tag')}>⚑ test-data (proposal)</span>` : ''}
     </div>
     <h4><a class="cardlink" href="hole.html?id=${encodeURIComponent(h.id)}">${esc(prettyMath(h.title))}</a></h4>
     ${informal ? `<p class="informal">${esc(prettyMath(informal.length > 220 ? informal.slice(0, 220) + '…' : informal))}</p>` : ''}
@@ -251,7 +252,10 @@ function renderProposals(S) {
   // ingested catalogue entries with none yet form the searchable backlog.
   const active = (p) => (p.statements || []).length || curationWeight(S, p.id)
     || (p.rounds || []).length || (p.seals || []).length;
-  const props = all.filter(active);
+  // Test-data proposals stay listed (their pages and holes work) but sink
+  // below the real ones.
+  const props = all.filter(active)
+    .sort((a, b) => (isTestData(S, a.id) ? 1 : 0) - (isTestData(S, b.id) ? 1 : 0));
   const backlog = all.filter(p => !active(p));
   renderBacklog(backlog);
   $('proposals').innerHTML = props.map(p => {
@@ -263,7 +267,7 @@ function renderProposals(S) {
         const st = S.statements[id] || {};
         return `<div class="clump-member">
           ${stmtLink(id)} <span>by ${esc(st.author || '?')}</span>
-          ${st.sealed_seq != null ? `<span class="badge"${tip('sealed')}>⏣ sealed</span>` : ''}
+          ${sealedBadge(S, st)}
           ${st.gloss ? `<div class="prop-body">"${esc(prettyMath(st.gloss))}"</div>` : ''}
           ${(st.certificates || []).length ? `<div class="prop-body">certificates: ${st.certificates.map(([k]) => esc(k)).join(', ')}</div>` : ''}
           ${(st.implies || []).map(([b]) => `<div class="prop-body">proven to imply ${esc(b)} (converse unproven: ${esc(b)} may be strictly weaker)</div>`).join('')}
@@ -284,6 +288,7 @@ function renderProposals(S) {
         ${curationWeight(S, p.id) ? `<span class="badge gold">curation ${curationWeight(S, p.id)}</span>` : ''}
         ${p.statements.length ? `<span class="badge blue">${p.statements.length} candidate statement${p.statements.length > 1 ? 's' : ''}</span>`
           : '<span class="chip open">○ needs a formal statement</span>'}
+        ${tagChips(S, p.id)}
       </div>
       <h4><a class="cardlink" href="proposal.html?id=${encodeURIComponent(p.id)}">${esc(prettyMath(p.title))}</a></h4>
       <p class="prop-body">${esc(prettyMath(p.body))}</p>

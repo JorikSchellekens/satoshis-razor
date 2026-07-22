@@ -73,7 +73,7 @@ loadData(S => {
     return;
   }
   document.title = `${st.id} — Satoshi's Razor`;
-  $('chips').innerHTML = `<span class="hid">${esc(st.id)}</span><span class="badge">by ${personLink(st.author)}</span>${st.sealed_seq != null ? `<span class="badge gold"${tip('sealed')}>⏣ sealed reading</span>` : ''}`;
+  $('chips').innerHTML = `<span class="hid">${esc(st.id)}</span><span class="badge">by ${personLink(st.author)}</span>${sealedBadge(S, st)}${tagChips(S, st.id)}`;
   $('title').textContent = prettyMath(st.gloss || st.decl);
   $('lede').innerHTML = `A Lean formalization of proposal ${propLink(st.proposal)}, declared as <code>${esc(st.decl)}</code>.${st.notes ? ` ${esc(prettyMath(st.notes))}` : ''}`;
   $('gloss').innerHTML = st.gloss ? `“${esc(prettyMath(st.gloss))}”` : 'No gloss was filed with this statement.';
@@ -81,12 +81,15 @@ loadData(S => {
   const blind = blindPeersOf(S, st);
   const rows = [
     ['declaration', `<code>${esc(st.decl)}</code>`],
-    st.sealed_seq != null ? ['sealed provenance', `committed as ${esc(st.seal || '?')} at event #${st.sealed_seq}, revealed at event #${st.filed_seq} — the reveal hashed to the commitment, so this exact reading provably existed, unseen, at #${st.sealed_seq}`] : null,
+    st.sealed_seq != null ? ['sealed provenance', `committed as ${esc(st.seal || '?')} at event #${st.sealed_seq}, revealed at event #${st.filed_seq} — the reveal hashed to the commitment, so this exact reading provably existed, unseen, at #${st.sealed_seq}` + (sealLateness(S, st) ? `. Note: ${sealLateness(S, st)} other reading${sealLateness(S, st) > 1 ? 's were' : ' was'} already public when this one was sealed — the seal proves blindness only against statements revealed after it` : '')] : null,
     blind.length ? ['written blind to', blind.map(o => `${stmtLink(o.id)} by ${esc(o.author)}`).join('<br>') + ` <span style="color:var(--muted)">— each was sealed before the other was revealed; neither author could have seen the other's Lean</span>`] : null,
     st.certificates.length ? ['certificates', st.certificates.map(([k, d, n]) => `<b>${esc(k)}</b> — <code>${esc(d)}</code>${n ? ` — ${esc(n)}` : ''}`).join('<br>')] : null,
     st.convergences.length ? ['proven equivalent to', st.convergences.map(([o, d]) => `${stmtLink(o)} <span style="color:var(--muted)">(via <code>${esc(d)}</code>)</span>`).join('<br>')] : null,
     st.implies.length ? ['proven to imply', st.implies.map(([b, d]) => `${stmtLink(b)} <span style="color:var(--muted)">(via <code>${esc(d)}</code>; the converse is unproven — ${esc(b)} may be strictly weaker)</span>`).join('<br>')] : null,
     st.implied_by.length ? ['implied by', st.implied_by.map(([a, d]) => `${stmtLink(a)} <span style="color:var(--muted)">(via <code>${esc(d)}</code>; this statement may be the strictly weaker one)</span>`).join('<br>')] : null,
+    st.source ? ['the revealed file', `<pre style="margin:6px 0 0">${hiLean(st.source)}</pre>
+      <span style="color:var(--muted)">the exact bytes that hashed to the sealed commitment, kept at
+      <code>registry/data/statements/${esc(st.id)}.lean</code> with its salt — re-verify with sha256(file ‖ salt)</span>`] : null,
   ].filter(Boolean);
   $('facts').innerHTML = rows.map(([k, v]) => `<div class="k">${k}</div><div class="v">${v}</div>`).join('');
 

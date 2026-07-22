@@ -131,7 +131,12 @@ loadData(S => {
       }).join('')}
       <div class="foot">${proofs.join(' · ') || 'no admitted submissions yet'}</div>
     </div>`;
-  }).join('') || '<p class="lede">No challenges registered on this dataset. The demo dataset (<code>./demo.sh</code>) runs four: popcount, summation, sorting the bytes of a word, and a small EVM interpreter.</p>';
+  }).join('') || `<p class="lede">No challenges registered on this dataset yet — the boards are open.
+    To see the machinery in motion, the demo dataset (<code>./demo.sh</code> in your clone) runs four
+    challenges: popcount, summation, sorting the bytes of a word, and a small EVM interpreter.
+    To put the first real challenge here: write a reference implementation, then
+    <code>razor challenge --id ... --title ... --spec-impl ... --obligation ...</code>
+    (<a href="download.html">get started</a>).</p>`;
 
   const benches = S.events.filter(e => e.type === 'bench');
   $('history').innerHTML = `<tr><th>#</th><th>submission</th><th>tier</th><th>arch</th><th>rig</th><th>score</th><th>checksum</th></tr>` +

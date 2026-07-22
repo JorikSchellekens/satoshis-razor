@@ -16,6 +16,7 @@ use std::path::PathBuf;
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let cmd = args.first().map(String::as_str).unwrap_or("help");
+    check_flags(cmd, &args);
     let root = repo_root();
     let log_path = root.join("registry/data/events.jsonl");
     std::fs::create_dir_all(log_path.parent().unwrap()).ok();
@@ -63,6 +64,7 @@ fn main() {
                 proposal: opt(&args, "--proposal"),
                 env,
                 bridge: None,
+                author: opt(&args, "--author"),
             });
         }
         "round" => cmd_round(&log_path, &args),
@@ -104,6 +106,20 @@ fn main() {
             curator: req(&args, "--curator"), target: req(&args, "--target"),
             note: opt(&args, "--note").unwrap_or_default(),
         }),
+        "tag" => {
+            let tag = req(&args, "--tag");
+            if tag.is_empty() || tag.len() > 32
+                || !tag.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
+                ui::die("tags are lowercase letters, digits, and dashes (up to 32 chars), e.g. test-data");
+            }
+            append(&log_path, Event::Tag {
+                target: req(&args, "--target"), tag,
+                by: opt(&args, "--author").or_else(|| opt(&args, "--by")).unwrap_or_else(|| {
+                    ui::die("missing --author (who files the tag; --by works too)");
+                }),
+                note: opt(&args, "--note").unwrap_or_default(),
+            });
+        }
         // --target is canonical (a bounty can fund a challenge too);
         // --hole is accepted because it is what people type.
         "fund" => append(&log_path, Event::Fund {
@@ -239,6 +255,7 @@ fn print_help(cmd: &str) {
         ]),
         ("value", &[
             ("curate", "a public, attributed pick - weighted by your admitted work"),
+            ("tag", "an attributed label on any entity (test-data hides it from the marquee)"),
             ("fund", "put a bounty on one exact statement (caveat emptor)"),
             ("payout", "record a payment from a pool"),
         ]),
@@ -351,10 +368,15 @@ fn cmd_account(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
             std::fs::write(&keyfile, hex_of(&sk.to_bytes())).expect("write key");
             let _ = root;
 
-            let sigil = sigil_of(&handle);
+            // A chosen sigil wins; otherwise one is derived from the handle.
+            let sigil = match opt(args, "--sigil") {
+                Some(s) if s.chars().count() == 1 && !s.chars().next().unwrap().is_control() => s,
+                Some(s) => ui::die(&format!("--sigil must be a single character, got {s:?}")),
+                None => sigil_of(&handle).to_string(),
+            };
             append(log_path, Event::RegisterAccount {
                 handle: handle.clone(), display: display.clone(), about,
-                sigil: sigil.into(), pubkey: pubkey.clone(), github: github.clone(),
+                sigil: sigil.clone(), pubkey: pubkey.clone(), github: github.clone(),
             });
             let key = keyfile.display().to_string();
             let mut lines = vec![
@@ -592,6 +614,17 @@ fn cmd_reveal_statement(log_path: &PathBuf, args: &[String]) {
     ui::step(&format!("commitment verified {}",
         ui::dim(&format!("sha256(file ‖ salt) matches {}…", &seal.commitment[..16]))));
     let statement = req(args, "--id");
+    let decl = req(args, "--decl");
+    // The reveal claims the file defines `decl`; nothing checks that until
+    // someone bridges against it, so a typo here is worth a warning now.
+    if let Ok(contents) = std::fs::read_to_string(&file) {
+        let last = decl.rsplit('.').next().unwrap_or(&decl);
+        if !contents.contains(last) {
+            eprintln!("  {} {}", ui::gold("⚠"), ui::dim(&format!(
+                "{file} does not mention {last} - check --decl; a statement whose declaration \
+                 nobody can locate cannot be bridged or converged with")));
+        }
+    }
     // In remote mode the server re-checks the commitment itself, so the
     // reveal carries the file and salt along.
     if remote().is_some() {
@@ -607,12 +640,30 @@ fn cmd_reveal_statement(log_path: &PathBuf, args: &[String]) {
         seal: seal_id.clone(),
         statement: statement.clone(),
         author: seal.author.clone(),
-        decl: req(args, "--decl"),
+        decl,
         gloss: opt(args, "--gloss").unwrap_or_default(),
         notes: opt(args, "--notes").unwrap_or_default(),
     });
+    // Keep the revealed file (and its salt, now public) next to the log, so
+    // anyone replaying it can re-verify the commitment and read the Lean.
+    // In remote mode the server persists its own copy and the mirror
+    // delivers it; writing one here too would collide with the next pull.
+    if remote().is_none() {
+        persist_statement_file(log_path, &statement, &std::fs::read(&file).unwrap_or_default(), &salt);
+    }
     ui::step(&format!("revealed {} {}", ui::bold(&statement),
         ui::dim(&format!("- in the funnel with sealed provenance (committed at event {})", seal.seq))));
+}
+
+/// Write a revealed statement's file and salt under registry/data/statements:
+/// public, mirrored, and sufficient for any third party to re-verify
+/// sha256(file ‖ salt) against the sealed commitment on the log.
+pub fn persist_statement_file(log_path: &PathBuf, statement: &str, bytes: &[u8], salt: &str) {
+    let Some(data_dir) = log_path.parent() else { return };
+    let dir = data_dir.join("statements");
+    std::fs::create_dir_all(&dir).ok();
+    let _ = std::fs::write(dir.join(format!("{statement}.lean")), bytes);
+    let _ = std::fs::write(dir.join(format!("{statement}.salt")), salt);
 }
 
 /// Pin the equivalence of two candidate statements as its own hole. The
@@ -644,6 +695,16 @@ fn cmd_bridge(log_path: &PathBuf, args: &[String]) {
     });
     let id = req(args, "--id");
     let lean_type = format!("({}) ↔ ({})", sa.decl, sb.decl);
+    // The composed statement references both decls; they may live in the
+    // package already or arrive later in the proof file itself. Say which
+    // now, so a typo'd decl is caught before the pin is permanent.
+    for (stmt, decl) in [(&a, &sa.decl), (&b, &sb.decl)] {
+        if !decl_in_packages(&repo_root(), decl) {
+            eprintln!("  {} {}", ui::gold("⚠"), ui::dim(&format!(
+                "{stmt}'s declaration {decl} is not defined in the checked-in packages - \
+                 the bridge is provable only if the proof file submitted to it defines it")));
+        }
+    }
     append(log_path, Event::RegisterHole {
         id: id.clone(),
         title: opt(args, "--title")
@@ -654,6 +715,7 @@ fn cmd_bridge(log_path: &PathBuf, args: &[String]) {
         proposal: Some(sa.proposal.clone()),
         env,
         bridge: Some((a.clone(), b.clone())),
+        author: opt(args, "--author").or_else(|| opt(args, "--by")),
     });
     ui::step(&format!("bridge {} registered  {} {} {}",
         ui::bold(&id), ui::cyan(&a), ui::dim("≡?"), ui::cyan(&b)));
@@ -726,6 +788,30 @@ fn precheck_lean_type(root: &PathBuf, env: Option<&str>, lean_type: &str) {
         }
         Ok(_) => {}
     }
+}
+
+/// Whether `decl`'s final segment is defined in a checked-in .lean file of
+/// either package. A textual scan used only for warnings - the kernel is
+/// the authority at verification time.
+fn decl_in_packages(root: &PathBuf, decl: &str) -> bool {
+    let last = decl.rsplit('.').next().unwrap_or(decl);
+    fn scan(dir: &std::path::Path, last: &str) -> bool {
+        let Ok(rd) = std::fs::read_dir(dir) else { return false };
+        for entry in rd.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                if p.file_name().is_some_and(|n| n == ".lake") { continue; }
+                if scan(&p, last) { return true; }
+            } else if p.extension().is_some_and(|e| e == "lean") {
+                if let Ok(s) = std::fs::read_to_string(&p) {
+                    if ["def ", "theorem ", "abbrev ", "inductive ", "structure ", "lemma "]
+                        .iter().any(|n| s.contains(&format!("{n}{last}"))) { return true; }
+                }
+            }
+        }
+        false
+    }
+    ["lean/Razor", "lean-mathlib/RazorMathlib"].iter().any(|d| scan(&root.join(d), last))
 }
 
 /// Claim a hole. Two forms:
@@ -816,8 +902,11 @@ fn cmd_submit(root: &PathBuf, log_path: &PathBuf, args: &[String]) {
     append(log_path, Event::Submit {
         id: id.clone(), hole: hole_id.clone(), solver, decl, module,
     });
+    // With a remote configured, a bare `razor verify` would go there and
+    // not find this local submission - the hint must carry the --local.
+    let local = if remote_configured() { "--local " } else { "" };
     ui::step(&format!("submitted {} {}", ui::bold(&id),
-        ui::dim(&format!("- next: razor verify --submission {id}"))));
+        ui::dim(&format!("- next: razor verify {local}--submission {id}"))));
 }
 
 /// Migrate a hole's pinned statement to a new wording. The registry only
@@ -964,9 +1053,12 @@ fn cmd_cite(log_path: &PathBuf, id: &str) {
             Event::RegisterHole { id: hid, .. } if hid == id))
             .map(|e| e.seq)
             .unwrap_or(0);
-        let author = hole.proposal.as_ref()
-            .and_then(|p| state.proposals.get(p))
-            .map(|p| display_of(&p.author))
+        // Whoever pinned the hole is its author; the proposal's author is
+        // the fallback for holes from before the field existed.
+        let author = hole.registered_by.as_ref().map(|h| display_of(h))
+            .or_else(|| hole.proposal.as_ref()
+                .and_then(|p| state.proposals.get(p))
+                .map(|p| display_of(&p.author)))
             .unwrap_or_else(|| "the registry".into());
         let status = match hole.status.as_str() {
             "solved" => format!("solved (submission {})", hole.solved_by.clone().unwrap_or_default()),
@@ -1160,7 +1252,18 @@ fn cmd_verify(root: &PathBuf, log_path: &PathBuf, submission: &str) {
         match http_post_json(&format!("{url}/api/verify"),
             &serde_json::json!({ "submission": submission })) {
             Ok(v) => print_remote_verdict(&v),
-            Err(e) => ui::die(&format!("the remote registry refused it: {e}")),
+            Err(e) => {
+                // The classic trap, verify edition: the submission is on the
+                // local log (a --local submit), not on the remote.
+                if e.contains("unknown submission") {
+                    let local = State::fold(load(&root.join("registry/data/events.jsonl")));
+                    if local.holes.values().any(|h| h.submissions.iter().any(|s| s.id == submission)) {
+                        ui::die(&format!("{submission} exists on your local log but not on {url} - \
+                            it was submitted with --local; re-run: razor verify --local --submission {submission}"));
+                    }
+                }
+                ui::die(&format!("the remote registry refused it: {e}"))
+            }
         }
         return;
     }
@@ -1259,6 +1362,32 @@ fn cmd_recheck(root: &PathBuf, log_path: &PathBuf, submission: &str) {
     require_env_ready(&lean_dir, root_import);
     let module = sub.module.clone()
         .or_else(|| find_decl_module(&lean_dir, root_import, &sub.decl));
+    // A file-submission must be present as its module before the check can
+    // build it; a checkout older than the submission does not have it yet.
+    // Fetch it from the remote - the server hands out exactly the file its
+    // verifier installed - rather than failing with a misleading verdict.
+    if let Some(m) = &module {
+        let dest = lean_dir.join(m.replace('.', "/") + ".lean");
+        if !dest.exists() {
+            let fetched = remote()
+                .and_then(|url| http_get(&format!("{url}/api/submission?id={submission}")).ok())
+                .and_then(|body| serde_json::from_str::<serde_json::Value>(&body).ok())
+                .and_then(|v| v["file_b64"].as_str().and_then(api::base64_decode));
+            match fetched {
+                Some(bytes) => {
+                    std::fs::create_dir_all(dest.parent().unwrap()).ok();
+                    std::fs::write(&dest, &bytes).unwrap_or_else(|e| {
+                        ui::die(&format!("cannot install {}: {e}", dest.display()));
+                    });
+                    ui::step(&format!("fetched the submission file {}",
+                        ui::dim(&format!("- {m} is newer than this checkout"))));
+                }
+                None => ui::die(&format!(
+                    "this checkout does not contain the submission's module {m} - the submission \
+                     is newer than your checkout; git pull (the mirror carries the file), then retry")),
+            }
+        }
+    }
     let t0 = std::time::Instant::now();
     let v = verify::verify(&lean_dir, root_import, &hole.lean_type, &sub.decl,
         &hole.allowed_axioms, module.as_deref());
@@ -1268,8 +1397,9 @@ fn cmd_recheck(root: &PathBuf, log_path: &PathBuf, submission: &str) {
     if v.admitted == *recorded {
         ui::step(&format!("recheck {} the recorded verdict", ui::green("agrees with")));
     } else {
-        eprintln!("  {} recheck {} the recorded verdict - the environment may have drifted; \
-            see razor repin", ui::red("✕"), ui::red("DISAGREES with"));
+        eprintln!("  {} recheck {} the recorded verdict - your toolchain or checkout may differ \
+            from the verifier's (git pull and retry); if the statement itself migrated, see razor repin",
+            ui::red("✕"), ui::red("DISAGREES with"));
         std::process::exit(1);
     }
 }
@@ -1518,6 +1648,7 @@ fn cmd_split(log_path: &PathBuf, args: &[String]) {
         proposal: parent.proposal.clone(),
         env: parent.env.clone(),
         bridge: None,
+        author: Some(author.clone()),
     });
     append(log_path, Event::Split {
         id: id.clone(), parent: parent_id.clone(), author,
@@ -1734,6 +1865,18 @@ fn export_string(log_path: &PathBuf, dataset: &str) -> (String, usize) {
                 .into_iter().collect();
         }
     }
+    // Attach the Lean source of revealed statement files (persisted next to
+    // the log), so a sealed reading's actual Lean is readable on the site.
+    if let Some(data_dir) = log_path.parent() {
+        for st in state.statements.values_mut() {
+            if st.seal.is_some() {
+                if let Ok(src) = std::fs::read_to_string(
+                    data_dir.join("statements").join(format!("{}.lean", st.id))) {
+                    st.source = src;
+                }
+            }
+        }
+    }
     // Attach each verdict's log position and the log hash through it, so a
     // hole page can show the exact `razor recheck` / `razor cite` facts.
     let verdict_seqs: std::collections::HashMap<String, u64> = state.events.iter()
@@ -1821,6 +1964,7 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
         let (status, ctype, body): (String, String, Vec<u8>) = if req.path.starts_with("/api/") {
             match (req.method.as_str(), req.path.as_str()) {
                 ("GET", "/api/log") => api::get_log(&ctx.log_path, query),
+                ("GET", "/api/submission") => api::get_submission(&ctx.root, &ctx.log_path, query),
                 ("POST", "/api/event") => {
                     if !ctx.limiter.lock().unwrap().allow(&format!("e:{}", req.ip), 120) {
                         api::json_response("429 Too Many Requests",
@@ -2302,7 +2446,7 @@ static APPEND_QUIET: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBo
 
 const REMOTE_CMDS: &[&str] = &[
     "propose", "formalize", "seal-statement", "reveal-statement", "round", "bridge",
-    "hole", "split", "curate", "supersede", "fund", "commit", "submit", "verify",
+    "hole", "split", "curate", "tag", "supersede", "fund", "commit", "submit", "verify",
     "account", "status", "profile", "cite", "verify-log", "log", "recheck",
 ];
 
@@ -2325,6 +2469,19 @@ static ATTACHMENTS: std::sync::Mutex<Option<serde_json::Value>> = std::sync::Mut
 
 fn remote() -> Option<&'static str> {
     REMOTE.get().and_then(|o| o.as_deref())
+}
+
+/// Whether a default remote is configured at all - even when this run
+/// bypassed it with --local. Hints printed by local runs use this to keep
+/// their suggested next commands local too.
+fn remote_configured() -> bool {
+    remote().is_some()
+        || match std::env::var("RAZOR_REMOTE") {
+            Ok(v) => !v.trim().is_empty(),
+            Err(_) => remote_config_path()
+                .and_then(|p| std::fs::read_to_string(p).ok())
+                .is_some_and(|s| !s.trim().is_empty()),
+        }
 }
 
 fn set_remote_attachments(v: serde_json::Value) {
@@ -2546,9 +2703,120 @@ fn run_json(bin: &PathBuf, args: &[&str]) -> serde_json::Value {
     serde_json::from_slice(&out.stdout).expect("harness json")
 }
 
+/// Per-command usage line and accepted flags. Checked before dispatch: an
+/// unrecognized --flag is an error, not a silent no-op - a typo'd or
+/// unsupported flag that is dropped without a word loses data on an
+/// append-only log (`--sigil`, `--author` were once lost exactly that way).
+struct CmdSpec {
+    name: &'static str,
+    usage: &'static str,
+    flags: &'static [&'static str],
+}
+
+/// Flags that take no value; every other flag consumes the next argument.
+const BOOL_FLAGS: &[&str] = &["--local", "--unchecked", "--all"];
+
+const CMD_SPECS: &[CmdSpec] = &[
+    CmdSpec { name: "propose", usage: "razor propose --id P --title T --author A [--body B]",
+        flags: &["--id", "--title", "--author", "--body"] },
+    CmdSpec { name: "formalize", usage: "razor formalize --id S --proposal P --author A --decl D [--gloss G --notes N]",
+        flags: &["--id", "--proposal", "--author", "--decl", "--gloss", "--notes"] },
+    CmdSpec { name: "certify", usage: "razor certify --statement S --kind K --decl D [--notes N]",
+        flags: &["--statement", "--kind", "--decl", "--notes"] },
+    CmdSpec { name: "converge", usage: "razor converge --a S1 --b S2 --decl D",
+        flags: &["--a", "--b", "--decl"] },
+    CmdSpec { name: "implies", usage: "razor implies --a S1 --b S2 --decl D",
+        flags: &["--a", "--b", "--decl"] },
+    CmdSpec { name: "hole", usage: "razor hole --id H --title T --lean-type TY [--author A --proposal P --env mathlib --statement S --allow-axiom AX --unchecked]",
+        flags: &["--id", "--title", "--lean-type", "--author", "--proposal", "--env", "--statement", "--allow-axiom"] },
+    CmdSpec { name: "round", usage: "razor round --id R --proposal P --author A (--days N | --closes-at TS) [--reveal-days N | --reveal-by TS] [--note N]",
+        flags: &["--id", "--proposal", "--author", "--days", "--closes-at", "--reveal-days", "--reveal-by", "--note"] },
+    CmdSpec { name: "seal-statement", usage: "razor seal-statement --id SEAL --proposal P --author A --commitment HASH",
+        flags: &["--id", "--proposal", "--author", "--commitment"] },
+    CmdSpec { name: "reveal-statement", usage: "razor reveal-statement --seal SEAL --id S --file F --salt SALT --decl D [--gloss G --notes N]",
+        flags: &["--seal", "--id", "--file", "--salt", "--decl", "--gloss", "--notes"] },
+    CmdSpec { name: "bridge", usage: "razor bridge --id H --a S1 --b S2 [--author A --title T --env E --allow-axiom AX]",
+        flags: &["--id", "--a", "--b", "--author", "--by", "--title", "--env", "--allow-axiom"] },
+    CmdSpec { name: "split", usage: "razor split --id SPL --parent H --author A --child C [--child C2 ...] [--note N]",
+        flags: &["--id", "--parent", "--author", "--child", "--note"] },
+    CmdSpec { name: "submit", usage: "razor submit --id SUB --hole H --solver S --decl D [--file F.lean]",
+        flags: &["--id", "--hole", "--solver", "--decl", "--file"] },
+    CmdSpec { name: "repin", usage: "razor repin --hole H --author A --lean-type TY --equiv-decl D [--note N]",
+        flags: &["--hole", "--author", "--lean-type", "--equiv-decl", "--note"] },
+    CmdSpec { name: "propose-batch", usage: "razor propose-batch --file F.jsonl --author A",
+        flags: &["--file", "--author"] },
+    CmdSpec { name: "cite", usage: "razor cite <id>  (or --submission SUB / --hole H)",
+        flags: &["--submission", "--hole"] },
+    CmdSpec { name: "supersede", usage: "razor supersede --hole H --replacement H2 --author A [--note N]",
+        flags: &["--hole", "--replacement", "--author", "--by", "--note"] },
+    CmdSpec { name: "challenge", usage: "razor challenge --id C --title T --spec-impl I --obligation O",
+        flags: &["--id", "--title", "--spec-impl", "--obligation"] },
+    CmdSpec { name: "anvil-submit", usage: "razor anvil-submit --id A --challenge C --impl I --solver S [--proof-decl D --refinement-hole H]",
+        flags: &["--id", "--challenge", "--impl", "--solver", "--proof-decl", "--refinement-hole"] },
+    CmdSpec { name: "curate", usage: "razor curate --curator A --target ID [--note N]",
+        flags: &["--curator", "--target", "--note"] },
+    CmdSpec { name: "tag", usage: "razor tag --target ID --tag LABEL --author A [--note N]",
+        flags: &["--target", "--tag", "--author", "--by", "--note"] },
+    CmdSpec { name: "fund", usage: "razor fund --target ID --amount N --funder A [--arch ARCH]",
+        flags: &["--target", "--hole", "--amount", "--funder", "--arch"] },
+    CmdSpec { name: "rig", usage: "razor rig --id R --owner A --arch ARCH --tier T [--runner CMD --note N]",
+        flags: &["--id", "--owner", "--arch", "--tier", "--runner", "--note"] },
+    CmdSpec { name: "payout", usage: "razor payout --target ID --recipient A --amount N [--reason R]",
+        flags: &["--target", "--recipient", "--amount", "--reason"] },
+    CmdSpec { name: "seal", usage: "razor seal --file F --salt SALT",
+        flags: &["--file", "--salt"] },
+    CmdSpec { name: "commit", usage: "razor commit --id SUB --hole H --solver S --commitment HASH",
+        flags: &["--id", "--hole", "--solver", "--commitment"] },
+    CmdSpec { name: "reveal", usage: "razor reveal --submission SUB --file F --salt SALT --decl D",
+        flags: &["--submission", "--file", "--salt", "--decl"] },
+    CmdSpec { name: "zk-route", usage: "razor zk-route --id R --hole H --bridge DECL [--bridge-kind theorem --n N --note NOTE]",
+        flags: &["--id", "--hole", "--bridge", "--bridge-kind", "--n", "--note"] },
+    CmdSpec { name: "zk-submit", usage: "razor zk-submit --id SUB --hole H --route R --solver S --public HEX --proof HEX",
+        flags: &["--id", "--hole", "--route", "--solver", "--public", "--proof"] },
+    CmdSpec { name: "zk-verify", usage: "razor zk-verify --submission SUB", flags: &["--submission"] },
+    CmdSpec { name: "verify", usage: "razor verify --submission SUB", flags: &["--submission"] },
+    CmdSpec { name: "recheck", usage: "razor recheck --submission SUB", flags: &["--submission"] },
+    CmdSpec { name: "upstream", usage: "razor upstream --hole H [--out F.lean | --pr URL --by A --note N]",
+        flags: &["--hole", "--out", "--pr", "--by", "--note"] },
+    CmdSpec { name: "export-benchmark", usage: "razor export-benchmark [--out F.jsonl --all]",
+        flags: &["--out"] },
+    CmdSpec { name: "bench", usage: "razor bench --challenge C [--seed N --iters N --rig R]",
+        flags: &["--challenge", "--seed", "--iters", "--rig"] },
+    CmdSpec { name: "account", usage: "razor account <new|list> [--handle H --display D --about A --github G --sigil S]",
+        flags: &["--handle", "--display", "--about", "--github", "--sigil"] },
+    CmdSpec { name: "corpus", usage: "razor corpus --id C --name N --url U --source S --as-of DATE [--stat k=v ... --note N]",
+        flags: &["--id", "--name", "--url", "--source", "--as-of", "--stat", "--note"] },
+    CmdSpec { name: "export", usage: "razor export [--out F.json --dataset NAME]",
+        flags: &["--out", "--dataset"] },
+    CmdSpec { name: "serve", usage: "razor serve [--host H --port P]",
+        flags: &["--host", "--port"] },
+];
+
+static USAGE_LINE: std::sync::OnceLock<&'static str> = std::sync::OnceLock::new();
+
+/// Refuse unknown flags for any command with a spec, and remember the usage
+/// line so missing-flag errors can print it.
+fn check_flags(cmd: &str, args: &[String]) {
+    let Some(spec) = CMD_SPECS.iter().find(|s| s.name == cmd) else { return };
+    USAGE_LINE.set(spec.usage).ok();
+    let mut i = 1;
+    while i < args.len() {
+        let a = args[i].as_str();
+        if a.starts_with("--") && !spec.flags.contains(&a) && !BOOL_FLAGS.contains(&a) {
+            ui::die(&format!("unknown flag {a} for razor {cmd}\n  usage: {}", spec.usage));
+        }
+        // A known value-taking flag owns the next argument, so a value that
+        // happens to start with -- is not misread as a flag.
+        i += if a.starts_with("--") && !BOOL_FLAGS.contains(&a) { 2 } else { 1 };
+    }
+}
+
 fn req(args: &[String], flag: &str) -> String {
     opt(args, flag).unwrap_or_else(|| {
-        ui::die(&format!("missing {flag}"));
+        match USAGE_LINE.get() {
+            Some(u) => ui::die(&format!("missing {flag}\n  usage: {u}")),
+            None => ui::die(&format!("missing {flag}")),
+        }
     })
 }
 

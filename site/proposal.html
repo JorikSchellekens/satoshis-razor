@@ -160,7 +160,7 @@ razor seal-statement --id SEAL-you --proposal ${esc(p.id)} --author you --commit
         const st = S.statements[mid] || {};
         return `<div class="clump-member" style="margin-top:8px">
           ${stmtLink(mid)} <span style="color:var(--muted)">by ${esc(st.author || '?')}</span>
-          ${st.sealed_seq != null ? `<span class="badge"${tip('sealed')}>⏣ sealed at #${st.sealed_seq}</span>` : ''}
+          ${sealedBadge(S, st)}
           ${st.gloss ? `<div class="prop-body">“${esc(prettyMath(st.gloss))}”</div>` : ''}
         </div>`;
       }).join('')}

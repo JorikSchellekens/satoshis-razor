@@ -104,6 +104,9 @@ loadData(S => {
     h.env === 'mathlib' ? `<span class="badge blue"${tip('env')}>Mathlib environment</span>` : '',
     h.upstreamed ? `<span class="badge gold"${tip('upstreamed')}>↥ upstreamed</span>` : '',
     h.pool ? `<span class="pool"${tip('bounty')}>bounty ${h.pool.toLocaleString()}</span>` : '',
+    tagChips(S, h.id),
+    h.proposal && isTestData(S, h.proposal) && !isTestData(S, h.id)
+      ? `<span class="badge"${tip('tag')}>⚑ test-data (proposal)</span>` : '',
   ].join('');
   $('title').textContent = prettyMath(h.title);
   const informal = informalOf(S, h);
@@ -244,8 +247,14 @@ loadData(S => {
        <div class="codeblock">razor submit --local --id SUB-you --hole ${esc(h.id)} --solver you --decl Your.Lean.Name
 razor verify --local --submission SUB-you</div>`;
   } else {
-    $('attempt-note').textContent = 'one command - the kernel check runs here and the verdict comes back';
-    $('attempt-hint').innerHTML =
+    const solvedNote = h.status === 'solved'
+      ? `<p>This hole is already solved — the bounty, if any, went to the first admitted proof.
+         New submissions are still checked and recorded: an independent proof is attributed
+         work, it just no longer pays.</p>` : '';
+    $('attempt-note').textContent = h.status === 'solved'
+      ? 'already solved - further proofs are checked and recorded, but the first admitted proof took any bounty'
+      : 'one command - the kernel check runs here and the verdict comes back';
+    $('attempt-hint').innerHTML = solvedNote +
       `<p>Write the proof in a <code>.lean</code> file — any file; the verifier finds the
        declaration wherever it is defined. Then:</p>
        <div class="codeblock">razor submit --id SUB-you --hole ${esc(h.id)} --solver you \\

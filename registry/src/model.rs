@@ -71,6 +71,10 @@ pub enum Event {
         /// submit/verify path: attributed, fundable, and checked.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         bridge: Option<(String, String)>,
+        /// Who registered the pin. Absent on registry-seeded holes and on
+        /// events from before this field existed.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        author: Option<String>,
     },
     /// Stage 3: a split - one named way of reducing a parent hole to child
     /// holes plus a glue hole. The glue hole's pinned statement is exactly
@@ -139,6 +143,14 @@ pub enum Event {
     /// the filer's verified record, like curations, and several marks - even
     /// disagreeing ones - can coexist on one hole.
     Supersede { hole: String, by: String, replacement: String, #[serde(default)] note: String },
+    /// An attributed label on any recorded entity (a hole, proposal,
+    /// statement, account, or challenge). Like a curation or a supersession
+    /// mark, it changes no status and closes nothing: it is a signed, public
+    /// note that travels with the target. The one tag the site itself acts
+    /// on is `test-data` - tagged items are de-emphasized in default views
+    /// and left out of the homepage marquee, with the tag and its filer
+    /// shown wherever the item appears.
+    Tag { target: String, tag: String, by: String, #[serde(default)] note: String },
     /// Anvil: register a performance challenge over a ratified spec.
     RegisterChallenge {
         id: String,
@@ -255,6 +267,8 @@ impl Event {
             Event::AnvilSubmit { solver, .. } => Some(solver),
             Event::Curate { curator, .. } => Some(curator),
             Event::Supersede { by, .. } => Some(by),
+            Event::Tag { by, .. } => Some(by),
+            Event::RegisterHole { author, .. } => author.as_deref(),
             Event::Fund { funder, .. } => Some(funder),
             Event::RegisterRig { owner, .. } => Some(owner),
             Event::RegisterAccount { handle, .. } => Some(handle),
@@ -369,6 +383,11 @@ pub struct Statement {
     /// The seal this statement was revealed from, if it was sealed.
     #[serde(default)]
     pub seal: Option<String>,
+    /// Filled at export time: the revealed statement file's Lean source,
+    /// when it is persisted under registry/data/statements. Lets the site
+    /// show the actual Lean a sealed reading contained.
+    #[serde(default)]
+    pub source: String,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -406,6 +425,9 @@ pub struct Hole {
     /// When it is solved, the two statements' clumps merge.
     #[serde(default)]
     pub bridge: Option<(String, String)>,
+    /// Who registered the pin (None on registry-seeded and legacy holes).
+    #[serde(default)]
+    pub registered_by: Option<String>,
     pub status: String, // open | solved
     pub solved_by: Option<String>,
     /// Statement migrations, oldest first: (old type, new type, equivalence
@@ -641,6 +663,9 @@ pub struct State {
     /// Supersession marks: (by, hole, replacement, note). Attributed,
     /// weighted opinions that one wording replaces another; nothing closes.
     pub supersessions: Vec<(String, String, String, String)>,
+    /// Tags: (by, target, tag, note) in log order. Attributed labels; the
+    /// site de-emphasizes `test-data`-tagged items but nothing closes.
+    pub tags: Vec<(String, String, String, String)>,
     /// Splits in log order; per-hole views are derived by `aggregate_splits`.
     pub splits: Vec<SplitRec>,
     pub payouts: Vec<(String, String, u64, String)>,
@@ -679,6 +704,7 @@ impl State {
                     certificates: vec![], convergences: vec![],
                     implies: vec![], implied_by: vec![],
                     filed_seq: seq, sealed_seq: None, seal: None,
+                    source: String::new(),
                 });
             }
             Event::OpenRound { id, proposal, author, closes_at, reveal_by, note } => {
@@ -712,6 +738,7 @@ impl State {
                     certificates: vec![], convergences: vec![],
                     implies: vec![], implied_by: vec![],
                     filed_seq: seq, sealed_seq: Some(sealed_seq), seal: Some(seal),
+                    source: String::new(),
                 });
             }
             Event::Certify { statement, kind, decl, notes } => {
@@ -735,9 +762,10 @@ impl State {
                     st.implied_by.push((a, decl));
                 }
             }
-            Event::RegisterHole { id, title, statement, lean_type, allowed_axioms, proposal, env, bridge } => {
+            Event::RegisterHole { id, title, statement, lean_type, allowed_axioms, proposal, env, bridge, author } => {
                 self.holes.insert(id.clone(), Hole {
                     id, title, statement, lean_type, allowed_axioms, proposal, env, bridge,
+                    registered_by: author,
                     status: "open".into(), solved_by: None, repins: vec![],
                     fidelity: Fidelity::default(), upstreamed: None, superseded_by: vec![],
                     zk_routes: vec![], zk_submissions: vec![],
@@ -861,6 +889,10 @@ impl State {
             Event::Bench { submission, tier, arch, score, unit, checksum, rig } => {
                 for c in self.challenges.values_mut() {
                     if let Some(en) = c.entries.iter_mut().find(|e| e.id == submission) {
+                        // A re-run replaces the earlier measurement for the
+                        // same (tier, arch, rig) - the log keeps every run,
+                        // the leaderboard shows one row per lane per rig.
+                        en.scores.retain(|s| !(s.tier == tier && s.arch == arch && s.rig == rig));
                         en.scores.push(Score {
                             tier: tier.clone(), arch: arch.clone(), score,
                             unit: unit.clone(), checksum, rig: rig.clone(),
@@ -870,6 +902,9 @@ impl State {
             }
             Event::Curate { curator, target, note } => {
                 self.curations.push((curator, target, note));
+            }
+            Event::Tag { target, tag, by, note } => {
+                self.tags.push((by, target, tag, note));
             }
             Event::Fund { target, amount, arch, .. } => {
                 if let Some(h) = self.holes.get_mut(&target) {

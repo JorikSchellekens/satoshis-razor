@@ -127,6 +127,38 @@ pub fn get_log(log_path: &PathBuf, query: Option<&str>) -> (String, String, Vec<
     ("200 OK".into(), "application/jsonl".into(), tail.into_bytes())
 }
 
+// ---------------- endpoint: GET /api/submission ----------------
+
+/// Hand out the .lean file a submission was installed as, so `razor
+/// recheck` works from a checkout older than the submission. Read-only:
+/// the same bytes are in the mirror, this is just the low-latency path.
+pub fn get_submission(root: &PathBuf, log_path: &PathBuf, query: Option<&str>) -> (String, String, Vec<u8>) {
+    let Some(id) = query
+        .and_then(|q| q.split('&').find_map(|kv| kv.strip_prefix("id=")))
+        .filter(|id| sane_id(id))
+    else {
+        return err("400 Bad Request", "usage: /api/submission?id=SUB-...");
+    };
+    let state = State::fold(load(log_path));
+    let Some((hole, sub)) = state.holes.values()
+        .find_map(|h| h.submissions.iter().find(|s| s.id == id).map(|s| (h, s)))
+    else {
+        return err("404 Not Found", "unknown submission");
+    };
+    let Some(module) = &sub.module else {
+        return err("404 Not Found", "this submission has no installed file (it names a package declaration)");
+    };
+    let (lean_dir, _) = crate::env_of(root, hole);
+    let path = lean_dir.join(module.replace('.', "/") + ".lean");
+    match std::fs::read(&path) {
+        Ok(bytes) => ok(serde_json::json!({
+            "submission": id, "module": module, "file_b64": base64_encode(&bytes),
+        })),
+        Err(_) => err("404 Not Found",
+            "the submission's file is not installed here (rejected files are removed)"),
+    }
+}
+
 // ---------------- endpoint: POST /api/event ----------------
 
 /// The event types a remote client may append. Everything here is either a
@@ -139,7 +171,8 @@ fn remote_allowed(event: &Event) -> Result<(), &'static str> {
         Event::Propose { .. } | Event::Formalize { .. } | Event::SealStatement { .. }
         | Event::RevealStatement { .. } | Event::RegisterHole { .. } | Event::OpenRound { .. }
         | Event::Curate { .. } | Event::Supersede { .. } | Event::Fund { .. }
-        | Event::RegisterAccount { .. } | Event::Commit { .. } | Event::Split { .. } => Ok(()),
+        | Event::RegisterAccount { .. } | Event::Commit { .. } | Event::Split { .. }
+        | Event::Tag { .. } => Ok(()),
         Event::Converge { .. } | Event::Implies { .. } =>
             Err("converge/implies assert an equivalence without a kernel check and are not accepted \
                  remotely - use `razor bridge` (the equivalence becomes a hole, proven like any other)"),
@@ -254,6 +287,18 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
                 return no("unknown hole");
             }
         }
+        Event::Tag { target, tag, by, .. } => {
+            if by.trim().is_empty() { return no("tag needs --author"); }
+            if tag.is_empty() || tag.len() > 32
+                || !tag.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
+                return no("tags are lowercase letters, digits, and dashes (up to 32 chars)");
+            }
+            if !state.holes.contains_key(target) && !state.proposals.contains_key(target)
+                && !state.statements.contains_key(target) && !state.accounts.contains_key(target)
+                && !state.challenges.contains_key(target) {
+                return no("unknown tag target");
+            }
+        }
         Event::Fund { target, amount, funder, .. } => {
             if funder.trim().is_empty() { return no("fund needs --funder"); }
             if *amount == 0 { return no("fund needs a positive --amount"); }
@@ -353,6 +398,17 @@ pub fn post_event(
     }
     if let Err(m) = validate(&state, &event, attachments) {
         return err("400 Bad Request", &m);
+    }
+    // A verified reveal's file and salt become public record: persisted
+    // next to the log and mirrored, so any third party can re-verify
+    // sha256(file ‖ salt) against the sealed commitment - and read the Lean.
+    if let (Event::RevealStatement { statement, .. }, Some(att)) = (&event, attachments) {
+        if let (Some(bytes), Some(salt)) = (
+            att["file_b64"].as_str().and_then(base64_decode),
+            att["salt"].as_str(),
+        ) {
+            crate::persist_statement_file(log_path, statement, &bytes, salt);
+        }
     }
     let entry = crate::append_entry(log_path, event, sig);
     let _ = root; // reserved for future per-event side effects
@@ -515,7 +571,8 @@ pub fn spawn_mirror(root: PathBuf) {
             // Add each path on its own - one missing directory must not
             // abort staging the log itself.
             "git add registry/data/events.jsonl; \
-             for d in lean/Razor/Submissions lean-mathlib/RazorMathlib/Submissions; do \
+             for d in lean/Razor/Submissions lean-mathlib/RazorMathlib/Submissions \
+                      registry/data/statements; do \
                [ -d \"$d\" ] && git add \"$d\"; done; true",
             "git -c user.name='razor mirror' -c user.email='razor@mempoolsurfer.com' commit -q -m 'registry: append events' || true",
             "git pull --rebase --autostash -q",
