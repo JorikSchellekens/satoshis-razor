@@ -37,14 +37,14 @@
 
 <section>
   <div class="wrap">
-    <div class="sec-head"><h3>The competitors</h3><span class="note">one row per entered program · no program is timed until its correctness proof has passed the automatic check</span></div>
+    <div class="sec-head"><h3>Entered programs</h3><span class="note">the programs submitted against the baseline · none is timed until its correctness proof has passed the automatic check</span></div>
     <div class="tablewrap"><table class="data" id="lanes"></table></div>
   </div>
 </section>
 
 <section>
   <div class="wrap">
-    <div class="sec-head"><h3>Leaderboards, machine by machine</h3><span class="note">♛ current leader · lower is better · in the charts, the dashed step line is the record: the fastest result up to each moment</span></div>
+    <div class="sec-head"><h3>Leaderboards, machine by machine</h3><span class="note">the same programs, ranked separately on each machine · ♛ the fastest entry, once it beats the gray baseline · lower is better · the dashed step line is the record so far</span></div>
     <div id="boards"></div>
   </div>
 </section>
@@ -97,7 +97,7 @@ loadData(S => {
     'is called a lane.';
   const rigsUsed = new Set(mine.map(b => b.rig || 'wasm-referee'));
   $('stats').innerHTML = [
-    [c.entries.length, 'lanes'],
+    [c.entries.filter(e => !e.is_reference).length, 'entered programs'],
     [boardKeys.length, 'boards'],
     [rigsUsed.size, 'rigs reporting'],
     [mine.length, 'measurements'],
@@ -116,32 +116,29 @@ loadData(S => {
       : []),
   ].filter(Boolean).map(([k, v]) => `<div class="k">${k}</div><div class="v">${v}</div>`).join('');
 
-  // ── lanes ──────────────────────────────────────────────────────
-  const crownCount = (e) => boardKeys.filter(k => boards[k][0]?.e.id === e.id).length;
-  $('lanes').innerHTML = `<tr><th>lane</th><th>entered by</th><th>correctness proof</th><th>crowns</th><th>best result</th></tr>` +
-    c.entries.map((e, i) => {
-      const admission = e.is_reference
-        ? '<span style="color:var(--muted)">none needed - this is the reference program, correct by definition</span>'
-        : e.admitted
-          ? `<span style="color:var(--solved)">✓ proven</span> by <code>${esc(e.proof_decl)}</code>` +
-            (e.refinement_sorry ? ` (the claim it closes: ${sorryLink(e.refinement_sorry)})` : '')
-          : `<span style="color:var(--open)">not yet proven</span>` +
-            (e.refinement_sorry ? ` - waiting on a proof of ${sorryLink(e.refinement_sorry)}; not timed until then` : '');
-      const best = boardKeys.map(k => {
-        const rows = boards[k];
-        const r = rows.find(x => x.e.id === e.id);
-        if (!r) return null;
-        const spec = rows.find(x => x.e.is_reference);
-        return { r, spec, better: spec && spec.score > r.score ? spec.score / r.score : 0 };
-      }).filter(Boolean).sort((a, b) => b.better - a.better)[0];
-      const bestTxt = best
-        ? `${fmtScore(best.r.score)} ${esc(best.r.unit)}` +
-          (best.better > 1 ? ` <span style="color:var(--gold)">(${best.better.toLocaleString(undefined, { maximumFractionDigits: 1 })}× vs reference)</span>` : '')
-        : '<span style="color:var(--muted)">not yet measured</span>';
-      return `<tr><td>${laneDot(i)}${esc(e.impl_name)}${e.is_reference ? ' <span style="color:var(--muted)">(reference)</span>' : ''}</td>` +
+  // ── entered programs ───────────────────────────────────────────
+  // The reference is not in this table: it is the baseline, described in
+  // the section above. Cross-machine detail lives in the per-machine
+  // boards below; here each entry gets only its proof status and how many
+  // machines it currently leads on.
+  const boardsLed = (e) => boardKeys.filter(k => {
+    const w = boards[k][0];
+    return w && !w.e.is_reference && w.e.id === e.id;
+  }).length;
+  const entries = c.entries.filter(e => !e.is_reference);
+  $('lanes').innerHTML = `<tr><th>program</th><th>entered by</th><th>correctness proof</th><th>currently leads</th></tr>` +
+    (entries.map(e => {
+      const i = c.entries.indexOf(e);
+      const admission = e.admitted
+        ? `<span style="color:var(--solved)">✓ proven</span> by <code>${esc(e.proof_decl)}</code>` +
+          (e.refinement_sorry ? ` (the claim it closes: ${sorryLink(e.refinement_sorry)})` : '')
+        : `<span style="color:var(--open)">not yet proven</span>` +
+          (e.refinement_sorry ? ` - waiting on a proof of ${sorryLink(e.refinement_sorry)}; not timed until then` : '');
+      const led = boardsLed(e);
+      return `<tr><td>${laneDot(i)}${esc(e.impl_name)}</td>` +
         `<td>${personLink(e.solver)}</td><td>${admission}</td>` +
-        `<td style="white-space:nowrap">${crownCount(e) ? `<span style="color:var(--gold)">♛</span>${crownCount(e) > 1 ? ' ×' + crownCount(e) : ''}` : '—'}</td><td>${bestTxt}</td></tr>`;
-    }).join('');
+        `<td style="white-space:nowrap">${led ? `<span style="color:var(--gold)">♛</span> ${led} of ${boardKeys.length} boards` : '—'}</td></tr>`;
+    }).join('') || `<tr><td colspan="4">no programs entered yet - the boards are open</td></tr>`);
 
   // ── boards ─────────────────────────────────────────────────────
   $('boards').innerHTML = decollide(boardKeys.map(key => {
@@ -161,13 +158,19 @@ loadData(S => {
     const record = recordSeries(history, c, key);
     if (nPts > series.length && record.points.length > 1) series.push(record);
     const chart = nPts > series.length ? historyChart(series, rows[0]?.unit || '') : '';
+    // The crown belongs to the fastest entered program - and only when it
+    // actually beats the baseline. The reference is the bar to clear, not
+    // a competitor.
+    const unbeaten = rows[0]?.e.is_reference;
     return `<div class="lb boardcard"><div class="lb-title">${esc(tier)} · ${esc(arch)}${archPool}${rigNote}</div>` +
       rows.map((r, i) => `
         <div class="rowbar ${r.e.is_reference ? 'ref' : ''}" title="checksum ${r.checksum}">
-          <span class="who">${i === 0 ? '<span class="crown">♛</span> ' : ''}${laneDot(r.lane)}${esc(r.e.impl_name)}${r.e.is_reference ? ' <span style="color:var(--muted)">(reference)</span>' : ''}</span>
+          <span class="who">${i === 0 && !r.e.is_reference ? '<span class="crown">♛</span> ' : ''}${laneDot(r.lane)}${esc(r.e.impl_name)}${r.e.is_reference ? ' <span style="color:var(--muted)">(baseline)</span>' : ''}</span>
           <span class="track"><span class="bar" style="width:${Math.max(1.2, (r.score / max) * 100)}%;background:${r.e.is_reference ? '' : laneColor(r.lane)}"></span></span>
-          <span class="val">${fmtScore(r.score)} ${esc(r.unit)}${spec && !r.e.is_reference && spec.score !== r.score ? `<span class="speed">${(spec.score / r.score).toLocaleString(undefined, { maximumFractionDigits: 1 })}× vs reference</span>` : ''}</span>
-        </div>`).join('') + chart + `</div>`;
+          <span class="val">${fmtScore(r.score)} ${esc(r.unit)}${spec && !r.e.is_reference && spec.score !== r.score ? `<span class="speed">${spec.score > r.score ? (spec.score / r.score).toLocaleString(undefined, { maximumFractionDigits: 1 }) + '× faster than baseline' : 'slower than baseline'}</span>` : ''}</span>
+        </div>`).join('') +
+      (unbeaten ? `<div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--muted)">the reference baseline is still unbeaten on this machine - the crown is open</div>` : '') +
+      chart + `</div>`;
   }).join(''));
 
   // ── run it yourself ────────────────────────────────────────────

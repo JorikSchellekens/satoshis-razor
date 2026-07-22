@@ -1097,7 +1097,11 @@ impl State {
                 touch(&mut people, &solver, 0);
                 let p = people.get_mut(&solver).unwrap();
                 for (board, (score, unit)) in per_board {
-                    let leader = best.get(&board).is_some_and(|b| (score - b).abs() < f64::EPSILON);
+                    // The reference baseline never "leads": it is the bar
+                    // entries must clear, not a competitor. A board it
+                    // still tops simply has no leader yet.
+                    let leader = !en.is_reference
+                        && best.get(&board).is_some_and(|b| (score - b).abs() < f64::EPSILON);
                     if leader { p.top_spots += 1; }
                     p.lanes.push((c.id.clone(), en.impl_name.clone(), board, score, unit, leader));
                 }

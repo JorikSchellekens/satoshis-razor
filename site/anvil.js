@@ -173,24 +173,28 @@ function decollide(html) {
 
 // ── champions ────────────────────────────────────────────────────
 // Current crown holders: for each board of each challenge, the fastest
-// lane. Returns [{c, key, row}].
+// ENTERED program - and only when it beats the reference baseline. The
+// baseline is the bar to clear, never a competitor; a board it still
+// tops has an open crown. Returns [{c, key, row}].
 function crowns(S) {
   const out = [];
   for (const c of Object.values(S.challenges))
     for (const [key, rows] of Object.entries(boardsOf(c)))
-      if (rows.length) out.push({ c, key, row: rows[0] });
+      if (rows.length && !rows[0].e.is_reference) out.push({ c, key, row: rows[0] });
   return out;
 }
 
-// The people leaderboard: who holds crowns, who has admitted lanes.
+// The people leaderboard: who holds crowns, who has proven entries.
+// Reference programs are baselines, not entries - they count for nobody.
 function championsTable(S) {
   const people = {};
   const P = (h) => people[h] ||= { handle: h, crowns: 0, boards: [], lanes: 0, admitted: 0, bestSpeed: 0 };
   for (const c of Object.values(S.challenges))
     for (const e of c.entries) {
+      if (e.is_reference) continue;
       const p = P(e.solver);
       p.lanes++;
-      if (e.admitted && !e.is_reference) p.admitted++;
+      if (e.admitted) p.admitted++;
     }
   for (const { c, key, row } of crowns(S)) {
     const p = P(row.e.solver);

@@ -111,7 +111,7 @@ loadData(S => {
     a + c.pool + Object.values(c.arch_pools || {}).reduce((x, y) => x + y, 0), 0);
   $('anvil-stats').innerHTML = [
     [chals.length, 'challenges'],
-    [lanes.length, 'lanes'],
+    [lanes.filter(e => !e.is_reference).length, 'entered programs'],
     [Object.keys(S.rigs || {}).length, 'rigs'],
     [history.length, 'measurements'],
     ...(totalPool ? [[totalPool.toLocaleString(), 'credits pooled']] : []),
@@ -126,16 +126,22 @@ loadData(S => {
     const boardKeys = Object.keys(boards).sort(boardOrder);
     const mine = history.filter(b => b.c.id === c.id);
     const pool = c.pool + Object.values(c.arch_pools || {}).reduce((a, b) => a + b, 0);
-    // Champions, deduplicated: "♛ sort8-gpu on 1 board · ♛ sort8-network on 3".
+    // Crown holders: the fastest entered program per board, counted as
+    // "n of m boards". Boards the reference baseline still tops are open
+    // crowns, reported as such - the baseline never wins its own challenge.
     const holders = {};
+    let unbeaten = 0;
     for (const k of boardKeys) {
       const w = boards[k][0];
-      if (w) (holders[w.e.impl_name] ||= { e: w.e, lane: w.lane, n: 0 }).n++;
+      if (!w) continue;
+      if (w.e.is_reference) unbeaten++;
+      else (holders[w.e.impl_name] ||= { e: w.e, lane: w.lane, n: 0 }).n++;
     }
     const champs = Object.values(holders).sort((a, b) => b.n - a.n).map(h =>
       `<span class="champ"><span class="crown">♛</span> ${laneDot(h.lane)}${esc(h.e.impl_name)}` +
-      `${h.e.is_reference ? ' <span style="color:var(--muted)">(reference)</span>' : ''}` +
-      ` <span style="color:var(--muted)">on ${h.n} board${h.n > 1 ? 's' : ''} · ${esc(h.e.solver)}</span></span>`);
+      ` <span style="color:var(--muted)">leads ${h.n} of ${boardKeys.length} boards · ${esc(h.e.solver)}</span></span>`);
+    if (unbeaten) champs.push(
+      `<span class="champ" style="color:var(--muted)">baseline unbeaten on ${unbeaten} of ${boardKeys.length} boards - crown${unbeaten > 1 ? 's' : ''} open</span>`);
     // Sparkline: the record on the most-contested board - the fastest
     // result so far, over time. Downward steps are the story so far.
     const busiest = boardKeys
@@ -149,7 +155,7 @@ loadData(S => {
         ${pool ? `<span class="pool">pool ${pool.toLocaleString()}</span>` : ''}</div>
       <div class="champs">${champs.join('') || '<span style="color:var(--muted)">no measurements yet</span>'}</div>
       ${spark}
-      <div class="meta"><span>${c.entries.length} lanes · ${boardKeys.length} boards · ${mine.length} measurements` +
+      <div class="meta"><span>${c.entries.filter(e => !e.is_reference).length} entered · ${boardKeys.length} boards · ${mine.length} measurements` +
         `${pending ? ` · <span style="color:var(--open)">${pending} lane${pending > 1 ? 's' : ''} awaiting proof</span>` : ''}` +
         `${mine.length ? ` · last run ${fmtDayShort(Math.max(...mine.map(b => b.ts)))}` : ''}</span></div>
     </div></a>`;
