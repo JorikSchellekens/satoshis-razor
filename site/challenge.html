@@ -30,21 +30,21 @@
 
 <section>
   <div class="wrap">
-    <div class="sec-head"><h3>The specification</h3><span class="note">the reference program defines the correct answer; the obligation is what every lane must prove</span></div>
+    <div class="sec-head"><h3>What counts as correct</h3><span class="note">a simple, easy-to-trust program defines the right answer for every input</span></div>
     <div class="kv" id="spec"></div>
   </div>
 </section>
 
 <section>
   <div class="wrap">
-    <div class="sec-head"><h3>Lanes</h3><span class="note">every competing program; a lane is benchmarked only after its proof is admitted</span></div>
+    <div class="sec-head"><h3>The competitors</h3><span class="note">one row per entered program · no program is timed until its correctness proof has passed the automatic check</span></div>
     <div class="tablewrap"><table class="data" id="lanes"></table></div>
   </div>
 </section>
 
 <section>
   <div class="wrap">
-    <div class="sec-head"><h3>Leaderboards, rig by rig</h3><span class="note">♛ current leader · lower is better · the chart under each board is every measurement ever recorded on it</span></div>
+    <div class="sec-head"><h3>Leaderboards, machine by machine</h3><span class="note">♛ current leader · lower is better · in the charts, the dashed step line is the record: the fastest result up to each moment</span></div>
     <div id="boards"></div>
   </div>
 </section>
@@ -90,8 +90,11 @@ loadData(S => {
   $('chips').innerHTML = `<span class="hid">${esc(c.id)}</span>` + tagChips(S, c.id) +
     (totalPool ? `<span class="badge gold">pool ${totalPool.toLocaleString()}</span>` : '');
   $('title').textContent = c.title;
-  $('lede').textContent = 'A performance competition over a fixed specification: every lane below is proven - ' +
-    'by a machine-checked Lean proof - to compute exactly what the reference program computes, and then ranked by speed.';
+  $('lede').textContent = 'Programs compete to compute the same thing as fast as possible. ' +
+    'The reference program below defines the right answer. Anyone can enter a faster program, but it is ' +
+    'only timed after a proof - written in Lean and checked by machine - that it returns the same answer ' +
+    'as the reference program on every possible input. An entered program, with its proof and its scores, ' +
+    'is called a lane.';
   const rigsUsed = new Set(mine.map(b => b.rig || 'wasm-referee'));
   $('stats').innerHTML = [
     [c.entries.length, 'lanes'],
@@ -104,8 +107,8 @@ loadData(S => {
   // ── the specification ──────────────────────────────────────────
   const regEv = S.events.find(e => e.type === 'register_challenge' && e.id === c.id);
   $('spec').innerHTML = [
-    ['reference implementation', `<code>${esc(c.spec_impl)}</code> <span style="color:var(--muted)">(its source is in the repository under anvil/impls/)</span>`],
-    ['proof obligation', `<code>${esc(c.obligation)}</code>`],
+    ['reference program', `<code>${esc(c.spec_impl)}</code> <span style="color:var(--muted)">(its source is in the repository under anvil/impls/; it is written to be obviously correct, not fast)</span>`],
+    ['what every entry must prove', `<code>${esc(c.obligation)}</code> <span style="color:var(--muted)">- in words: on every valid input, the entry ("model") returns exactly what the reference program returns</span>`],
     regEv ? ['registered', `event #${regEv.seq}, ${fmtWhen(regEv.ts)}`] : null,
     ...(Object.keys(c.arch_pools || {}).length
       ? [['architecture pools', Object.entries(c.arch_pools).map(([a, v]) =>
@@ -115,15 +118,15 @@ loadData(S => {
 
   // ── lanes ──────────────────────────────────────────────────────
   const crownCount = (e) => boardKeys.filter(k => boards[k][0]?.e.id === e.id).length;
-  $('lanes').innerHTML = `<tr><th>lane</th><th>entered by</th><th>admission</th><th>crowns</th><th>best result</th></tr>` +
+  $('lanes').innerHTML = `<tr><th>lane</th><th>entered by</th><th>correctness proof</th><th>crowns</th><th>best result</th></tr>` +
     c.entries.map((e, i) => {
       const admission = e.is_reference
-        ? '<span style="color:var(--muted)">is the specification</span>'
+        ? '<span style="color:var(--muted)">none needed - this is the reference program, correct by definition</span>'
         : e.admitted
-          ? `<span style="color:var(--solved)">✓ admitted</span> by <code>${esc(e.proof_decl)}</code>` +
-            (e.refinement_sorry ? ` (sorry ${sorryLink(e.refinement_sorry)})` : '')
-          : `<span style="color:var(--open)">… pending</span>` +
-            (e.refinement_sorry ? ` - sorry ${sorryLink(e.refinement_sorry)} has no admitted proof yet` : '');
+          ? `<span style="color:var(--solved)">✓ proven</span> by <code>${esc(e.proof_decl)}</code>` +
+            (e.refinement_sorry ? ` (the claim it closes: ${sorryLink(e.refinement_sorry)})` : '')
+          : `<span style="color:var(--open)">not yet proven</span>` +
+            (e.refinement_sorry ? ` - waiting on a proof of ${sorryLink(e.refinement_sorry)}; not timed until then` : '');
       const best = boardKeys.map(k => {
         const rows = boards[k];
         const r = rows.find(x => x.e.id === e.id);
@@ -133,9 +136,9 @@ loadData(S => {
       }).filter(Boolean).sort((a, b) => b.better - a.better)[0];
       const bestTxt = best
         ? `${fmtScore(best.r.score)} ${esc(best.r.unit)}` +
-          (best.better > 1 ? ` <span style="color:var(--gold)">(${best.better.toLocaleString(undefined, { maximumFractionDigits: 1 })}× vs spec)</span>` : '')
+          (best.better > 1 ? ` <span style="color:var(--gold)">(${best.better.toLocaleString(undefined, { maximumFractionDigits: 1 })}× vs reference)</span>` : '')
         : '<span style="color:var(--muted)">not yet measured</span>';
-      return `<tr><td>${laneDot(i)}${esc(e.impl_name)}${e.is_reference ? ' <span style="color:var(--muted)">(spec)</span>' : ''}</td>` +
+      return `<tr><td>${laneDot(i)}${esc(e.impl_name)}${e.is_reference ? ' <span style="color:var(--muted)">(reference)</span>' : ''}</td>` +
         `<td>${personLink(e.solver)}</td><td>${admission}</td>` +
         `<td style="white-space:nowrap">${crownCount(e) ? `<span style="color:var(--gold)">♛</span>${crownCount(e) > 1 ? ' ×' + crownCount(e) : ''}` : '—'}</td><td>${bestTxt}</td></tr>`;
     }).join('');
@@ -153,13 +156,17 @@ loadData(S => {
       ? ` · rig ${esc(rig)} (${personLink(rigRec.owner)})` : rig ? ` · rig ${esc(rig)}` : '';
     const series = boardSeries(history, c, key);
     const nPts = series.reduce((a, s) => a + s.points.length, 0);
+    // The dashed record line: the fastest result on this board so far, at
+    // every moment - the race's progress in one stroke.
+    const record = recordSeries(history, c, key);
+    if (nPts > series.length && record.points.length > 1) series.push(record);
     const chart = nPts > series.length ? historyChart(series, rows[0]?.unit || '') : '';
     return `<div class="lb boardcard"><div class="lb-title">${esc(tier)} · ${esc(arch)}${archPool}${rigNote}</div>` +
       rows.map((r, i) => `
         <div class="rowbar ${r.e.is_reference ? 'ref' : ''}" title="checksum ${r.checksum}">
-          <span class="who">${i === 0 ? '<span class="crown">♛</span> ' : ''}${laneDot(r.lane)}${esc(r.e.impl_name)}${r.e.is_reference ? ' <span style="color:var(--muted)">(spec)</span>' : ''}</span>
+          <span class="who">${i === 0 ? '<span class="crown">♛</span> ' : ''}${laneDot(r.lane)}${esc(r.e.impl_name)}${r.e.is_reference ? ' <span style="color:var(--muted)">(reference)</span>' : ''}</span>
           <span class="track"><span class="bar" style="width:${Math.max(1.2, (r.score / max) * 100)}%;background:${r.e.is_reference ? '' : laneColor(r.lane)}"></span></span>
-          <span class="val">${fmtScore(r.score)} ${esc(r.unit)}${spec && !r.e.is_reference && spec.score !== r.score ? `<span class="speed">${(spec.score / r.score).toLocaleString(undefined, { maximumFractionDigits: 1 })}× vs spec</span>` : ''}</span>
+          <span class="val">${fmtScore(r.score)} ${esc(r.unit)}${spec && !r.e.is_reference && spec.score !== r.score ? `<span class="speed">${(spec.score / r.score).toLocaleString(undefined, { maximumFractionDigits: 1 })}× vs reference</span>` : ''}</span>
         </div>`).join('') + chart + `</div>`;
   }).join(''));
 
@@ -167,7 +174,7 @@ loadData(S => {
   $('runit').innerHTML =
     `<span class="c"># the deterministic board: same seed, same count, same number - on any machine</span>\n` +
     `anvil-harness tier1 --wasm target/wasm32-unknown-unknown/release/${esc(c.spec_impl.replace(/-/g, '_'))}.wasm --iters 200000\n\n` +
-    `<span class="c"># check any lane against the executable spec on the exact benchmark inputs</span>\n` +
+    `<span class="c"># check any entry against the reference program on the exact benchmark inputs</span>\n` +
     c.entries.filter(e => !e.is_reference).map(e => `anvil-harness check --impl ${esc(e.impl_name)} --iters 200000\n`).join('') +
     `\n<span class="c"># put your own machine on these boards</span>\n` +
     `razor rig --id my-rig --owner you --arch &lt;arch&gt; --tier native --note "..."\n` +

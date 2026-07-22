@@ -22,11 +22,13 @@
 
 <div class="pagehead wrap">
   <h2>The anvil</h2>
-  <p class="lede">The anvil hosts performance competitions for verified software. A <strong>challenge</strong>
-  gives a specification: a simple reference program that defines the correct answer for every input.
-  Competitors enter <strong>lanes</strong> - faster programs proven, by a machine-checked Lean proof, to
-  compute the same thing - and the lanes race on real machines. Each challenge has its own page with the
-  full leaderboards and the history of every measurement.</p>
+  <p class="lede">The anvil hosts speed competitions for software that is proven correct. Each
+  <strong>challenge</strong> starts from a <strong>reference program</strong>: a simple, easy-to-trust
+  program that defines the right answer for every input. Competitors submit faster programs. A submission
+  is only timed once a proof - written in Lean and checked by machine - shows it returns the same answer
+  as the reference program on every possible input. A submitted program, with its proof and its scores,
+  is called a <strong>lane</strong>. Each challenge has its own page with the full leaderboards and every
+  recorded measurement.</p>
   <div class="stats" id="anvil-stats"></div>
 </div>
 
@@ -132,15 +134,15 @@ loadData(S => {
     }
     const champs = Object.values(holders).sort((a, b) => b.n - a.n).map(h =>
       `<span class="champ"><span class="crown">♛</span> ${laneDot(h.lane)}${esc(h.e.impl_name)}` +
-      `${h.e.is_reference ? ' <span style="color:var(--muted)">(spec)</span>' : ''}` +
+      `${h.e.is_reference ? ' <span style="color:var(--muted)">(reference)</span>' : ''}` +
       ` <span style="color:var(--muted)">on ${h.n} board${h.n > 1 ? 's' : ''} · ${esc(h.e.solver)}</span></span>`);
-    // Sparkline: the board with the most recorded measurements.
+    // Sparkline: the record on the most-contested board - the fastest
+    // result so far, over time. Downward steps are the story so far.
     const busiest = boardKeys
-      .map(k => ({ k, series: boardSeries(history, c, k) }))
-      .map(x => ({ ...x, n: x.series.reduce((a, s) => a + s.points.length, 0) }))
+      .map(k => ({ k, n: boardSeries(history, c, k).reduce((a, s) => a + s.points.length, 0) }))
       .sort((a, b) => b.n - a.n)[0];
-    const spark = busiest && busiest.n > busiest.series.length
-      ? historyChart(busiest.series, '', { mini: true }) : '';
+    const rec = busiest ? recordSeries(history, c, busiest.k) : null;
+    const spark = rec && rec.points.length > 1 ? historyChart([rec], '', { mini: true }) : '';
     const pending = c.entries.filter(e => !e.admitted && !e.is_reference).length;
     return `<a class="cardlink" href="challenge.html?id=${encodeURIComponent(c.id)}"><div class="card chal">
       <div class="row1"><span class="hid">${esc(c.id)}</span><h4>${esc(c.title)}</h4>
@@ -164,7 +166,7 @@ loadData(S => {
       champs.map(p => `<tr><td>${personLink(p.handle)}</td>` +
         `<td>${p.crowns ? '<span style="color:var(--gold)">♛</span> ' + p.crowns : '—'}</td>` +
         `<td>${p.admitted || '—'}</td><td>${p.lanes}</td>` +
-        `<td>${p.bestSpeed > 1 ? p.bestSpeed.toLocaleString(undefined, { maximumFractionDigits: 1 }) + '× vs spec' : '—'}</td>` +
+        `<td>${p.bestSpeed > 1 ? p.bestSpeed.toLocaleString(undefined, { maximumFractionDigits: 1 }) + '× vs reference' : '—'}</td>` +
         `<td class="boards-held">${p.boards.map(esc).join(' · ') || '—'}</td></tr>`).join('');
   }
 

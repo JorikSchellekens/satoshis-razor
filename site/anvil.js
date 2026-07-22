@@ -1,6 +1,13 @@
 // Shared code for the anvil pages: lane colors, board grouping, champions,
 // and the score-over-time charts. Loaded after razor.js.
 
+// Styles owned by this module (the record line in the charts).
+document.head.insertAdjacentHTML('beforeend', `<style>
+.crecord { stroke: var(--chalk); opacity: 0.5; stroke-dasharray: 5 4; }
+.crecord-pt { fill: var(--chalk); opacity: 0.7; }
+.crecord-label { fill: var(--muted); }
+</style>`);
+
 // Lane colors: fixed assignment by the order lanes joined the challenge
 // (the specification lane is first and always blue). Validated for this
 // site's dark surface, including for color-blind readers.
@@ -59,6 +66,27 @@ function boardSeries(history, c, key) {
   return Object.values(seriesMap);
 }
 
+// The record line of a board: the fastest result anyone had recorded up
+// to each moment in time. A step series - it only ever moves down. Each
+// step remembers which program set it, for the tooltip.
+function recordSeries(history, c, key) {
+  const runs = history.filter(b => b.c.id === c.id && boardKey(b) === key)
+    .sort((a, b) => a.ts - b.ts);
+  const points = [];
+  let best = Infinity;
+  for (const b of runs) {
+    if (b.score < best) {
+      best = b.score;
+      points.push({ ts: b.ts, score: best, by: b.e.impl_name });
+    }
+  }
+  // Extend the line to the latest measurement, so "still the record" shows.
+  const last = runs[runs.length - 1];
+  if (points.length && last && last.ts > points[points.length - 1].ts)
+    points.push({ ts: last.ts, score: best, by: points[points.length - 1].by, ghost: true });
+  return { name: 'record', record: true, points };
+}
+
 // ── charts ───────────────────────────────────────────────────────
 // Keep charts light no matter how long the log gets: a series keeps its
 // first and last points and evenly samples the middle.
@@ -94,6 +122,24 @@ function historyChart(series, unit, { mini = false } = {}) {
       (t1 > t0 ? `<text class="ctick" x="${W - R}" y="${H - 6}" text-anchor="end">${fmtWhen(t1)}</text>` : '');
   }
   const lines = series.map(s => {
+    // The record line is a step: the old record holds until the moment a
+    // better one lands, then drops. Drawn dashed, in the page's ink color.
+    if (s.record) {
+      const d = s.points.map((p, k) => k === 0
+        ? `M${px(p.ts).toFixed(1)},${py(p.score).toFixed(1)}`
+        : `H${px(p.ts).toFixed(1)}V${py(p.score).toFixed(1)}`).join('');
+      let dots = '', label = '';
+      if (!mini) {
+        dots = s.points.filter(p => !p.ghost).map(p => {
+          const tip = `<title>${esc(p.by)} set the record: ${fmtScore(p.score)} ${esc(unit)} · ${fmtWhen(p.ts)}</title>`;
+          return `<circle class="cpt crecord-pt" cx="${px(p.ts).toFixed(1)}" cy="${py(p.score).toFixed(1)}" r="3">${tip}</circle>` +
+            `<circle class="chit" cx="${px(p.ts).toFixed(1)}" cy="${py(p.score).toFixed(1)}" r="9" fill="transparent">${tip}</circle>`;
+        }).join('');
+        const last = s.points[s.points.length - 1];
+        label = `<text class="clabel crecord-label" x="${W - R + 8}" y="${(py(last.score) + 3).toFixed(1)}">record</text>`;
+      }
+      return `<path class="crecord" d="${d}" fill="none" stroke-width="${mini ? 1.5 : 2}"/>${dots}${label}`;
+    }
     const ccol = laneColor(s.lane);
     const d = s.points.map((p, k) => `${k ? 'L' : 'M'}${px(p.ts).toFixed(1)},${py(p.score).toFixed(1)}`).join('');
     let dots = '', label = '';
