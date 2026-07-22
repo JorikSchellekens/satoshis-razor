@@ -178,7 +178,7 @@ fn remote_allowed(event: &Event) -> Result<(), &'static str> {
         // so it must name a registered rig and carry the rig owner's
         // signature - the score's trust model is exactly its rig's.
         Event::RegisterChallenge { .. } | Event::AnvilSubmit { .. }
-        | Event::RegisterRig { .. } | Event::Bench { .. } => Ok(()),
+        | Event::RegisterRig { .. } | Event::Bench { .. } | Event::PinWorkload { .. } => Ok(()),
         Event::Converge { .. } | Event::Implies { .. } =>
             Err("converge/implies assert an equivalence without a kernel check and are not accepted \
                  remotely - use `razor bridge` (the equivalence becomes a sorry, proven like any other)"),
@@ -336,12 +336,25 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
                 if !state.sorries.contains_key(c) { return Err(format!("unknown child sorry: {c}")); }
             }
         }
-        Event::RegisterChallenge { id, title, spec_impl, obligation } => {
+        Event::RegisterChallenge { id, title, spec_impl, obligation, seed, iters } => {
             if !sane_id(id) { return no("challenge id: letters, digits, dashes, up to 64 chars"); }
             if state.challenges.contains_key(id) { return no("challenge id already exists"); }
             if title.trim().is_empty() || spec_impl.trim().is_empty() || obligation.trim().is_empty() {
                 return no("a challenge needs --title, --spec-impl, and --obligation");
             }
+            // New challenges pin their workload at registration; without a
+            // pin, scores at different workloads would silently mix.
+            if seed.is_none() || iters.is_none() || *iters == Some(0) {
+                return no("a challenge pins its benchmark workload at registration: pass --iters (and optionally --seed)");
+            }
+        }
+        Event::PinWorkload { challenge, iters, .. } => {
+            let Some(c) = state.challenges.get(challenge) else { return no("unknown challenge") };
+            if c.workload.is_some() {
+                return no("this challenge's workload is already pinned - a pin is permanent, because \
+                    changing it would silently re-price every recorded score");
+            }
+            if *iters == 0 { return no("a workload needs a positive word count (--iters)"); }
         }
         Event::AnvilSubmit { id, challenge, impl_name, solver, refinement_sorry, .. } => {
             if !sane_id(id) { return no("submission id: letters, digits, dashes, up to 64 chars"); }
@@ -364,7 +377,7 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
                 return no("rig tier must be wasm-fuel or native");
             }
         }
-        Event::Bench { submission, tier, arch, score, unit, rig, .. } => {
+        Event::Bench { submission, tier, arch, score, unit, rig, seed, iters, .. } => {
             let Some(rig_id) = rig else {
                 return no("a remote score must name the rig it was measured on (razor bench --rig)");
             };
@@ -372,12 +385,23 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
             if r.tier != *tier {
                 return Err(format!("rig {rig_id} is a {} rig; it cannot report {tier} scores", r.tier));
             }
-            let entry = state.challenges.values()
-                .flat_map(|c| c.entries.iter())
-                .find(|e| e.id == *submission);
-            let Some(entry) = entry else { return no("unknown anvil submission") };
+            let found = state.challenges.values()
+                .find_map(|c| c.entries.iter().find(|e| e.id == *submission).map(|e| (c, e)));
+            let Some((chal, entry)) = found else { return no("unknown anvil submission") };
             if !entry.admitted && !entry.is_reference {
                 return no("this lane is not admitted yet - its refinement proof must verify first");
+            }
+            // Scores are comparable only at the challenge's pinned
+            // workload; the registry accepts nothing else remotely.
+            let Some((ps, pi)) = chal.workload else {
+                return no("this challenge's workload is not pinned yet - pin it first (razor workload), \
+                    then bench; scores at unpinned workloads are not comparable");
+            };
+            if *seed != Some(ps) || *iters != Some(pi) {
+                return Err(format!(
+                    "this challenge pins its workload at seed {ps}, {pi} words per run; \
+                     the score was measured at a different workload and would not be comparable \
+                     (razor bench uses the pin automatically)"));
             }
             if !score.is_finite() || *score <= 0.0 { return no("a score must be a positive number"); }
             if arch.trim().is_empty() || unit.trim().is_empty() { return no("a score needs an arch and a unit"); }

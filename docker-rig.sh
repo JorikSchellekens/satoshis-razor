@@ -58,7 +58,7 @@ fi
 
 for c in $CHALLENGES; do
   echo "==> benching $c on $RIG"
-  $RAZOR bench --challenge "$c" --iters 20000 --rig "$RIG"
+  $RAZOR bench --challenge "$c" --rig "$RIG"
 done
 
 if [ -n "$REMOTE_ACTIVE" ]; then

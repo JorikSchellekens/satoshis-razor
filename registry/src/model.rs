@@ -156,13 +156,27 @@ pub enum Event {
     /// shown wherever the item appears.
     Tag { target: String, tag: String, by: String, #[serde(default)] note: String },
     /// Anvil: register a performance challenge over a ratified spec.
+    /// `seed` and `iters` pin the benchmark workload: the input-stream seed
+    /// and the number of words per run. Scores at any other workload are
+    /// not comparable and never enter the leaderboards. Absent on
+    /// challenges from before workloads were pinned; those are pinned
+    /// after the fact by a `PinWorkload` event.
     RegisterChallenge {
         id: String,
         title: String,
         spec_impl: String,
         /// Pinned refinement obligation template, described for humans.
         obligation: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        seed: Option<u64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        iters: Option<u64>,
     },
+    /// Anvil: pin the benchmark workload of a challenge registered before
+    /// workloads were part of registration. Valid only while the challenge
+    /// has no pin; the first pin is permanent - like every pinned thing on
+    /// the log, changing it would silently re-price every recorded score.
+    PinWorkload { challenge: String, seed: u64, iters: u64, by: String },
     /// Anvil: an implementation submission (code + refinement proof decl).
     AnvilSubmit {
         id: String,
@@ -178,7 +192,16 @@ pub enum Event {
     },
     /// Anvil: a measured score for an admitted submission. `rig` names the
     /// hardware it was measured on (None = the reference environment).
-    Bench { submission: String, tier: String, arch: String, score: f64, unit: String, checksum: u64, #[serde(default)] rig: Option<String> },
+    /// `seed` and `iters` record the workload the score was measured at;
+    /// only scores at the challenge's pinned workload enter leaderboards.
+    /// Absent on scores from before workloads were recorded - those stay
+    /// on the log as history but rank nothing.
+    Bench {
+        submission: String, tier: String, arch: String, score: f64, unit: String, checksum: u64,
+        #[serde(default)] rig: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")] seed: Option<u64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")] iters: Option<u64>,
+    },
     /// A benchmark rig: hardware a bounty provider selects or brings to the
     /// table. Scores recorded through a rig carry its architecture; a rig
     /// owner runs `razor bench --rig <id>` on their own machine. `runner` is
@@ -291,6 +314,7 @@ impl Event {
             Event::RegisterSorry { author, .. } => author.as_deref(),
             Event::Fund { funder, .. } => Some(funder),
             Event::RegisterRig { owner, .. } => Some(owner),
+            Event::PinWorkload { by, .. } => Some(by),
             Event::RegisterAccount { handle, .. } => Some(handle),
             _ => None,
         }
@@ -568,6 +592,10 @@ pub struct Score {
     pub unit: String,
     pub checksum: u64,
     pub rig: Option<String>,
+    /// The workload the score was measured at (always the challenge's pin
+    /// for scores that made it into the derived state).
+    pub seed: Option<u64>,
+    pub iters: Option<u64>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -576,6 +604,10 @@ pub struct Challenge {
     pub title: String,
     pub spec_impl: String,
     pub obligation: String,
+    /// The pinned benchmark workload (seed, words per run). None only on
+    /// legacy challenges that have not been pinned yet; those accept no
+    /// new remote scores until they are.
+    pub workload: Option<(u64, u64)>,
     pub entries: Vec<AnvilEntry>,
     pub pool: u64,
     /// Architecture-reserved pools: arch → amount.
@@ -868,11 +900,22 @@ impl State {
                     h.superseded_by.push((by, replacement, note));
                 }
             }
-            Event::RegisterChallenge { id, title, spec_impl, obligation } => {
+            Event::RegisterChallenge { id, title, spec_impl, obligation, seed, iters } => {
                 self.challenges.insert(id.clone(), Challenge {
-                    id, title, spec_impl, obligation, entries: vec![], pool: 0,
+                    id, title, spec_impl, obligation,
+                    workload: seed.zip(iters),
+                    entries: vec![], pool: 0,
                     arch_pools: BTreeMap::new(),
                 });
+            }
+            Event::PinWorkload { challenge, seed, iters, .. } => {
+                if let Some(c) = self.challenges.get_mut(&challenge) {
+                    // First pin wins; a second pin event is invalid and,
+                    // if one ever slipped onto the log, changes nothing.
+                    if c.workload.is_none() {
+                        c.workload = Some((seed, iters));
+                    }
+                }
             }
             Event::ZkRoute { id, sorry, vk_path, vk_hash, constraints, bridge_kind, bridge, note } => {
                 if let Some(h) = self.sorries.get_mut(&sorry) {
@@ -906,9 +949,19 @@ impl State {
                     });
                 }
             }
-            Event::Bench { submission, tier, arch, score, unit, checksum, rig } => {
+            Event::Bench { submission, tier, arch, score, unit, checksum, rig, seed, iters } => {
                 for c in self.challenges.values_mut() {
                     if let Some(en) = c.entries.iter_mut().find(|e| e.id == submission) {
+                        // Only scores at the challenge's pinned workload
+                        // rank: a score at any other workload (or with no
+                        // recorded workload) is not comparable and stays
+                        // on the log as history without entering the
+                        // leaderboard.
+                        if let Some((ps, pi)) = c.workload {
+                            if seed != Some(ps) || iters != Some(pi) {
+                                continue;
+                            }
+                        }
                         // A re-run replaces the earlier measurement for the
                         // same (tier, arch, rig) - the log keeps every run,
                         // the leaderboard shows one row per lane per rig.
@@ -916,6 +969,7 @@ impl State {
                         en.scores.push(Score {
                             tier: tier.clone(), arch: arch.clone(), score,
                             unit: unit.clone(), checksum, rig: rig.clone(),
+                            seed, iters,
                         });
                     }
                 }

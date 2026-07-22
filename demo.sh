@@ -309,7 +309,7 @@ $RAZOR rig --id m4-station --owner bitboard-labs --arch aarch64-apple-m --tier n
 
 step "ANV-001 popcount: SWAR submission, admission by SAT-settled refinement proof"
 $RAZOR challenge --id ANV-001 --title "popcount(u64)" --spec-impl popcount-naive \
-  --obligation "∀ x : BitVec 64, model x = Razor.Anvil.popNaive x"
+  --obligation "∀ x : BitVec 64, model x = Razor.Anvil.popNaive x" --iters 20000
 $RAZOR fund --target ANV-001 --amount 5000 --funder bitboard-labs
 $RAZOR fund --target ANV-001 --amount 3000 --funder bitboard-labs --arch aarch64-apple-m
 $RAZOR anvil-submit --id ANV-001-ref --challenge ANV-001 --impl popcount-naive \
@@ -322,12 +322,12 @@ $RAZOR submit --id SUB-ANV1 --sorry ANV-001-SWAR-PROOF --solver judy --decl Razo
 $RAZOR verify --submission SUB-ANV1
 $RAZOR anvil-submit --id ANV-001-swar --challenge ANV-001 --impl popcount-swar \
   --solver judy --proof-decl Razor.Anvil.swar_refines --refinement-sorry ANV-001-SWAR-PROOF
-$RAZOR bench --challenge ANV-001 --iters 20000 --rig wasm-referee
-$RAZOR bench --challenge ANV-001 --iters 20000 --rig m4-station
+$RAZOR bench --challenge ANV-001 --rig wasm-referee
+$RAZOR bench --challenge ANV-001 --rig m4-station
 
 step "ANV-002 sum(1..n): closed form beats the loop, admission by algebraic proof"
 $RAZOR challenge --id ANV-002 --title "sum(1..n)" --spec-impl sum-loop \
-  --obligation "∀ n : Nat, model n = Razor.Anvil.sumLoopModel n (valid: n < 2^32)"
+  --obligation "∀ n : Nat, model n = Razor.Anvil.sumLoopModel n (valid: n < 2^32)" --iters 20000
 $RAZOR fund --target ANV-002 --amount 5000 --funder gauss-capital
 $RAZOR anvil-submit --id ANV-002-ref --challenge ANV-002 --impl sum-loop \
   --solver spec-author --proof-decl ""
@@ -338,12 +338,12 @@ $RAZOR submit --id SUB-ANV2 --sorry ANV-002-CLOSED-PROOF --solver kevin --decl R
 $RAZOR verify --submission SUB-ANV2
 $RAZOR anvil-submit --id ANV-002-closed --challenge ANV-002 --impl sum-closed \
   --solver kevin --proof-decl Razor.Anvil.closed_refines --refinement-sorry ANV-002-CLOSED-PROOF
-$RAZOR bench --challenge ANV-002 --iters 20000 --rig wasm-referee
-$RAZOR bench --challenge ANV-002 --iters 20000 --rig m4-station
+$RAZOR bench --challenge ANV-002 --rig wasm-referee
+$RAZOR bench --challenge ANV-002 --rig m4-station
 
 step "ANV-003 sort 8 bytes: a 19-comparator network, admission by SAT - nobody has to see why it sorts"
 $RAZOR challenge --id ANV-003 --title "sort the 8 bytes of a u64" --spec-impl sort8-bubble \
-  --obligation "∀ x : BitVec 64, model x = Razor.Anvil.sortBubble x"
+  --obligation "∀ x : BitVec 64, model x = Razor.Anvil.sortBubble x" --iters 20000
 $RAZOR fund --target ANV-003 --amount 4000 --funder bitboard-labs
 $RAZOR anvil-submit --id ANV-003-ref --challenge ANV-003 --impl sort8-bubble \
   --solver spec-author --proof-decl ""
@@ -364,16 +364,16 @@ step "a GPU lane joins ANV-003: same proven network, run as a compute shader ove
 # reported as not measurable - nothing fails.
 $RAZOR anvil-submit --id ANV-003-gpu --challenge ANV-003 --impl sort8-gpu \
   --solver gus --proof-decl Razor.Anvil.network_refines --refinement-sorry ANV-003-NET-PROOF
-$RAZOR bench --challenge ANV-003 --iters 20000 --rig wasm-referee
-$RAZOR bench --challenge ANV-003 --iters 20000 --rig m4-station
-# The same lanes at a workload 50x larger: a GPU pays a fixed dispatch and
-# transfer bill per batch, so its per-word cost falls as the batch grows -
-# the score history shows both points.
-$RAZOR bench --challenge ANV-003 --iters 1000000 --rig m4-station
+$RAZOR bench --challenge ANV-003 --rig wasm-referee
+$RAZOR bench --challenge ANV-003 --rig m4-station
+# The workload is pinned at registration, so every score above is the same
+# exact run; at this small batch the GPU's fixed dispatch and transfer bill
+# dominates. The live registry pins sort8 at a million words per run -
+# there the GPU lane holds the crown.
 
 step "ANV-004 count leading zeros: the naive scan is the spec, binary search is the contender"
 $RAZOR challenge --id ANV-004 --title "count leading zeros (u64)" --spec-impl clz-naive \
-  --obligation "∀ x : BitVec 64, model x = Razor.Anvil.clzNaive x"
+  --obligation "∀ x : BitVec 64, model x = Razor.Anvil.clzNaive x" --iters 20000
 $RAZOR fund --target ANV-004 --amount 2500 --funder bitboard-labs
 $RAZOR anvil-submit --id ANV-004-ref --challenge ANV-004 --impl clz-naive \
   --solver spec-author --proof-decl ""
@@ -385,12 +385,12 @@ $RAZOR submit --id SUB-ANV4 --sorry ANV-004-BIN-PROOF --solver heidi --decl Razo
 $RAZOR verify --submission SUB-ANV4
 $RAZOR anvil-submit --id ANV-004-bin --challenge ANV-004 --impl clz-branchless \
   --solver heidi --proof-decl Razor.Anvil.clz_binary_refines --refinement-sorry ANV-004-BIN-PROOF
-$RAZOR bench --challenge ANV-004 --iters 20000 --rig wasm-referee
-$RAZOR bench --challenge ANV-004 --iters 20000 --rig m4-station
+$RAZOR bench --challenge ANV-004 --rig wasm-referee
+$RAZOR bench --challenge ANV-004 --rig m4-station
 
 step "ANV-005 reverse the bits of a u64: 64 single-bit steps vs six swap layers"
 $RAZOR challenge --id ANV-005 --title "reverse the bits of a u64" --spec-impl bitrev-naive \
-  --obligation "∀ x : BitVec 64, model x = Razor.Anvil.revNaive x"
+  --obligation "∀ x : BitVec 64, model x = Razor.Anvil.revNaive x" --iters 20000
 $RAZOR fund --target ANV-005 --amount 2500 --funder bitboard-labs
 $RAZOR anvil-submit --id ANV-005-ref --challenge ANV-005 --impl bitrev-naive \
   --solver spec-author --proof-decl ""
@@ -402,12 +402,12 @@ $RAZOR submit --id SUB-ANV5 --sorry ANV-005-SWAR-PROOF --solver judy --decl Razo
 $RAZOR verify --submission SUB-ANV5
 $RAZOR anvil-submit --id ANV-005-swar --challenge ANV-005 --impl bitrev-swar \
   --solver judy --proof-decl Razor.Anvil.rev_swar_refines --refinement-sorry ANV-005-SWAR-PROOF
-$RAZOR bench --challenge ANV-005 --iters 20000 --rig wasm-referee
-$RAZOR bench --challenge ANV-005 --iters 20000 --rig m4-station
+$RAZOR bench --challenge ANV-005 --rig wasm-referee
+$RAZOR bench --challenge ANV-005 --rig m4-station
 
 step "ANV-100 EVM interpreter: the submission is admitted - and loses anyway"
 $RAZOR challenge --id ANV-100 --title "EVM interpreter (64-bit demo words)" --spec-impl evm-ref \
-  --obligation "∀ p gas stack, model p gas stack = Razor.Evm.execSpec p gas stack"
+  --obligation "∀ p gas stack, model p gas stack = Razor.Evm.execSpec p gas stack" --iters 5000
 $RAZOR fund --target ANV-100 --amount 6000 --funder rollup-collective
 $RAZOR anvil-submit --id ANV-100-ref --challenge ANV-100 --impl evm-ref \
   --solver spec-author --proof-decl ""
@@ -418,8 +418,8 @@ $RAZOR submit --id SUB-ANV100 --sorry ANV-100-TOS-PROOF --solver leo --decl Razo
 $RAZOR verify --submission SUB-ANV100
 $RAZOR anvil-submit --id ANV-100-tos --challenge ANV-100 --impl evm-tos \
   --solver leo --proof-decl Razor.Evm.tos_refines --refinement-sorry ANV-100-TOS-PROOF
-$RAZOR bench --challenge ANV-100 --iters 5000 --rig wasm-referee
-$RAZOR bench --challenge ANV-100 --iters 5000 --rig m4-station
+$RAZOR bench --challenge ANV-100 --rig wasm-referee
+$RAZOR bench --challenge ANV-100 --rig m4-station
 
 step "Crown payouts stream to champions"
 $RAZOR payout --target ANV-001 --recipient judy --amount 5000 \

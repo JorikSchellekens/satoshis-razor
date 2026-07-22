@@ -109,6 +109,13 @@ loadData(S => {
   $('spec').innerHTML = [
     ['reference program', `<code>${esc(c.spec_impl)}</code> <span style="color:var(--muted)">(its source is in the repository under anvil/impls/; it is written to be obviously correct, not fast)</span>`],
     ['what every entry must prove', `<code>${esc(c.obligation)}</code> <span style="color:var(--muted)">- in words: on every valid input, the entry ("model") returns exactly what the reference program returns</span>`],
+    ['the benchmark run', c.workload
+      ? `${c.workload[1].toLocaleString()} words per run, generated from seed ${c.workload[0]} ` +
+        `<span style="color:var(--muted)">- pinned and permanent: every score and chart on this page is this exact run, ` +
+        `so any two scores on one machine are directly comparable</span>`
+      : `<span style="color:var(--open)">not pinned yet</span> <span style="color:var(--muted)">- scores at different ` +
+        `word counts are not comparable, so the boards stay closed until the workload is pinned ` +
+        `(razor workload --challenge ${esc(c.id)} --iters N)</span>`],
     regEv ? ['registered', `event #${regEv.seq}, ${fmtWhen(regEv.ts)}`] : null,
     ...(Object.keys(c.arch_pools || {}).length
       ? [['architecture pools', Object.entries(c.arch_pools).map(([a, v]) =>
@@ -162,9 +169,12 @@ loadData(S => {
     // actually beats the baseline. The reference is the bar to clear, not
     // a competitor.
     const unbeaten = rows[0]?.e.is_reference;
-    return `<div class="lb boardcard"><div class="lb-title">${esc(tier)} · ${esc(arch)}${archPool}${rigNote}</div>` +
+    const boardTip = `One board: ${tier} scores measured on one machine` +
+      (c.workload ? `, all at the pinned run of ${c.workload[1].toLocaleString()} words from seed ${c.workload[0]}` : '') +
+      `. Scores on one board are directly comparable; scores across boards are not.`;
+    return `<div class="lb boardcard"><div class="lb-title" title="${esc(boardTip)}">${esc(tier)} · ${esc(arch)}${archPool}${rigNote}</div>` +
       rows.map((r, i) => `
-        <div class="rowbar ${r.e.is_reference ? 'ref' : ''}" title="checksum ${r.checksum}">
+        <div class="rowbar ${r.e.is_reference ? 'ref' : ''}" title="checksum ${r.checksum}${r.iters == null ? ' · measured before the workload was pinned' : ''}">
           <span class="who">${i === 0 && !r.e.is_reference ? '<span class="crown">♛</span> ' : ''}${laneDot(r.lane)}${esc(r.e.impl_name)}${r.e.is_reference ? ' <span style="color:var(--muted)">(baseline)</span>' : ''}</span>
           <span class="track"><span class="bar" style="width:${Math.max(1.2, (r.score / max) * 100)}%;background:${r.e.is_reference ? '' : laneColor(r.lane)}"></span></span>
           <span class="val">${fmtScore(r.score)} ${esc(r.unit)}${spec && !r.e.is_reference && spec.score !== r.score ? `<span class="speed">${spec.score > r.score ? (spec.score / r.score).toLocaleString(undefined, { maximumFractionDigits: 1 }) + '× faster than baseline' : 'slower than baseline'}</span>` : ''}</span>
@@ -174,14 +184,17 @@ loadData(S => {
   }).join(''));
 
   // ── run it yourself ────────────────────────────────────────────
+  // The commands use the challenge's pinned workload, so what you run is
+  // bit-for-bit the run the boards score.
+  const wl = c.workload ? ` --seed ${c.workload[0]} --iters ${c.workload[1]}` : '';
   $('runit').innerHTML =
     `<span class="c"># the deterministic board: same seed, same count, same number - on any machine</span>\n` +
-    `anvil-harness tier1 --wasm target/wasm32-unknown-unknown/release/${esc(c.spec_impl.replace(/-/g, '_'))}.wasm --iters 200000\n\n` +
+    `anvil-harness tier1 --wasm target/wasm32-unknown-unknown/release/${esc(c.spec_impl.replace(/-/g, '_'))}.wasm${wl}\n\n` +
     `<span class="c"># check any entry against the reference program on the exact benchmark inputs</span>\n` +
-    c.entries.filter(e => !e.is_reference).map(e => `anvil-harness check --impl ${esc(e.impl_name)} --iters 200000\n`).join('') +
-    `\n<span class="c"># put your own machine on these boards</span>\n` +
+    c.entries.filter(e => !e.is_reference).map(e => `anvil-harness check --impl ${esc(e.impl_name)}${wl}\n`).join('') +
+    `\n<span class="c"># put your own machine on these boards (bench runs the pinned workload automatically)</span>\n` +
     `razor rig --id my-rig --owner you --arch &lt;arch&gt; --tier native --note "..."\n` +
-    `razor bench --challenge ${esc(c.id)} --iters 200000 --rig my-rig`;
+    `razor bench --challenge ${esc(c.id)} --rig my-rig`;
 
   // ── history ────────────────────────────────────────────────────
   const laneIds = new Set(c.entries.map(e => e.id));

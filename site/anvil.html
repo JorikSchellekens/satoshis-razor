@@ -155,7 +155,9 @@ loadData(S => {
         ${pool ? `<span class="pool">pool ${pool.toLocaleString()}</span>` : ''}</div>
       <div class="champs">${champs.join('') || '<span style="color:var(--muted)">no measurements yet</span>'}</div>
       ${spark}
-      <div class="meta"><span>${c.entries.filter(e => !e.is_reference).length} entered · ${boardKeys.length} boards · ${mine.length} measurements` +
+      <div class="meta"><span>${c.workload
+          ? `runs of ${fmtWords(c.workload[1])} words · `
+          : '<span style="color:var(--open)">workload not pinned</span> · '}${c.entries.filter(e => !e.is_reference).length} entered · ${boardKeys.length} boards · ${mine.length} measurements` +
         `${pending ? ` · <span style="color:var(--open)">${pending} lane${pending > 1 ? 's' : ''} awaiting proof</span>` : ''}` +
         `${mine.length ? ` · last run ${fmtDayShort(Math.max(...mine.map(b => b.ts)))}` : ''}</span></div>
     </div></a>`;
@@ -187,9 +189,11 @@ loadData(S => {
   // ── latest measurements (capped - the full history lives on the
   //    challenge pages) ─────────────────────────────────────────────
   const recent = history.slice(-30).reverse();
-  $('history').innerHTML = `<tr><th>when</th><th>challenge</th><th>lane</th><th>tier</th><th>rig</th><th>score</th></tr>` +
-    recent.map(b => `<tr><td>${fmtWhen(b.ts)}</td><td>${chalLink(b.c.id)}</td><td>${laneDot(b.i)}${esc(b.e.impl_name)}</td>` +
-      `<td>${esc(b.tier)}</td><td>${esc(b.rig || '—')}</td><td>${fmtScore(b.score)} ${esc(b.unit)}</td></tr>`).join('');
+  $('history').innerHTML = `<tr><th>when</th><th>challenge</th><th>lane</th><th>tier</th><th>rig</th><th>run</th><th>score</th></tr>` +
+    recent.map(b => `<tr title="checksum ${b.checksum}"><td>${fmtWhen(b.ts)}</td><td>${chalLink(b.c.id)}</td><td>${laneDot(b.i)}${esc(b.e.impl_name)}</td>` +
+      `<td>${esc(b.tier)}</td><td>${esc(b.rig || '—')}</td>` +
+      `<td>${b.iters != null ? fmtWords(b.iters) + ' words' : '<span style="color:var(--muted)" title="measured before workloads were recorded on scores">unrecorded</span>'}</td>` +
+      `<td>${fmtScore(b.score)} ${esc(b.unit)}</td></tr>`).join('');
 });
 </script>
 </body>

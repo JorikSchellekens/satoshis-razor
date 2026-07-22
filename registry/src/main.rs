@@ -103,6 +103,21 @@ fn main() {
         "challenge" => append(&log_path, Event::RegisterChallenge {
             id: req(&args, "--id"), title: req(&args, "--title"),
             spec_impl: req(&args, "--spec-impl"), obligation: req(&args, "--obligation"),
+            // The workload is pinned at registration: without it, scores at
+            // different word counts would silently mix on one leaderboard.
+            seed: Some(opt(&args, "--seed").map(|s| s.parse().expect("--seed")).unwrap_or(0xC0FFEE)),
+            iters: Some(opt(&args, "--iters").map(|s| s.parse().expect("--iters")).unwrap_or_else(|| {
+                ui::die("a challenge pins its benchmark workload at registration: pass --iters \
+                    (words per run; --seed defaults to 0xC0FFEE)");
+            })),
+        }),
+        // Pin the workload of a challenge registered before workloads were
+        // part of registration. First pin wins; it is permanent.
+        "workload" => append(&log_path, Event::PinWorkload {
+            challenge: req(&args, "--challenge"),
+            seed: opt(&args, "--seed").map(|s| s.parse().expect("--seed")).unwrap_or(0xC0FFEE),
+            iters: req(&args, "--iters").parse().expect("--iters"),
+            by: req(&args, "--author"),
         }),
         "anvil-submit" => append(&log_path, Event::AnvilSubmit {
             id: req(&args, "--id"), challenge: req(&args, "--challenge"),
@@ -201,8 +216,8 @@ fn main() {
         "upstream" => cmd_upstream(&root, &log_path, &args),
         "export-benchmark" => cmd_export_benchmark(&log_path, &args),
         "bench" => cmd_bench(&root, &log_path, &req(&args, "--challenge"),
-            opt(&args, "--seed").map(|s| s.parse().expect("--seed")).unwrap_or(0xC0FFEE),
-            opt(&args, "--iters").map(|s| s.parse().expect("--iters")).unwrap_or(10_000),
+            opt(&args, "--seed").map(|s| s.parse().expect("--seed")),
+            opt(&args, "--iters").map(|s| s.parse().expect("--iters")),
             opt(&args, "--rig")),
         "account" => cmd_account(&root, &log_path, &args),
         "profile" => cmd_profile(&log_path, args.get(1).map(String::as_str).unwrap_or("")),
@@ -276,9 +291,10 @@ fn print_help(cmd: &str) {
             ("zk-verify", "check a zk submission against its route's key"),
         ]),
         ("the anvil", &[
-            ("challenge", "open a verified-performance competition"),
+            ("challenge", "open a verified-performance competition (pins its benchmark workload)"),
+            ("workload", "pin the workload of a challenge registered before pins existed"),
             ("anvil-submit", "enter an implementation with its refinement proof"),
-            ("bench", "fuel-metered and native leaderboard runs"),
+            ("bench", "fuel-metered and native leaderboard runs, at the pinned workload"),
             ("rig", "register hardware you bring to the boards (--runner runs the harness through a command, e.g. a Docker container)"),
         ]),
         ("people", &[
@@ -1548,7 +1564,7 @@ fn cmd_export_benchmark(log_path: &PathBuf, args: &[String]) {
     }
 }
 
-fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed: u64, iters: u64, rig_id: Option<String>) {
+fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed_flag: Option<u64>, iters_flag: Option<u64>, rig_id: Option<String>) {
     let mut state = State::fold(load(log_path));
     state.settle_admissions();
     // With --rig, run only that rig's tier and stamp its arch and id on the
@@ -1566,6 +1582,26 @@ fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed: u64, 
             with `razor rig`, then bench through it, so every public score names the hardware \
             it was measured on and carries the rig owner's signature");
     }
+    // The workload comes from the challenge's pin: scores are only
+    // comparable at one exact (seed, word count), so the pin decides and
+    // conflicting flags are an error, not an override.
+    let (seed, iters) = match ch.workload {
+        Some((ps, pi)) => {
+            if seed_flag.is_some_and(|s| s != ps) || iters_flag.is_some_and(|i| i != pi) {
+                ui::die(&format!("this challenge pins its workload: seed {ps}, {pi} words per run - \
+                    scores at any other workload would not be comparable, so bench runs the pin \
+                    (drop --seed/--iters)"));
+            }
+            (ps, pi)
+        }
+        None if remote().is_some() => {
+            ui::die(&format!("{challenge_id} has no pinned workload yet, so remote scores would not \
+                be comparable - pin it first: razor workload --challenge {challenge_id} --iters N \
+                --author <you>"));
+        }
+        // Local, unpinned: a development convenience; flags or defaults.
+        None => (seed_flag.unwrap_or(0xC0FFEE), iters_flag.unwrap_or(10_000)),
+    };
     let harness = root.join("target/release/anvil-harness");
     for entry in ch.entries.iter().filter(|e| e.admitted) {
         let wasm = root.join(format!(
@@ -1602,6 +1638,7 @@ fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed: u64, 
                 unit: "fuel/op".into(),
                 checksum: t1["checksum"].as_u64().unwrap(),
                 rig: rig.as_ref().map(|r| r.id.clone()),
+                seed: Some(seed), iters: Some(iters),
             });
             ui::step(&format!("{}  {} {}", ui::bold(&entry.impl_name),
                 t1["fuel_per_op"], ui::dim("fuel/op")));
@@ -1630,6 +1667,7 @@ fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed: u64, 
                 unit: "ns/op".into(),
                 checksum: tn["checksum"].as_u64().unwrap(),
                 rig: rig.as_ref().map(|r| r.id.clone()),
+                seed: Some(seed), iters: Some(iters),
             });
             ui::step(&format!("{}  {} {}", ui::bold(&entry.impl_name),
                 tn["ns_per_op"], ui::dim("ns/op native")));
@@ -2489,7 +2527,7 @@ const REMOTE_CMDS: &[&str] = &[
     // The anvil: challenges, lanes, rigs, and scores are ordinary log events.
     // Measurements happen on the rig owner's machine; what the remote gets is
     // the signed score event - exactly the trust model rigs declare.
-    "challenge", "anvil-submit", "rig", "bench",
+    "challenge", "anvil-submit", "rig", "bench", "workload",
 ];
 
 /// Commands the remote refuses (they assert kernel facts without a check,
@@ -2791,8 +2829,10 @@ const CMD_SPECS: &[CmdSpec] = &[
         flags: &["--submission", "--sorry"] },
     CmdSpec { name: "supersede", usage: "razor supersede --sorry H --replacement H2 --author A [--note N]",
         flags: &["--sorry", "--replacement", "--author", "--by", "--note"] },
-    CmdSpec { name: "challenge", usage: "razor challenge --id C --title T --spec-impl I --obligation O",
-        flags: &["--id", "--title", "--spec-impl", "--obligation"] },
+    CmdSpec { name: "challenge", usage: "razor challenge --id C --title T --spec-impl I --obligation O --iters N [--seed S]",
+        flags: &["--id", "--title", "--spec-impl", "--obligation", "--iters", "--seed"] },
+    CmdSpec { name: "workload", usage: "razor workload --challenge C --iters N --author A [--seed S]",
+        flags: &["--challenge", "--iters", "--seed", "--author"] },
     CmdSpec { name: "anvil-submit", usage: "razor anvil-submit --id A --challenge C --impl I --solver S [--proof-decl D --refinement-sorry H]",
         flags: &["--id", "--challenge", "--impl", "--solver", "--proof-decl", "--refinement-sorry"] },
     CmdSpec { name: "curate", usage: "razor curate --curator A --target ID [--note N]",

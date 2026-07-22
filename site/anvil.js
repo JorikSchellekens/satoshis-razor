@@ -22,6 +22,17 @@ const fmtWhen = (ts) => new Date(ts * 1000).toLocaleDateString(undefined,
   new Date(ts * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 const fmtDayShort = (ts) => new Date(ts * 1000).toLocaleDateString(undefined,
   { month: 'short', day: 'numeric' });
+// Word counts, compact: 1000000 -> "1M", 20000 -> "20k".
+const fmtWords = (n) => n >= 1e6 && n % 1e6 === 0 ? (n / 1e6) + 'M'
+  : n >= 1e3 && n % 1e3 === 0 ? (n / 1e3) + 'k' : String(n);
+
+// Whether a recorded measurement was taken at its challenge's pinned
+// workload. Only those are comparable; anything else is history, not a
+// ranking. An unpinned challenge (local experiments) accepts everything.
+const atPin = (b) => {
+  const w = b.c.workload;
+  return !w || (b.seed === w[0] && b.iters === w[1]);
+};
 
 // ── the data model of a board ────────────────────────────────────
 // A board is one tier measured on one rig: scores on it are directly
@@ -58,7 +69,7 @@ function benchHistory(S) {
 function boardSeries(history, c, key) {
   const seriesMap = {};
   for (const b of history) {
-    if (b.c.id !== c.id || boardKey(b) !== key) continue;
+    if (b.c.id !== c.id || boardKey(b) !== key || !atPin(b)) continue;
     (seriesMap[b.submission] ||= { name: b.e.impl_name, lane: b.i, points: [] })
       .points.push({ ts: b.ts, score: b.score });
   }
@@ -70,7 +81,7 @@ function boardSeries(history, c, key) {
 // to each moment in time. A step series - it only ever moves down. Each
 // step remembers which program set it, for the tooltip.
 function recordSeries(history, c, key) {
-  const runs = history.filter(b => b.c.id === c.id && boardKey(b) === key)
+  const runs = history.filter(b => b.c.id === c.id && boardKey(b) === key && atPin(b))
     .sort((a, b) => a.ts - b.ts);
   const points = [];
   let best = Infinity;
