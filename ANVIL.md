@@ -3,19 +3,40 @@
 ## Running today
 
 Live at [razor.mempoolsurfer.com/anvil.html](https://razor.mempoolsurfer.com/anvil.html):
-six challenges (popcount, sum, sort8, count-leading-zeros, bit-reversal, a small EVM
-interpreter), every contender admitted by a kernel-checked refinement proof, scored on
-the deterministic wasm-fuel referee and on real registered rigs (an Apple M3 Pro, a
-Docker Linux container, and the x86-64 server that hosts the site, benched over ssh).
-One lane runs its whole input stream on the GPU - the same proven 19-comparator
-sorting network as a compute shader - and takes the native crown once the batch is
-large enough to amortize the dispatch. Scores are log events signed by the rig owner;
+ten challenges (popcount, sum, sort8, count-leading-zeros, bit-reversal, a small EVM
+interpreter, SipHash-1-3, CRC-64/XZ, Morton interleave, and the AES S-box), every
+contender admitted by a kernel-checked refinement proof, scored on the deterministic
+wasm-fuel referee and on real registered rigs (an Apple M3 Pro, a Docker Linux
+container, and the x86-64 server that hosts the site, benched over ssh).
+Hardware-specific lanes skip gracefully where their hardware is absent: one sort8
+lane runs its whole input stream on the GPU - the same proven 19-comparator sorting
+network as a compute shader - and takes the native crown once the batch is large
+enough to amortize the dispatch; a Morton lane leans on the x86-64 `pdep`
+instruction and is admitted on a proof of the instruction's documented semantics.
+The crypto challenges carry their own stories: the CRC and S-box table lanes'
+proofs kernel-check every memoized table entry against the from-the-definition
+spec, and the constant-time S-box lane puts a measured price on closing the
+cache-timing side channel. Scores are log events signed by the rig owner;
 `razor challenge`, `razor anvil-submit`, `razor rig`, and `razor bench --rig` all
 publish to the live registry.
 
+Challenges are grouped by category on the index - cryptography, checksums,
+sorting, bit manipulation, arithmetic, interpreters - and a category is just a
+`razor tag` event on the challenge, so it is retroactive and permissionless
+like everything else on the log.
+
+Lanes are pluggable: a directory under `anvil/lanes/<name>/` with a `lane.json`
+manifest enters the competition without rebuilding the harness, and its
+artifacts can be written in any language - the native artifact is any
+executable speaking the harness's small benchmark/differential protocol, the
+wasm artifact any module with the standard `bench`/`solve_one` exports. The
+first such lane is `crc64-byte-c`, a C implementation holding a CRC-64 lane;
+its admission proof obligations are identical to a Rust lane's (see
+`anvil/lanes/README.md`).
+
 Infrastructure for massively parallel search over programs: given a formal
 specification in Lean, anyone willing to dedicate AI compute - or human skill -
-submits Rust implementations proven to refine that spec, and admitted
+submits implementations proven to refine that spec, and admitted
 implementations compete on execution performance per target architecture.
 Correctness is a machine-checked admission requirement; speed is the score.
 

@@ -22,4 +22,8 @@ COPY . .
 
 RUN cargo build --release -p anvil-harness
 
+# External lanes (anvil/lanes/*) bring their own build scripts - compile
+# them for this container so they compete on the Linux boards too.
+RUN set -e; for b in anvil/lanes/*/build.sh; do [ -f "$b" ] && sh "$b"; done || true
+
 ENTRYPOINT ["/razor/target/release/anvil-harness"]

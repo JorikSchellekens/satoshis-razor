@@ -1,0 +1,6 @@
+{
+  "challenge": "crc64",
+  "native": "crc64-byte-c",
+  "language": "C",
+  "note": "256-entry byte table, slicing by one; built by build.sh, entered without touching the harness"
+}

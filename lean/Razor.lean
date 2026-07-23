@@ -18,6 +18,10 @@ import Razor.Anvil.Sort8Swar
 import Razor.Anvil.Sort8Spec
 import Razor.Anvil.Clz
 import Razor.Anvil.Bitrev
+import Razor.Anvil.Siphash
+import Razor.Anvil.Crc64
+import Razor.Anvil.Morton
+import Razor.Anvil.Sbox
 import Razor.Sorting.Implications
 import Razor.Sorting.Repin
 import Razor.Frontier.ErdosStraus

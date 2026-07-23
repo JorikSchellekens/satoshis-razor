@@ -1604,10 +1604,17 @@ fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed_flag: 
     };
     let harness = root.join("target/release/anvil-harness");
     for entry in ch.entries.iter().filter(|e| e.admitted) {
-        let wasm = root.join(format!(
+        // A lane compiled into the harness has its wasm build under
+        // target/; an external lane (anvil/lanes/<name>/lane.json) may
+        // ship its own wasm artifact next to its manifest instead.
+        let lane_dir = root.join("anvil/lanes").join(&entry.impl_name);
+        let external_wasm = std::fs::read_to_string(lane_dir.join("lane.json")).ok()
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+            .and_then(|v| v["wasm"].as_str().map(|w| lane_dir.join(w)));
+        let wasm = external_wasm.unwrap_or_else(|| root.join(format!(
             "target/wasm32-unknown-unknown/release/{}.wasm",
             entry.impl_name.replace('-', "_")
-        ));
+        )));
         // Differential certificate first: an impl that disagrees with the
         // executable spec never gets a score (belt and braces on top of the proof).
         let check = run_json(&harness, &["check", "--impl", &entry.impl_name, "--seed", &seed.to_string(), "--iters", &iters.to_string()]);

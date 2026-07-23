@@ -55,6 +55,10 @@ const CHALLENGES: &[Challenge] = &[
     Challenge { name: "clz", map: |x| x >> (x & 63), reference: clz_naive::solve },
     Challenge { name: "bitrev", map: |x| x, reference: bitrev_naive::solve },
     Challenge { name: "evm", map: |x| x, reference: evm_ref::solve },
+    Challenge { name: "siphash13", map: |x| x, reference: siphash13_ref::solve },
+    Challenge { name: "crc64", map: |x| x, reference: crc64_bitwise::solve },
+    Challenge { name: "morton", map: |x| x, reference: morton_naive::solve },
+    Challenge { name: "sbox", map: |x| x, reference: sbox_scalar::solve },
 ];
 
 const IMPLS: &[Impl] = &[
@@ -88,6 +92,30 @@ const IMPLS: &[Impl] = &[
     cpu("bitrev-swar", "bitrev", bitrev_swar::solve),
     cpu("evm-ref", "evm", evm_ref::solve),
     cpu("evm-tos", "evm", evm_tos::solve),
+    cpu("siphash13-ref", "siphash13", siphash13_ref::solve),
+    Impl {
+        name: "siphash13-stream",
+        challenge: "siphash13",
+        solve: siphash13_stream::solve,
+        batch: Some(siphash13_stream::bench_batch),
+        many: Some(siphash13_stream::solve_many),
+        avail: || true,
+    },
+    cpu("crc64-bitwise", "crc64", crc64_bitwise::solve),
+    cpu("crc64-nibble", "crc64", crc64_nibble::solve),
+    cpu("morton-naive", "morton", morton_naive::solve),
+    cpu("morton-swar", "morton", morton_swar::solve),
+    Impl {
+        name: "morton-pdep",
+        challenge: "morton",
+        solve: morton_pdep::solve,
+        batch: None,
+        many: None,
+        avail: morton_pdep::available,
+    },
+    cpu("sbox-scalar", "sbox", sbox_scalar::solve),
+    cpu("sbox-table", "sbox", sbox_table::solve),
+    cpu("sbox-swar", "sbox", sbox_swar::solve),
 ];
 
 fn challenge(name: &str) -> &'static Challenge {
@@ -97,11 +125,102 @@ fn challenge(name: &str) -> &'static Challenge {
     })
 }
 
-fn implementation(name: &str) -> &'static Impl {
-    IMPLS.iter().find(|i| i.name == name).unwrap_or_else(|| {
-        eprintln!("unknown impl: {name}");
-        std::process::exit(2);
+fn implementation(name: &str) -> Option<&'static Impl> {
+    IMPLS.iter().find(|i| i.name == name)
+}
+
+/// An external lane: an implementation that is not compiled into this
+/// harness. It lives in `anvil/lanes/<name>/lane.json` and brings its own
+/// artifacts - a native executable that speaks the harness's own protocol
+/// (`native --seed S --iters I --repeats R` printing the score JSON, and
+/// `many --seed S --iters I` writing one little-endian u64 output per
+/// input word to stdout), and/or a wasm build with the standard
+/// `bench`/`solve_one` exports. That is the whole contract, so a lane can
+/// be written in any language; the differential check and the admission
+/// proof gate it exactly like a built-in lane.
+struct ExternalLane {
+    challenge: String,
+    native: Option<std::path::PathBuf>,
+    wasm: Option<std::path::PathBuf>,
+    arch: Option<String>,
+}
+
+impl ExternalLane {
+    /// The native artifact, if it can run on this machine. A lane that
+    /// declares an `arch` (hand-written assembly, ISA intrinsics) only
+    /// offers its native build on that architecture; elsewhere it falls
+    /// back to its wasm build or reports itself not measurable.
+    fn native_here(&self) -> Option<&std::path::PathBuf> {
+        match &self.arch {
+            Some(a) if a != std::env::consts::ARCH => None,
+            _ => self.native.as_ref(),
+        }
+    }
+}
+
+/// Where external lanes live: `anvil/lanes` under the current directory,
+/// or under the repository the harness binary was built in (so a rig
+/// runner invoked from an arbitrary working directory still finds them).
+fn lanes_dir() -> Option<std::path::PathBuf> {
+    let local = std::path::PathBuf::from("anvil/lanes");
+    if local.is_dir() {
+        return Some(local);
+    }
+    let exe = std::env::current_exe().ok()?;
+    let repo = exe.parent()?.parent()?.parent()?;
+    let d = repo.join("anvil/lanes");
+    d.is_dir().then_some(d)
+}
+
+fn external(name: &str) -> Option<ExternalLane> {
+    let dir = lanes_dir()?.join(name);
+    let raw = std::fs::read_to_string(dir.join("lane.json")).ok()?;
+    let v: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let path_of = |key: &str| {
+        v.get(key)
+            .and_then(|p| p.as_str())
+            .map(|p| dir.join(p))
+            .filter(|p| p.exists())
+    };
+    Some(ExternalLane {
+        challenge: v.get("challenge")?.as_str()?.to_string(),
+        native: path_of("native"),
+        wasm: path_of("wasm"),
+        arch: v.get("arch").and_then(|a| a.as_str()).map(str::to_string),
     })
+}
+
+fn unknown_impl(name: &str) -> ! {
+    eprintln!("unknown impl: {name} (not built in, and no anvil/lanes/{name}/lane.json)");
+    std::process::exit(2);
+}
+
+/// Run an external lane's `many` entry (or its wasm `solve_one`) over the
+/// input stream.
+fn external_outputs(ext: &ExternalLane, inputs: &[u64], seed: u64, iters: u64) -> Vec<u64> {
+    if let Some(exe) = ext.native_here() {
+        let out = std::process::Command::new(exe)
+            .args(["many", "--seed", &seed.to_string(), "--iters", &iters.to_string()])
+            .output()
+            .unwrap_or_else(|e| {
+                eprintln!("external lane failed to run: {e}");
+                std::process::exit(2);
+            });
+        if !out.status.success() {
+            eprintln!("external lane 'many' failed: {}", String::from_utf8_lossy(&out.stderr));
+            std::process::exit(2);
+        }
+        return out
+            .stdout
+            .chunks_exact(8)
+            .map(|c| u64::from_le_bytes(c.try_into().unwrap()))
+            .collect();
+    }
+    if let Some(wasm) = &ext.wasm {
+        return run_wasm_many(wasm.to_str().unwrap(), inputs);
+    }
+    eprintln!("external lane has neither a native executable nor a wasm build");
+    std::process::exit(2);
 }
 
 fn arg(args: &[String], flag: &str) -> Option<String> {
@@ -129,10 +248,38 @@ fn main() {
         }
         "native" => {
             let name = arg(&args, "--impl").expect("--impl <name>");
-            let imp = implementation(&name);
+            let Some(imp) = implementation(&name) else {
+                // External lane: its executable speaks this same protocol,
+                // so the score JSON is its own report, passed through.
+                let Some(ext) = external(&name) else { unknown_impl(&name) };
+                let Some(exe) = ext.native_here().cloned() else {
+                    let why = match &ext.arch {
+                        Some(a) if a != std::env::consts::ARCH => format!(
+                            "this lane's native build targets {a}; this machine is {}",
+                            std::env::consts::ARCH
+                        ),
+                        _ => "this lane has no native build for this machine".to_string(),
+                    };
+                    println!("{{\"skip\":\"{why}\"}}");
+                    return;
+                };
+                let repeats = arg_u64(&args, "--repeats", 9);
+                let out = std::process::Command::new(&exe)
+                    .args(["native", "--seed", &seed.to_string(), "--iters", &iters.to_string(),
+                           "--repeats", &repeats.to_string()])
+                    .output()
+                    .unwrap_or_else(|e| { eprintln!("external lane failed to run: {e}"); std::process::exit(2) });
+                let text = String::from_utf8_lossy(&out.stdout);
+                let line = text.lines().find(|l| l.trim_start().starts_with('{')).unwrap_or_else(|| {
+                    eprintln!("external lane printed no JSON: {}", String::from_utf8_lossy(&out.stderr));
+                    std::process::exit(2)
+                });
+                println!("{}", line.trim());
+                return;
+            };
             let ch = challenge(imp.challenge);
             if !(imp.avail)() {
-                println!("{{\"skip\":\"this lane needs hardware this machine does not have (no GPU adapter)\"}}");
+                println!("{{\"skip\":\"this lane needs hardware this machine does not have (a GPU adapter, or an x86-64 CPU instruction)\"}}");
                 return;
             }
             let repeats = arg_u64(&args, "--repeats", 9) as usize;
@@ -162,17 +309,35 @@ fn main() {
         }
         "check" => {
             let name = arg(&args, "--impl").expect("--impl <name>");
-            let imp = implementation(&name);
-            let ch = challenge(imp.challenge);
-            if !(imp.avail)() {
-                println!("{{\"skip\":\"this lane needs hardware this machine does not have (no GPU adapter)\"}}");
-                return;
+            let (ch, outputs, inputs);
+            match implementation(&name) {
+                Some(imp) => {
+                    ch = challenge(imp.challenge);
+                    if !(imp.avail)() {
+                        println!("{{\"skip\":\"this lane needs hardware this machine does not have (a GPU adapter, or an x86-64 CPU instruction)\"}}");
+                        return;
+                    }
+                    inputs = anvil_abi::input_stream(seed, iters, ch.map).collect::<Vec<u64>>();
+                    outputs = match imp.many {
+                        Some(m) => m(&inputs),
+                        None => inputs.iter().map(|&x| (imp.solve)(x)).collect(),
+                    };
+                }
+                None => {
+                    let Some(ext) = external(&name) else { unknown_impl(&name) };
+                    if ext.native_here().is_none() && ext.wasm.is_none() {
+                        println!("{{\"skip\":\"this lane cannot run on this machine (its native build is architecture-specific and it has no wasm build)\"}}");
+                        return;
+                    }
+                    ch = challenge(&ext.challenge);
+                    inputs = anvil_abi::input_stream(seed, iters, ch.map).collect::<Vec<u64>>();
+                    outputs = external_outputs(&ext, &inputs, seed, iters);
+                    if outputs.len() != inputs.len() {
+                        eprintln!("external lane returned {} outputs for {} inputs", outputs.len(), inputs.len());
+                        std::process::exit(2);
+                    }
+                }
             }
-            let inputs: Vec<u64> = anvil_abi::input_stream(seed, iters, ch.map).collect();
-            let outputs: Vec<u64> = match imp.many {
-                Some(m) => m(&inputs),
-                None => inputs.iter().map(|&x| (imp.solve)(x)).collect(),
-            };
             let mut mismatches = 0u64;
             let mut first: Option<u64> = None;
             for (&x, &y) in inputs.iter().zip(outputs.iter()) {
@@ -196,6 +361,20 @@ fn main() {
             std::process::exit(2);
         }
     }
+}
+
+/// Drive a wasm lane's `solve_one` export over explicit inputs - the
+/// differential path for an external lane that ships only a wasm build.
+fn run_wasm_many(path: &str, inputs: &[u64]) -> Vec<u64> {
+    use wasmtime::{Engine, Instance, Module, Store};
+    let engine = Engine::default();
+    let module = Module::from_file(&engine, path).expect("load wasm");
+    let mut store = Store::new(&engine, ());
+    let instance = Instance::new(&mut store, &module, &[]).expect("instantiate");
+    let solve_one = instance
+        .get_typed_func::<u64, u64>(&mut store, "solve_one")
+        .expect("solve_one export");
+    inputs.iter().map(|&x| solve_one.call(&mut store, x).expect("solve_one call")).collect()
 }
 
 fn run_wasm(path: &str, seed: u64, iters: u64) -> (u64, u64) {

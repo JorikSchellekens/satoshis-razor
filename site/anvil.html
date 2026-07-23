@@ -10,6 +10,17 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/razor.css">
+<style>
+  /* Category headers between the challenge card groups. */
+  #challenges .cathead {
+    margin: 1.4rem 0 .6rem;
+    font-size: .85rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  #challenges .cathead:first-child { margin-top: 0; }
+</style>
 </head>
 <body>
 
@@ -35,7 +46,7 @@
 <section>
   <div class="wrap">
     <div class="sec-head"><h3>Challenges</h3><span class="note">♛ current crown holders · click a challenge for its boards, proofs, and history</span></div>
-    <div class="cards" id="challenges"></div>
+    <div id="challenges"></div>
   </div>
 </section>
 
@@ -117,11 +128,16 @@ loadData(S => {
     ...(totalPool ? [[totalPool.toLocaleString(), 'credits pooled']] : []),
   ].map(([n, l]) => `<div class="stat"><b>${n}</b>${l}</div>`).join('');
 
-  // ── challenge cards ────────────────────────────────────────────
+  // ── challenge cards, grouped by category ──────────────────────
   // One scannable card per challenge: who wears the crowns, how much has
   // been measured, and a sparkline of the most-contested board. All the
-  // detail lives on the challenge's own page.
-  $('challenges').innerHTML = chals.map(c => {
+  // detail lives on the challenge's own page. A challenge's category is
+  // an ordinary tag event on the log (razor tag --target ANV-xxx --tag
+  // cryptography); the order below is editorial.
+  const CATEGORIES = ['cryptography', 'checksums', 'sorting', 'bit-manipulation',
+    'arithmetic', 'interpreters'];
+  const categoryOf = (c) => tagsOf(S, c.id).map(t => t.tag).find(t => CATEGORIES.includes(t));
+  const card = c => {
     const boards = boardsOf(c);
     const boardKeys = Object.keys(boards).sort(boardOrder);
     const mine = history.filter(b => b.c.id === c.id);
@@ -161,7 +177,15 @@ loadData(S => {
         `${pending ? ` · <span style="color:var(--open)">${pending} lane${pending > 1 ? 's' : ''} awaiting proof</span>` : ''}` +
         `${mine.length ? ` · last run ${fmtDayShort(Math.max(...mine.map(b => b.ts)))}` : ''}</span></div>
     </div></a>`;
-  }).join('') || `<p class="lede">No challenges registered on this dataset yet - the boards are open.
+  };
+  const groups = [...CATEGORIES, null].map(cat => ({
+    cat,
+    cs: chals.filter(c => categoryOf(c) === (cat ?? undefined) || (cat === null && !categoryOf(c))),
+  })).filter(g => g.cs.length);
+  $('challenges').innerHTML = groups.map(g =>
+    `<h3 class="cathead">${esc(g.cat || 'uncategorized')}<span style="color:var(--muted);font-weight:normal"> · ${g.cs.length}</span></h3>` +
+    `<div class="cards">${g.cs.map(card).join('')}</div>`
+  ).join('') || `<p class="lede">No challenges registered on this dataset yet - the boards are open.
     To put the first one here: write a reference implementation, then
     <code>razor challenge --id ... --title ... --spec-impl ... --obligation ...</code>
     (<a href="/get-started">get started</a>).</p>`;

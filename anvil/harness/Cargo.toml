@@ -22,4 +22,15 @@ bitrev-naive = { path = "../impls/bitrev-naive" }
 bitrev-swar = { path = "../impls/bitrev-swar" }
 evm-ref = { path = "../impls/evm-ref" }
 evm-tos = { path = "../impls/evm-tos" }
+siphash13-ref = { path = "../impls/siphash13-ref" }
+siphash13-stream = { path = "../impls/siphash13-stream" }
+crc64-bitwise = { path = "../impls/crc64-bitwise" }
+crc64-nibble = { path = "../impls/crc64-nibble" }
+morton-naive = { path = "../impls/morton-naive" }
+morton-swar = { path = "../impls/morton-swar" }
+morton-pdep = { path = "../impls/morton-pdep" }
+sbox-scalar = { path = "../impls/sbox-scalar" }
+sbox-table = { path = "../impls/sbox-table" }
+sbox-swar = { path = "../impls/sbox-swar" }
 wasmtime = { version = "27", default-features = false, features = ["cranelift", "runtime"] }
+serde_json = "1"

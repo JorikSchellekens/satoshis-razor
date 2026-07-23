@@ -42,10 +42,21 @@ dependencies = [
  "bitrev-swar",
  "clz-branchless",
  "clz-naive",
+ "crc64-bitwise",
+ "crc64-nibble",
  "evm-ref",
  "evm-tos",
+ "morton-naive",
+ "morton-pdep",
+ "morton-swar",
  "popcount-naive",
  "popcount-swar",
+ "sbox-scalar",
+ "sbox-swar",
+ "sbox-table",
+ "serde_json",
+ "siphash13-ref",
+ "siphash13-stream",
  "sort8-batcher",
  "sort8-bubble",
  "sort8-gpu",
@@ -620,6 +631,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9481c1c90cbf2ac953f07c8d4a58aa3945c425b7185c9154d67a65e4230da511"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "crc64-bitwise"
+version = "0.1.0"
+dependencies = [
+ "anvil-abi",
+]
+
+[[package]]
+name = "crc64-nibble"
+version = "0.1.0"
+dependencies = [
+ "anvil-abi",
 ]
 
 [[package]]
@@ -1304,6 +1329,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "morton-naive"
+version = "0.1.0"
+dependencies = [
+ "anvil-abi",
+]
+
+[[package]]
+name = "morton-pdep"
+version = "0.1.0"
+dependencies = [
+ "anvil-abi",
+]
+
+[[package]]
+name = "morton-swar"
+version = "0.1.0"
+dependencies = [
+ "anvil-abi",
+]
+
+[[package]]
 name = "naga"
 version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1704,6 +1750,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
+name = "sbox-scalar"
+version = "0.1.0"
+dependencies = [
+ "anvil-abi",
+]
+
+[[package]]
+name = "sbox-swar"
+version = "0.1.0"
+dependencies = [
+ "anvil-abi",
+]
+
+[[package]]
+name = "sbox-table"
+version = "0.1.0"
+dependencies = [
+ "anvil-abi",
+]
+
+[[package]]
 name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1783,6 +1850,27 @@ checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
 dependencies = [
  "rand_core",
 ]
+
+[[package]]
+name = "siphash13-ref"
+version = "0.1.0"
+dependencies = [
+ "anvil-abi",
+ "siphasher",
+]
+
+[[package]]
+name = "siphash13-stream"
+version = "0.1.0"
+dependencies = [
+ "anvil-abi",
+]
+
+[[package]]
+name = "siphasher"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ee5873ec9cce0195efcb7a4e9507a04cd49aec9c83d0389df45b1ef7ba2e649"
 
 [[package]]
 name = "slab"

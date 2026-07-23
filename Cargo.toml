@@ -22,6 +22,16 @@ members = [
     "anvil/impls/evm-common",
     "anvil/impls/evm-ref",
     "anvil/impls/evm-tos",
+    "anvil/impls/siphash13-ref",
+    "anvil/impls/siphash13-stream",
+    "anvil/impls/crc64-bitwise",
+    "anvil/impls/crc64-nibble",
+    "anvil/impls/morton-naive",
+    "anvil/impls/morton-swar",
+    "anvil/impls/morton-pdep",
+    "anvil/impls/sbox-scalar",
+    "anvil/impls/sbox-table",
+    "anvil/impls/sbox-swar",
 ]
 
 [workspace.package]
