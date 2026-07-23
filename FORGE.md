@@ -1,6 +1,6 @@
 # The forge
 
-Speed leaderboards for software that is proven correct: a forge for making "fast" and
+Speed leaderboards for software that is proven correct. The goal is to make "fast" and
 "formally verified" describe the same programs. (Formerly "Satoshi's Anvil" - the
 `anvil/` directory, the `anvil-harness` binary, the `Razor.Anvil` Lean modules, and
 the `anvil_submit` log event keep the old name, because the append-only log and the
