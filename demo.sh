@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end demonstration of Satoshi's Razor + Anvil + the sorry funnel.
+# End-to-end demonstration of Satoshi's Razor + the forge + the sorry funnel.
 # Every step below is a real registry event; every verification is a real
 # Lean kernel check; every score is a real measurement.
 set -euo pipefail
@@ -298,7 +298,7 @@ step "The frontier is exportable as proving targets (miniF2F-shaped JSONL)"
 $RAZOR export-benchmark | head -2
 
 # ─────────────────────────────────────────────────────────────────────
-step "ACT III - The Anvil: verified implementations compete on speed"
+step "ACT III - The forge: verified implementations compete on speed"
 # ─────────────────────────────────────────────────────────────────────
 
 step "Benchmark rigs: the deterministic referee, plus hardware the sponsor brings"
@@ -312,7 +312,7 @@ $RAZOR challenge --id ANV-001 --title "popcount(u64)" --spec-impl popcount-naive
   --obligation "∀ x : BitVec 64, model x = Razor.Anvil.popNaive x" --iters 20000
 $RAZOR fund --target ANV-001 --amount 5000 --funder bitboard-labs
 $RAZOR fund --target ANV-001 --amount 3000 --funder bitboard-labs --arch aarch64-apple-m
-$RAZOR anvil-submit --id ANV-001-ref --challenge ANV-001 --impl popcount-naive \
+$RAZOR forge-submit --id ANV-001-ref --challenge ANV-001 --impl popcount-naive \
   --solver spec-author --proof-decl ""
 $RAZOR sorry --id ANV-001-SWAR-PROOF \
   --title "popcount-swar refines the popcount spec" \
@@ -320,7 +320,7 @@ $RAZOR sorry --id ANV-001-SWAR-PROOF \
   --allow-axiom "bv_decide" --allow-axiom "Lean.ofReduceBool"
 $RAZOR submit --id SUB-ANV1 --sorry ANV-001-SWAR-PROOF --solver judy --decl Razor.Anvil.swar_refines
 $RAZOR verify --submission SUB-ANV1
-$RAZOR anvil-submit --id ANV-001-swar --challenge ANV-001 --impl popcount-swar \
+$RAZOR forge-submit --id ANV-001-swar --challenge ANV-001 --impl popcount-swar \
   --solver judy --proof-decl Razor.Anvil.swar_refines --refinement-sorry ANV-001-SWAR-PROOF
 $RAZOR bench --challenge ANV-001 --rig wasm-referee
 $RAZOR bench --challenge ANV-001 --rig m4-station
@@ -329,14 +329,14 @@ step "ANV-002 sum(1..n): closed form beats the loop, admission by algebraic proo
 $RAZOR challenge --id ANV-002 --title "sum(1..n)" --spec-impl sum-loop \
   --obligation "∀ n : Nat, model n = Razor.Anvil.sumLoopModel n (valid: n < 2^32)" --iters 20000
 $RAZOR fund --target ANV-002 --amount 5000 --funder gauss-capital
-$RAZOR anvil-submit --id ANV-002-ref --challenge ANV-002 --impl sum-loop \
+$RAZOR forge-submit --id ANV-002-ref --challenge ANV-002 --impl sum-loop \
   --solver spec-author --proof-decl ""
 $RAZOR sorry --id ANV-002-CLOSED-PROOF \
   --title "sum-closed refines the sum spec" \
   --lean-type "∀ n : Nat, Razor.Anvil.sumClosedModel n = Razor.Anvil.sumLoopModel n"
 $RAZOR submit --id SUB-ANV2 --sorry ANV-002-CLOSED-PROOF --solver kevin --decl Razor.Anvil.closed_refines
 $RAZOR verify --submission SUB-ANV2
-$RAZOR anvil-submit --id ANV-002-closed --challenge ANV-002 --impl sum-closed \
+$RAZOR forge-submit --id ANV-002-closed --challenge ANV-002 --impl sum-closed \
   --solver kevin --proof-decl Razor.Anvil.closed_refines --refinement-sorry ANV-002-CLOSED-PROOF
 $RAZOR bench --challenge ANV-002 --rig wasm-referee
 $RAZOR bench --challenge ANV-002 --rig m4-station
@@ -345,7 +345,7 @@ step "ANV-003 sort 8 bytes: a 19-comparator network, admission by SAT - nobody h
 $RAZOR challenge --id ANV-003 --title "sort the 8 bytes of a u64" --spec-impl sort8-bubble \
   --obligation "∀ x : BitVec 64, model x = Razor.Anvil.sortBubble x" --iters 20000
 $RAZOR fund --target ANV-003 --amount 4000 --funder bitboard-labs
-$RAZOR anvil-submit --id ANV-003-ref --challenge ANV-003 --impl sort8-bubble \
+$RAZOR forge-submit --id ANV-003-ref --challenge ANV-003 --impl sort8-bubble \
   --solver spec-author --proof-decl ""
 $RAZOR sorry --id ANV-003-NET-PROOF \
   --title "the 19-comparator sorting network refines the bubble-sort spec" \
@@ -353,7 +353,7 @@ $RAZOR sorry --id ANV-003-NET-PROOF \
   --allow-axiom "bv_decide" --allow-axiom "Lean.ofReduceBool"
 $RAZOR submit --id SUB-ANV3 --sorry ANV-003-NET-PROOF --solver judy --decl Razor.Anvil.network_refines
 $RAZOR verify --submission SUB-ANV3
-$RAZOR anvil-submit --id ANV-003-net --challenge ANV-003 --impl sort8-network \
+$RAZOR forge-submit --id ANV-003-net --challenge ANV-003 --impl sort8-network \
   --solver judy --proof-decl Razor.Anvil.network_refines --refinement-sorry ANV-003-NET-PROOF
 
 step "a GPU lane joins ANV-003: same proven network, run as a compute shader over the whole batch"
@@ -362,7 +362,7 @@ step "a GPU lane joins ANV-003: same proven network, run as a compute shader ove
 # lane too; the differential check runs it against the executable spec on
 # the full input stream. On a machine with no GPU the lane is simply
 # reported as not measurable - nothing fails.
-$RAZOR anvil-submit --id ANV-003-gpu --challenge ANV-003 --impl sort8-gpu \
+$RAZOR forge-submit --id ANV-003-gpu --challenge ANV-003 --impl sort8-gpu \
   --solver gus --proof-decl Razor.Anvil.network_refines --refinement-sorry ANV-003-NET-PROOF
 $RAZOR bench --challenge ANV-003 --rig wasm-referee
 $RAZOR bench --challenge ANV-003 --rig m4-station
@@ -375,7 +375,7 @@ step "ANV-004 count leading zeros: the naive scan is the spec, binary search is 
 $RAZOR challenge --id ANV-004 --title "count leading zeros (u64)" --spec-impl clz-naive \
   --obligation "∀ x : BitVec 64, model x = Razor.Anvil.clzNaive x" --iters 20000
 $RAZOR fund --target ANV-004 --amount 2500 --funder bitboard-labs
-$RAZOR anvil-submit --id ANV-004-ref --challenge ANV-004 --impl clz-naive \
+$RAZOR forge-submit --id ANV-004-ref --challenge ANV-004 --impl clz-naive \
   --solver spec-author --proof-decl ""
 $RAZOR sorry --id ANV-004-BIN-PROOF \
   --title "branchless binary search refines the clz spec" \
@@ -383,7 +383,7 @@ $RAZOR sorry --id ANV-004-BIN-PROOF \
   --allow-axiom "bv_decide" --allow-axiom "Lean.ofReduceBool"
 $RAZOR submit --id SUB-ANV4 --sorry ANV-004-BIN-PROOF --solver heidi --decl Razor.Anvil.clz_binary_refines
 $RAZOR verify --submission SUB-ANV4
-$RAZOR anvil-submit --id ANV-004-bin --challenge ANV-004 --impl clz-branchless \
+$RAZOR forge-submit --id ANV-004-bin --challenge ANV-004 --impl clz-branchless \
   --solver heidi --proof-decl Razor.Anvil.clz_binary_refines --refinement-sorry ANV-004-BIN-PROOF
 $RAZOR bench --challenge ANV-004 --rig wasm-referee
 $RAZOR bench --challenge ANV-004 --rig m4-station
@@ -392,7 +392,7 @@ step "ANV-005 reverse the bits of a u64: 64 single-bit steps vs six swap layers"
 $RAZOR challenge --id ANV-005 --title "reverse the bits of a u64" --spec-impl bitrev-naive \
   --obligation "∀ x : BitVec 64, model x = Razor.Anvil.revNaive x" --iters 20000
 $RAZOR fund --target ANV-005 --amount 2500 --funder bitboard-labs
-$RAZOR anvil-submit --id ANV-005-ref --challenge ANV-005 --impl bitrev-naive \
+$RAZOR forge-submit --id ANV-005-ref --challenge ANV-005 --impl bitrev-naive \
   --solver spec-author --proof-decl ""
 $RAZOR sorry --id ANV-005-SWAR-PROOF \
   --title "the six swap layers refine the bit-reversal spec" \
@@ -400,7 +400,7 @@ $RAZOR sorry --id ANV-005-SWAR-PROOF \
   --allow-axiom "bv_decide" --allow-axiom "Lean.ofReduceBool"
 $RAZOR submit --id SUB-ANV5 --sorry ANV-005-SWAR-PROOF --solver judy --decl Razor.Anvil.rev_swar_refines
 $RAZOR verify --submission SUB-ANV5
-$RAZOR anvil-submit --id ANV-005-swar --challenge ANV-005 --impl bitrev-swar \
+$RAZOR forge-submit --id ANV-005-swar --challenge ANV-005 --impl bitrev-swar \
   --solver judy --proof-decl Razor.Anvil.rev_swar_refines --refinement-sorry ANV-005-SWAR-PROOF
 $RAZOR bench --challenge ANV-005 --rig wasm-referee
 $RAZOR bench --challenge ANV-005 --rig m4-station
@@ -409,14 +409,14 @@ step "ANV-100 EVM interpreter: the submission is admitted - and loses anyway"
 $RAZOR challenge --id ANV-100 --title "EVM interpreter (64-bit demo words)" --spec-impl evm-ref \
   --obligation "∀ p gas stack, model p gas stack = Razor.Evm.execSpec p gas stack" --iters 5000
 $RAZOR fund --target ANV-100 --amount 6000 --funder rollup-collective
-$RAZOR anvil-submit --id ANV-100-ref --challenge ANV-100 --impl evm-ref \
+$RAZOR forge-submit --id ANV-100-ref --challenge ANV-100 --impl evm-ref \
   --solver spec-author --proof-decl ""
 $RAZOR sorry --id ANV-100-TOS-PROOF \
   --title "register-cached EVM interpreter refines the spec" \
   --lean-type "∀ (p : List Razor.Evm.Op) (gas : UInt64) (tos : Option UInt64) (rest : List UInt64), (tos = none → rest = []) → Razor.Evm.execTos p gas tos rest = Razor.Evm.execSpec p gas (Razor.Evm.stackOf tos rest)"
 $RAZOR submit --id SUB-ANV100 --sorry ANV-100-TOS-PROOF --solver leo --decl Razor.Evm.tos_refines
 $RAZOR verify --submission SUB-ANV100
-$RAZOR anvil-submit --id ANV-100-tos --challenge ANV-100 --impl evm-tos \
+$RAZOR forge-submit --id ANV-100-tos --challenge ANV-100 --impl evm-tos \
   --solver leo --proof-decl Razor.Evm.tos_refines --refinement-sorry ANV-100-TOS-PROOF
 $RAZOR bench --challenge ANV-100 --rig wasm-referee
 $RAZOR bench --challenge ANV-100 --rig m4-station

@@ -6,7 +6,7 @@ const NAV = [
   ['/', 'overview'],
   ['/frontier', 'frontier'],
   ['/how', 'how it works'],
-  ['/anvil', 'the anvil'],
+  ['/forge', 'the forge'],
   ['/people', 'people'],
   ['/get-started', 'get started'],
 ];
@@ -18,7 +18,7 @@ const REPO = 'https://github.com/jorikschellekens/satoshis-razor';
 function herePath() {
   const FILES = {
     'index.html': '/', 'frontier.html': '/frontier', 'how.html': '/how',
-    'anvil.html': '/anvil', 'zk.html': '/zk', 'people.html': '/people',
+    'forge.html': '/forge', 'zk.html': '/zk', 'people.html': '/people',
     'download.html': '/get-started', 'propose.html': '/propose',
   };
   const last = location.pathname.split('/').pop();

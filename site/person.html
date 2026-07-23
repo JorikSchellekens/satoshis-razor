@@ -88,7 +88,7 @@ loadData(S => {
     p.open_sorries_authored.length ? ['waiting on', p.open_sorries_authored.map(sorryLink).join(', ') + ' <span style="color:var(--muted)">(open sorries under their proposals)</span>'] : null,
     (p.curated || []).length ? ['curates', p.curated.map(linkTarget).join(', ') + ` <span style="color:var(--muted)">(each pick counts with weight ${1 + p.solved})</span>`] : null,
     p.rigs.length ? ['brings hardware', p.rigs.map(esc).join(', ')] : null,
-    p.lanes.length ? ['anvil lanes', p.lanes.map(([ch, imp, board, score, unit, leader]) =>
+    p.lanes.length ? ['forge lanes', p.lanes.map(([ch, imp, board, score, unit, leader]) =>
       `${leader ? '<span style="color:var(--gold)">♛</span> leads' : 'runs'} ${chalLink(ch)} with ${esc(imp)} on [${esc(board)}] — best ${score.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${esc(unit)}`).join('<br>')] : null,
   ].filter(Boolean);
   $('record').innerHTML = rows.map(([k, v]) => `<div class="k">${k}</div><div class="v">${v}</div>`).join('');

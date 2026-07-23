@@ -1,8 +1,15 @@
-# Satoshi's Anvil
+# The forge
+
+Speed leaderboards for software that is proven correct: a forge for making "fast" and
+"formally verified" describe the same programs. (Formerly "Satoshi's Anvil" - the
+`anvil/` directory, the `anvil-harness` binary, the `Razor.Anvil` Lean modules, and
+the `anvil_submit` log event keep the old name, because the append-only log and the
+pinned proofs reference them; `razor anvil-submit` still works as an alias of
+`razor forge-submit`.)
 
 ## Running today
 
-Live at [razor.mempoolsurfer.com/anvil.html](https://razor.mempoolsurfer.com/anvil.html):
+Live at [razor.mempoolsurfer.com/forge](https://razor.mempoolsurfer.com/forge):
 ten challenges (popcount, sum, sort8, count-leading-zeros, bit-reversal, a small EVM
 interpreter, SipHash-1-3, CRC-64/XZ, Morton interleave, and the AES S-box), every
 contender admitted by a kernel-checked refinement proof, scored on the deterministic
@@ -17,7 +24,7 @@ The crypto challenges carry their own stories: the CRC and S-box table lanes'
 proofs kernel-check every memoized table entry against the from-the-definition
 spec, and the constant-time S-box lane puts a measured price on closing the
 cache-timing side channel. Scores are log events signed by the rig owner;
-`razor challenge`, `razor anvil-submit`, `razor rig`, and `razor bench --rig` all
+`razor challenge`, `razor forge-submit`, `razor rig`, and `razor bench --rig` all
 publish to the live registry.
 
 Challenges are grouped by category on the index - cryptography, checksums,
@@ -41,14 +48,14 @@ implementations compete on execution performance per target architecture.
 Correctness is a machine-checked admission requirement; speed is the score.
 
 Sister project to [Satoshi's Razor](README.md). Razor coordinates the search for
-proofs; the Anvil coordinates the search for fast implementations that are proven
+proofs; the forge coordinates the search for fast implementations that are proven
 correct.
 
 ## One-paragraph pitch
 
 Today, if you want a fast AND correct implementation of a cryptographic primitive, a
 codec, a serialization format, or a numerical kernel, you choose between audited-but-slow
-reference code and fast-but-trust-me assembly. Satoshi's Anvil publishes Lean
+reference code and fast-but-trust-me assembly. The forge publishes Lean
 specifications as an open frontier of implementation challenges, and anyone - human or
 AI - submits a Rust implementation together with a Lean proof that the implementation
 refines the spec. Submissions that pass verification enter a per-architecture
@@ -139,7 +146,7 @@ re-run the pipeline and slash a bad attestation.
 ## Measurement: the hard part
 
 Correctness is machine-checkable; wall-clock performance is a physical measurement and
-therefore an oracle problem. The Anvil is honest about this and offers three tiers with
+therefore an oracle problem. The forge is honest about this and offers three tiers with
 different trust models. A challenge declares which tier(s) it uses per architecture.
 
 ### Tier 1 - Deterministic cost model (trust-minimized, default)
@@ -215,7 +222,7 @@ pool exists, it streams rather than pays lump-sum:
 - **Implementer**: submits code + proof. Humans, teams, or AI search pipelines.
 - **Spec author**: writing a good Lean spec is skilled work; the platform supports
   spec-authoring bounties (a Razor-style task: "formalize RFC 8439 in Lean") feeding
-  directly into Anvil challenges. This is the natural bridge between the two platforms.
+  directly into forge challenges. This is the natural bridge between the two platforms.
 - **Runner/verifier operators**: run Tier 2/3 measurement and optimistic verification,
   staked and slashable.
 
@@ -265,7 +272,7 @@ Chosen so the spec is statable today and the performance market is real:
    but refinement proofs through Aeneas for float code are research-grade; declared
    out of scope for v1).
 5. **Chain infrastructure eating its own tail**: the ZK verifier, the Lean checker
-   kernel, the simulator of Tier 1 itself - each can be posted as an Anvil challenge.
+   kernel, the simulator of Tier 1 itself - each can be posted as a forge challenge.
 
 ## Architecture (system components)
 
@@ -324,7 +331,7 @@ Chosen so the spec is statable today and the performance market is real:
 
 ## Relationship to Satoshi's Razor
 
-| | Razor | Anvil |
+| | Razor | The forge |
 |---|---|---|
 | Competition object | Proof of a statement | Implementation of a spec |
 | Winning condition | First valid proof | Fastest admitted implementation, per architecture |
@@ -335,5 +342,5 @@ Chosen so the spec is statable today and the performance market is real:
 
 Shared infrastructure: Lean package registry, proof verification (Yatima/ZK), artifact
 storage, identity/KYC, frontend proof explorer. A Razor bounty ("formalize this RFC")
-naturally feeds an Anvil challenge ("now implement it fast"), making the two platforms
+naturally feeds a forge challenge ("now implement it fast"), making the two platforms
 a pipeline from open problem to proven theorem to production-grade verified code.

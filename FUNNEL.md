@@ -376,16 +376,16 @@ machinery is the same two tools, applied harder:
 Definition sorries carry longer reading windows and the strongest expectation of
 convergence evidence, proportional to their blast radius.
 
-## Application to Satoshi's Anvil
+## Application to the forge
 
-The funnel applies unchanged to [Anvil](ANVIL.md) challenges, where the fidelity
+The funnel applies unchanged to [forge](FORGE.md) challenges, where the fidelity
 question is "does this Lean spec capture the intended behavior?" (e.g. does this
-formalization actually match RFC 8439). Anvil's equivalents:
+formalization actually match RFC 8439). The forge's equivalents:
 
 - Statement sorries become **spec-authoring bounties**; candidate specs run
   differential tests against reference implementations during the reading window -
   an executable-spec certificate unavailable to pure mathematics.
-- The bounty rule is Anvil's spec-bug policy: a challenge pool pays for the pinned
+- The bounty rule is the forge's spec-bug policy: a challenge pool pays for the pinned
   executable spec exactly as written, so an implementation that wins by exploiting
   a spec bug is paid, the bug becomes public, and supersession marks point the
   spec at its corrected successor - the sponsor funded the wording they endorsed.

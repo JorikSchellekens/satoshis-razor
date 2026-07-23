@@ -173,7 +173,7 @@ fn remote_allowed(event: &Event) -> Result<(), &'static str> {
         | Event::Curate { .. } | Event::Supersede { .. } | Event::Fund { .. }
         | Event::RegisterAccount { .. } | Event::Commit { .. } | Event::Split { .. }
         | Event::Tag { .. } => Ok(()),
-        // The anvil. A challenge, a lane, and a rig are statements of
+        // The forge. A challenge, a lane, and a rig are statements of
         // intent; a score is a physical measurement no server can re-run,
         // so it must name a registered rig and carry the rig owner's
         // signature - the score's trust model is exactly its rig's.
@@ -364,7 +364,7 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
                 return no("an entry with this implementation name already exists on the challenge");
             }
             if !sane_id(impl_name) { return no("impl name: letters, digits, dashes, up to 64 chars"); }
-            if solver.trim().is_empty() { return no("anvil-submit needs --solver"); }
+            if solver.trim().is_empty() { return no("forge-submit needs --solver"); }
             if let Some(h) = refinement_sorry {
                 if !state.sorries.contains_key(h) { return no("unknown refinement sorry - register it first"); }
             }
@@ -387,7 +387,7 @@ fn validate(state: &State, event: &Event, attachments: Option<&serde_json::Value
             }
             let found = state.challenges.values()
                 .find_map(|c| c.entries.iter().find(|e| e.id == *submission).map(|e| (c, e)));
-            let Some((chal, entry)) = found else { return no("unknown anvil submission") };
+            let Some((chal, entry)) = found else { return no("unknown forge submission") };
             if !entry.admitted && !entry.is_reference {
                 return no("this lane is not admitted yet - its refinement proof must verify first");
             }

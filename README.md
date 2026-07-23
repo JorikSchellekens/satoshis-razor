@@ -85,7 +85,7 @@ To work entirely on your machine instead, run `razor remote off`, or add
   (`FermatLastTheorem`, Mathlib's own statement), the Erdos-Straus
   conjecture, and the Erdos-Turan conjecture on additive bases. The other
   pinned sorries today are machinery exercised for real rather than new
-  mathematics: FLT reduction variants and split glue, the anvil's
+  mathematics: FLT reduction variants and split glue, the forge's
   refinement obligations, and a few audit fixtures tagged `test-data`.
 - 975 catalogued theorems with no Lean formalization, imported from the
   [1000+ theorems list](https://1000-plus.github.io/) (snapshot dated
@@ -146,10 +146,11 @@ To work entirely on your machine instead, run `razor remote off`, or add
   included - so the risk that the statement was badly worded stays with the
   funder, who could see the recorded evidence before spending. Nothing
   about stating, solving, or building on a sorry requires credits.
-- **The Anvil.** The same machinery applied to programs: the specification
+- **The forge.** The same machinery applied to programs: the specification
   is formal, submissions are implementations with a proof that they refine
   the specification, and accepted implementations compete on measured
-  speed. See [ANVIL.md](ANVIL.md).
+  speed - so the fastest program on each board is the fastest program
+  known to be correct. See [FORGE.md](FORGE.md).
 
 ## Layout
 
@@ -160,7 +161,7 @@ To work entirely on your machine instead, run `razor remote off`, or add
 | `lean/` | the dependency-free core environment (glue proofs, demos) |
 | `ingest/` | catalogue ingestion (1000+ theorems snapshot + fetcher) |
 | `zk/` | Groth16 prover/verifier for zero-knowledge routes |
-| `anvil/` | challenge specs, implementations, fuel + native harness |
+| `anvil/` | the forge: challenge specs, implementations, fuel + native harness |
 | `site/` | the site at razor.mempoolsurfer.com, computed from the log |
 
 ## Contributing

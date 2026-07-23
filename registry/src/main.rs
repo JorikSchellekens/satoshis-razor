@@ -119,7 +119,9 @@ fn main() {
             iters: req(&args, "--iters").parse().expect("--iters"),
             by: req(&args, "--author"),
         }),
-        "anvil-submit" => append(&log_path, Event::AnvilSubmit {
+        // "anvil-submit" is the pre-rename spelling; the log event keeps
+        // that name forever, so the alias costs nothing.
+        "forge-submit" | "anvil-submit" => append(&log_path, Event::AnvilSubmit {
             id: req(&args, "--id"), challenge: req(&args, "--challenge"),
             impl_name: req(&args, "--impl"), solver: req(&args, "--solver"),
             proof_decl: opt(&args, "--proof-decl").unwrap_or_default(),
@@ -290,10 +292,10 @@ fn print_help(cmd: &str) {
             ("zk-submit", "submit a proof of knowledge - the witness stays home"),
             ("zk-verify", "check a zk submission against its route's key"),
         ]),
-        ("the anvil", &[
+        ("the forge", &[
             ("challenge", "open a verified-performance competition (pins its benchmark workload)"),
             ("workload", "pin the workload of a challenge registered before pins existed"),
-            ("anvil-submit", "enter an implementation with its refinement proof"),
+            ("forge-submit", "enter an implementation with its refinement proof"),
             ("bench", "fuel-metered and native leaderboard runs, at the pinned workload"),
             ("rig", "register hardware you bring to the boards (--runner runs the harness through a command, e.g. a Docker container)"),
         ]),
@@ -483,7 +485,7 @@ fn cmd_profile(log_path: &PathBuf, handle: &str) {
     }
     if !p.lanes.is_empty() {
         println!();
-        println!("     {}", ui::dim("anvil lanes"));
+        println!("     {}", ui::dim("forge lanes"));
         for (ch, imp, board, score, unit, leader) in &p.lanes {
             println!("       {} {ch} {}  {}  {} {unit}",
                 if *leader { ui::gold("♛") } else { " ".into() },
@@ -1872,7 +1874,7 @@ fn cmd_status(log_path: &PathBuf) {
             }
         }
     }
-    ui::section("anvil", Some(state.challenges.len()));
+    ui::section("forge", Some(state.challenges.len()));
     print_leaderboards(&state, None);
     if !state.curations.is_empty() {
         ui::section("curations", Some(state.curations.len()));
@@ -2052,7 +2054,7 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
             "/" => Some(("index.html", None)),
             "/frontier" => Some(("frontier.html", None)),
             "/how" => Some(("how.html", None)),
-            "/anvil" => Some(("anvil.html", None)),
+            "/forge" => Some(("forge.html", None)),
             "/zk" => Some(("zk.html", None)),
             "/people" => Some(("people.html", None)),
             "/get-started" => Some(("download.html", None)),
@@ -2089,7 +2091,8 @@ fn cmd_serve(root: &PathBuf, log_path: &PathBuf, host: &str, port: u16) {
             "/index.html" => Some("/".to_string()),
             "/frontier.html" => Some("/frontier".into()),
             "/how.html" => Some("/how".into()),
-            "/anvil.html" => Some("/anvil".into()),
+            // "the anvil" was the forge's pre-rename name; old links keep working.
+            "/anvil" | "/anvil.html" => Some("/forge".into()),
             "/zk.html" => Some("/zk".into()),
             "/people.html" => Some("/people".into()),
             "/download.html" => Some("/get-started".into()),
@@ -2614,10 +2617,10 @@ const REMOTE_CMDS: &[&str] = &[
     "propose", "formalize", "seal-statement", "reveal-statement", "round", "bridge",
     "sorry", "split", "curate", "tag", "supersede", "fund", "commit", "submit", "verify",
     "account", "status", "profile", "cite", "verify-log", "log", "recheck",
-    // The anvil: challenges, lanes, rigs, and scores are ordinary log events.
+    // The forge: challenges, lanes, rigs, and scores are ordinary log events.
     // Measurements happen on the rig owner's machine; what the remote gets is
     // the signed score event - exactly the trust model rigs declare.
-    "challenge", "anvil-submit", "rig", "bench", "workload",
+    "challenge", "forge-submit", "anvil-submit", "rig", "bench", "workload",
 ];
 
 /// Commands the remote refuses (they assert kernel facts without a check,
@@ -2925,7 +2928,10 @@ const CMD_SPECS: &[CmdSpec] = &[
         flags: &["--id", "--title", "--spec-impl", "--obligation", "--iters", "--seed"] },
     CmdSpec { name: "workload", usage: "razor workload --challenge C --iters N --author A [--seed S]",
         flags: &["--challenge", "--iters", "--seed", "--author"] },
-    CmdSpec { name: "anvil-submit", usage: "razor anvil-submit --id A --challenge C --impl I --solver S [--proof-decl D --refinement-sorry H]",
+    CmdSpec { name: "forge-submit", usage: "razor forge-submit --id A --challenge C --impl I --solver S [--proof-decl D --refinement-sorry H]",
+        flags: &["--id", "--challenge", "--impl", "--solver", "--proof-decl", "--refinement-sorry"] },
+    // Pre-rename alias of forge-submit; kept so scripts and muscle memory work.
+    CmdSpec { name: "anvil-submit", usage: "razor forge-submit --id A --challenge C --impl I --solver S [--proof-decl D --refinement-sorry H]",
         flags: &["--id", "--challenge", "--impl", "--solver", "--proof-decl", "--refinement-sorry"] },
     CmdSpec { name: "curate", usage: "razor curate --curator A --target ID [--note N]",
         flags: &["--curator", "--target", "--note"] },

@@ -1,4 +1,4 @@
-// Shared code for the anvil pages: lane colors, board grouping, champions,
+// Shared code for the forge pages: lane colors, board grouping, champions,
 // and the score-over-time charts. Loaded after razor.js.
 
 // Styles owned by this module (the record line in the charts).

@@ -632,7 +632,7 @@ pub struct Person {
     pub account: Option<Account>,
     pub first_seen: Option<u64>, // event seq
     /// (seq, submission id, sorry/challenge, kind, outcome) - kind is
-    /// "proof" | "zk" | "anvil" | "commit"; outcome "admitted" | "rejected" | "pending" | "sealed".
+    /// "proof" | "zk" | "forge" | "commit"; outcome "admitted" | "rejected" | "pending" | "sealed".
     pub submissions: Vec<(u64, String, String, String, String)>,
     pub solved: u64,
     pub rejected: u64,
@@ -1063,7 +1063,7 @@ impl State {
                 Event::AnvilSubmit { id, challenge, solver, impl_name, .. } => {
                     touch(&mut people, solver, seq);
                     people.get_mut(solver).unwrap().submissions.push(
-                        (seq, id.clone(), format!("{challenge} ({impl_name})"), "anvil".into(), "pending".into()));
+                        (seq, id.clone(), format!("{challenge} ({impl_name})"), "forge".into(), "pending".into()));
                 }
                 Event::Verdict { submission, admitted, .. } => {
                     for p in people.values_mut() {

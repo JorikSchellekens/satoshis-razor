@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Get started — Satoshi's Razor</title>
-<meta name="description" content="Install the registry toolchain, then pick a path: solve a sorry, propose or formalize a problem, or benchmark on the anvil.">
+<meta name="description" content="Install the registry toolchain, then pick a path: solve a sorry, propose or formalize a problem, or benchmark in the forge.">
 <meta property="og:title" content="Get started — Satoshi's Razor">
-<meta property="og:description" content="Install the registry toolchain, then pick a path: solve a sorry, propose or formalize a problem, or benchmark on the anvil.">
+<meta property="og:description" content="Install the registry toolchain, then pick a path: solve a sorry, propose or formalize a problem, or benchmark in the forge.">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/razor.css">
@@ -111,14 +111,14 @@ razor sorry --id YOUR-1 --title "..." --lean-type "..." \
 
 <section>
   <div class="wrap">
-    <div class="sec-head"><h3>Path 3 · Benchmark on the anvil</h3><span class="note">proven-correct programs, ranked by measured speed</span></div>
+    <div class="sec-head"><h3>Path 3 · Take a record in the forge</h3><span class="note">proven-correct programs, ranked by measured speed</span></div>
     <div class="prose">
       <p>Write a faster implementation of a challenge spec in <code>anvil/impls/</code>, hand-translate
       it to a Lean model in <code>lean/Razor/Anvil/</code>, prove it refines the executable spec, then
-      submit and bench. Your lane appears on <a href="/anvil">the leaderboards</a> next to its
+      submit and bench. Your lane appears on <a href="/forge">the leaderboards</a> next to its
       proof.</p>
       <div class="codeblock"><span class="c"># e.g. against ANV-001 (popcount): pin your refinement proof as a sorry, then enter</span>
-razor anvil-submit --id ANV-001-you --challenge ANV-001 --impl your-impl \
+razor forge-submit --id ANV-001-you --challenge ANV-001 --impl your-impl \
   --solver you --proof-decl Your.refines --refinement-sorry YOUR-PROOF-SORRY
 razor bench --challenge ANV-001 --rig your-rig</div>
     </div>

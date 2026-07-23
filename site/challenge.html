@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Challenge — Satoshi's Razor</title>
-<meta name="description" content="One anvil challenge: its specification, every competing lane with its admission proof, each rig's leaderboard, and progress over time.">
+<meta name="description" content="One forge challenge: its specification, every competing lane with its admission proof, each rig's leaderboard, and progress over time.">
 <meta property="og:title" content="Challenge — Satoshi's Razor">
-<meta property="og:description" content="One anvil challenge: its specification, every competing lane with its admission proof, each rig's leaderboard, and progress over time.">
+<meta property="og:description" content="One forge challenge: its specification, every competing lane with its admission proof, each rig's leaderboard, and progress over time.">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/razor.css">
@@ -21,7 +21,7 @@
 </header>
 
 <div class="pagehead wrap detail-head">
-  <div class="row1"><a class="backlink" href="/anvil">← the anvil</a></div>
+  <div class="row1"><a class="backlink" href="/forge">← the forge</a></div>
   <div class="row1" id="chips"></div>
   <h2 id="title">Challenge</h2>
   <p class="lede" id="lede"></p>
@@ -65,13 +65,13 @@
 
 <footer>
   <div class="wrap">
-    <span>To enter a lane: write an implementation, prove it matches the specification, then <code>razor anvil-submit</code> and <code>razor bench --rig</code>.</span>
+    <span>To enter a lane: write an implementation, prove it matches the specification, then <code>razor forge-submit</code> and <code>razor bench --rig</code>.</span>
     <span class="right"><a href="/get-started">get started</a></span>
   </div>
 </footer>
 
 <script src="/razor.js"></script>
-<script src="/anvil.js"></script>
+<script src="/forge.js"></script>
 <script>
 loadData(S => {
   const c = S.challenges[qid()];
