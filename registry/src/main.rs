@@ -218,7 +218,7 @@ fn main() {
         "bench" => cmd_bench(&root, &log_path, &req(&args, "--challenge"),
             opt(&args, "--seed").map(|s| s.parse().expect("--seed")),
             opt(&args, "--iters").map(|s| s.parse().expect("--iters")),
-            opt(&args, "--rig")),
+            opt(&args, "--rig"), opt(&args, "--impl")),
         "account" => cmd_account(&root, &log_path, &args),
         "profile" => cmd_profile(&log_path, args.get(1).map(String::as_str).unwrap_or("")),
         "status" => cmd_status(&log_path),
@@ -1564,7 +1564,7 @@ fn cmd_export_benchmark(log_path: &PathBuf, args: &[String]) {
     }
 }
 
-fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed_flag: Option<u64>, iters_flag: Option<u64>, rig_id: Option<String>) {
+fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed_flag: Option<u64>, iters_flag: Option<u64>, rig_id: Option<String>, impl_filter: Option<String>) {
     let mut state = State::fold(load(log_path));
     state.settle_admissions();
     // With --rig, run only that rig's tier and stamp its arch and id on the
@@ -1603,7 +1603,15 @@ fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed_flag: 
         None => (seed_flag.unwrap_or(0xC0FFEE), iters_flag.unwrap_or(10_000)),
     };
     let harness = root.join("target/release/anvil-harness");
-    for entry in ch.entries.iter().filter(|e| e.admitted) {
+    // --impl re-benches one lane (e.g. after a rate-limited rig dropped
+    // it) without re-scoring the whole board.
+    if let Some(f) = &impl_filter {
+        if !ch.entries.iter().any(|e| e.admitted && &e.impl_name == f) {
+            ui::die(&format!("no admitted lane with impl `{f}` on {challenge_id}"));
+        }
+    }
+    for entry in ch.entries.iter().filter(|e| e.admitted
+        && impl_filter.as_ref().is_none_or(|f| f == &e.impl_name)) {
         // A lane compiled into the harness has its wasm build under
         // target/; an external lane (anvil/lanes/<name>/lane.json) may
         // ship its own wasm artifact next to its manifest instead.
@@ -1616,12 +1624,20 @@ fn cmd_bench(root: &PathBuf, log_path: &PathBuf, challenge_id: &str, seed_flag: 
             entry.impl_name.replace('-', "_")
         )));
         // Differential certificate first: an impl that disagrees with the
-        // executable spec never gets a score (belt and braces on top of the proof).
-        let check = run_json(&harness, &["check", "--impl", &entry.impl_name, "--seed", &seed.to_string(), "--iters", &iters.to_string()]);
+        // executable spec never gets a score (belt and braces on top of the
+        // proof). It runs where the measurement will run - through the
+        // rig's runner if it has one - so a lane needing hardware this
+        // host lacks (BMI2, a GPU) still checks and scores on a rig that
+        // has it.
+        let check_args = ["check", "--impl", &entry.impl_name, "--seed", &seed.to_string(), "--iters", &iters.to_string()];
+        let check = match rig.as_ref().filter(|r| !r.runner.is_empty()) {
+            Some(r) => run_json_via(&r.runner, &check_args),
+            None => run_json(&harness, &check_args),
+        };
         if let Some(why) = check.get("skip").and_then(|v| v.as_str()) {
             // The lane cannot run in this environment at all (a GPU lane on
             // a machine with no GPU): not a failure, just not measurable here.
-            eprintln!("  {} {} not measurable on this machine: {why}", ui::gold("⚠"), entry.impl_name);
+            eprintln!("  {} {} not measurable on this rig: {why}", ui::gold("⚠"), entry.impl_name);
             continue;
         }
         if check.get("pass") != Some(&serde_json::Value::Bool(true)) {
@@ -2841,7 +2857,9 @@ fn run_json_via(runner: &str, args: &[&str]) -> serde_json::Value {
         .args(args)
         .output()
         .unwrap_or_else(|e| ui::die(&format!("cannot run rig runner `{runner}`: {e}")));
-    if !out.status.success() {
+    // `check` exits nonzero on a differential mismatch but still prints
+    // its JSON verdict - let the caller report that, like run_json does.
+    if !out.status.success() && args.first() != Some(&"check") {
         eprintln!("{} rig runner failed: {}", ui::red("✕"), String::from_utf8_lossy(&out.stderr));
         std::process::exit(1);
     }
@@ -2936,8 +2954,8 @@ const CMD_SPECS: &[CmdSpec] = &[
         flags: &["--sorry", "--out", "--pr", "--by", "--note"] },
     CmdSpec { name: "export-benchmark", usage: "razor export-benchmark [--out F.jsonl --all]",
         flags: &["--out"] },
-    CmdSpec { name: "bench", usage: "razor bench --challenge C [--seed N --iters N --rig R]",
-        flags: &["--challenge", "--seed", "--iters", "--rig"] },
+    CmdSpec { name: "bench", usage: "razor bench --challenge C [--seed N --iters N --rig R --impl I]",
+        flags: &["--challenge", "--seed", "--iters", "--rig", "--impl"] },
     CmdSpec { name: "account", usage: "razor account <new|list> [--handle H --display D --about A --github G --sigil S]",
         flags: &["--handle", "--display", "--about", "--github", "--sigil"] },
     CmdSpec { name: "corpus", usage: "razor corpus --id C --name N --url U --source S --as-of DATE [--stat k=v ... --note N]",
